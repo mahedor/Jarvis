@@ -1,10 +1,12 @@
 """
-Jarvis Phase 1 — Demo v2 (Web UI + TTS)
-=========================================
-A browser-based Jarvis interface with voice output.
+Jarvis Phase 1 — Demo v2 (Web UI + Streaming TTS)
+====================================================
+A browser-based Jarvis interface with STREAMING voice output.
+Claude's response is streamed token-by-token, split on sentence
+boundaries, and each sentence is sent to TTS immediately.
 
 Setup:
-  pip install anthropic flask python-dotenv pyttsx3
+  pip install anthropic flask python-dotenv edge-tts pygame
   python jarvis_web.py
   Open http://localhost:5000 in your browser
 """
@@ -23,30 +25,23 @@ try:
     from flask import Flask, request, jsonify, render_template_string
 except ImportError:
     print("\n❌ Missing packages. Run:")
-    print("   pip install anthropic flask python-dotenv pyttsx3")
+    print("   pip install anthropic flask python-dotenv edge-tts pygame")
     print("   Then try again.\n")
     exit(1)
 
 # ─── TTS Setup ─────────────────────────────────────────────────
-# Uses Microsoft Edge's neural TTS voices via the edge-tts package.
-# These are cloud-based neural voices — much more natural than SAPI.
-# No API key needed. Requires internet connection.
-# Playback via pygame.mixer (reliable cross-platform mp3 playback).
-import subprocess
-import sys
+# Uses Microsoft Edge's neural TTS voices — fast, no API key needed.
+# Strategy: stream Claude's response (fast text), then ONE TTS call
+# for the full response (no sentence splitting = no gaps, natural flow).
+import asyncio
 import tempfile
 
 tts_enabled = True
 TTS_AVAILABLE = False
 
-# Voice options (pick one):
-# Male:   "en-US-GuyNeural"    — casual, warm (good Jarvis voice)
-#         "en-US-AndrewNeural" — authoritative, clear
-#         "en-GB-RyanNeural"   — British male (very Jarvis-like)
-#         "en-GB-ThomasNeural"   — another British male
-# Female: "en-US-JennyNeural"  — friendly, natural
-#         "en-US-AriaNeural"   — expressive, warm
-TTS_VOICE = "en-GB-RyanNeural"  # British male = closest to MCU Jarvis
+# Voice — swap this to try different voices
+TTS_VOICE = "en-GB-RyanNeural"
+TTS_RATE = "+10%"  # Slightly faster for snappier assistant feel
 
 try:
     import edge_tts
@@ -59,35 +54,26 @@ except ImportError as e:
 
 
 def speak(text):
-    """Speak text using Edge TTS neural voices in a background thread."""
-    if not TTS_AVAILABLE or not tts_enabled:
+    """Generate and play TTS for the full text in a background thread."""
+    if not TTS_AVAILABLE or not tts_enabled or not text.strip():
         return
 
     def _speak():
         try:
-            # Create a temp file for the audio
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
                 tmp_path = f.name
 
-            # Generate speech audio using python -m edge_tts
-            subprocess.run(
-                [
-                    sys.executable, "-m", "edge_tts",
-                    "--voice", TTS_VOICE,
-                    "--rate", "+5%",
-                    "--text", text,
-                    "--write-media", tmp_path,
-                ],
-                capture_output=True, timeout=15
-            )
+            # Direct async API call — no subprocess, no CLI overhead
+            async def _gen():
+                communicate = edge_tts.Communicate(text, TTS_VOICE, rate=TTS_RATE)
+                await communicate.save(tmp_path)
 
-            # Play the mp3 using pygame
+            asyncio.run(_gen())
+
             pygame.mixer.music.load(tmp_path)
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy():
-                pygame.time.wait(100)
-
-            # Clean up
+                pygame.time.wait(50)
             pygame.mixer.music.unload()
             os.unlink(tmp_path)
 
@@ -671,31 +657,32 @@ def chat():
         conversation_history = conversation_history[-20:]
 
     try:
-        # Build system prompt with CURRENT device states
-        # This is the key insight: every time you send a message,
-        # the orchestrator injects fresh device state into the prompt.
-        # In production, this would query Home Assistant's API.
         current_prompt = build_system_prompt()
 
-        response = client.messages.create(
+        # Stream Claude's response — gets us the full text faster
+        # than waiting for a single blocking call
+        full_response = ""
+
+        with client.messages.stream(
             model="claude-sonnet-4-20250514",
             max_tokens=300,
             system=current_prompt,
             messages=conversation_history,
-        )
+        ) as stream:
+            for text_chunk in stream.text_stream:
+                full_response += text_chunk
 
-        full_response = response.content[0].text
+        # Parse and clean
         actions = parse_actions(full_response)
         spoken_response = clean_response(full_response)
 
-        # Update local device states based on actions
         for action in actions:
             update_device_state(action)
 
         conversation_history.append({"role": "assistant", "content": full_response})
         log_interaction(user_message, spoken_response, actions)
 
-        # Speak the response through PC speakers
+        # ONE TTS call for the full response — no gaps, natural flow
         speak(spoken_response)
 
         return jsonify({
