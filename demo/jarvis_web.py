@@ -154,6 +154,11 @@ HTML_TEMPLATE = """
 <title>J.A.R.V.I.S.</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --accent: #7c3aed;
+    --accent-rgb: 124, 58, 237;
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
@@ -163,11 +168,21 @@ HTML_TEMPLATE = """
     height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
+
+  /* Style all scrollbars to match the aesthetic */
+  ::-webkit-scrollbar { width: 4px; height: 0; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
   .header {
     padding: 24px 32px 16px;
     border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
   }
 
   .header h1 {
@@ -176,7 +191,7 @@ HTML_TEMPLATE = """
     font-size: 14px;
     letter-spacing: 6px;
     text-transform: uppercase;
-    color: #4a9eff;
+    color: var(--accent);
   }
 
   .header p {
@@ -184,6 +199,60 @@ HTML_TEMPLATE = """
     color: #555;
     margin-top: 4px;
   }
+
+  .theme-picker {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding-top: 6px;
+    position: relative;
+  }
+
+  .theme-trigger {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: var(--accent);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .theme-trigger:hover { border-color: rgba(255,255,255,0.5); }
+
+  .theme-tray {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    max-width: 0;
+    opacity: 0;
+    transition: max-width 0.3s ease, opacity 0.2s ease, padding 0.3s ease;
+    padding-left: 0;
+    overflow: visible;
+    clip-path: inset(0 100% 0 0);
+  }
+
+  .theme-picker:hover .theme-tray {
+    max-width: 200px;
+    opacity: 1;
+    padding-left: 10px;
+    clip-path: inset(-4px 0 -4px 0);
+  }
+
+  .theme-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    transition: all 0.15s;
+    opacity: 0.6;
+    flex-shrink: 0;
+  }
+
+  .theme-dot:hover { opacity: 1; transform: scale(1.4); }
+  .theme-dot.active { opacity: 1; border-color: rgba(255,255,255,0.5); }
 
   .status-bar {
     display: flex;
@@ -223,9 +292,9 @@ HTML_TEMPLATE = """
   }
 
   .device-chip.on {
-    border-color: rgba(74, 158, 255, 0.4);
-    color: #4a9eff;
-    background: rgba(74, 158, 255, 0.08);
+    border-color: rgba(var(--accent-rgb), 0.4);
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
   }
 
   .chat-area {
@@ -246,8 +315,8 @@ HTML_TEMPLATE = """
 
   .message.user {
     align-self: flex-end;
-    background: rgba(74, 158, 255, 0.12);
-    border: 1px solid rgba(74, 158, 255, 0.2);
+    background: rgba(var(--accent-rgb), 0.12);
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
     border-radius: 16px 16px 4px 16px;
     padding: 12px 18px;
     font-size: 14px;
@@ -263,7 +332,7 @@ HTML_TEMPLATE = """
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
     letter-spacing: 2px;
-    color: #4a9eff;
+    color: var(--accent);
     text-transform: uppercase;
     margin-bottom: 6px;
   }
@@ -315,14 +384,14 @@ HTML_TEMPLATE = """
   }
 
   .input-row input:focus {
-    border-color: rgba(74, 158, 255, 0.5);
+    border-color: rgba(var(--accent-rgb), 0.5);
   }
 
   .input-row input::placeholder { color: #333; }
 
   .input-row button {
     background: transparent;
-    border: 1px solid rgba(74, 158, 255, 0.4);
+    border: 1px solid rgba(var(--accent-rgb), 0.4);
     border-radius: 12px;
     padding: 14px 24px;
     font-family: 'JetBrains Mono', monospace;
@@ -330,19 +399,19 @@ HTML_TEMPLATE = """
     font-weight: 400;
     letter-spacing: 2px;
     text-transform: uppercase;
-    color: #4a9eff;
+    color: var(--accent);
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
   }
 
-  .input-row button:hover { background: rgba(74, 158, 255, 0.1); border-color: rgba(74, 158, 255, 0.6); }
+  .input-row button:hover { background: rgba(var(--accent-rgb), 0.1); border-color: rgba(var(--accent-rgb), 0.6); }
   .input-row button:active { transform: scale(0.97); }
   .input-row button:disabled { background: transparent; border-color: rgba(255,255,255,0.08); color: #444; cursor: not-allowed; }
 
   .mic-btn {
     background: transparent;
-    border: 1px solid rgba(74, 158, 255, 0.4);
+    border: 1px solid rgba(var(--accent-rgb), 0.4);
     border-radius: 12px;
     padding: 12px;
     cursor: pointer;
@@ -352,7 +421,7 @@ HTML_TEMPLATE = """
     justify-content: center;
   }
 
-  .mic-btn:hover { background: rgba(74, 158, 255, 0.1); border-color: rgba(74, 158, 255, 0.6); }
+  .mic-btn:hover { background: rgba(var(--accent-rgb), 0.1); border-color: rgba(var(--accent-rgb), 0.6); }
 
   .mic-btn.recording {
     border-color: #e24b4a;
@@ -381,7 +450,7 @@ HTML_TEMPLATE = """
 
   .typing-indicator .dots span {
     width: 6px; height: 6px; border-radius: 50%;
-    background: #4a9eff;
+    background: var(--accent);
     animation: typing 1.2s ease-in-out infinite;
   }
 
@@ -413,8 +482,8 @@ HTML_TEMPLATE = """
   }
 
   .suggestion:hover {
-    border-color: rgba(74, 158, 255, 0.3);
-    color: #4a9eff;
+    border-color: rgba(var(--accent-rgb), 0.3);
+    color: var(--accent);
   }
 
   .tts-toggle {
@@ -442,8 +511,21 @@ HTML_TEMPLATE = """
 <body>
 
 <div class="header">
-  <h1>J.A.R.V.I.S.</h1>
-  <p>Just A Rather Very Intelligent System — Phase 1 Demo</p>
+  <div>
+    <h1>J.A.R.V.I.S.</h1>
+    <p>Just A Rather Very Intelligent System — Phase 1 Demo</p>
+  </div>
+  <div class="theme-picker">
+    <div class="theme-trigger" id="theme-trigger"></div>
+    <div class="theme-tray">
+      <div class="theme-dot" style="background:#4a9eff" onclick="setTheme('#4a9eff','74,158,255',this)"></div>
+      <div class="theme-dot" style="background:#00e5c8" onclick="setTheme('#00e5c8','0,229,200',this)"></div>
+      <div class="theme-dot active" style="background:#7c3aed" onclick="setTheme('#7c3aed','124,58,237',this)"></div>
+      <div class="theme-dot" style="background:#f59e0b" onclick="setTheme('#f59e0b','245,158,11',this)"></div>
+      <div class="theme-dot" style="background:#ef4444" onclick="setTheme('#ef4444','239,68,68',this)"></div>
+      <div class="theme-dot" style="background:#22c55e" onclick="setTheme('#22c55e','34,197,94',this)"></div>
+    </div>
+  </div>
 </div>
 
 <div class="status-bar">
@@ -474,7 +556,7 @@ HTML_TEMPLATE = """
 <div class="input-area">
   <div class="input-row">
     <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
-      <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="1" width="6" height="12" rx="3"/>
         <path d="M19 10v1a7 7 0 01-14 0v-1"/>
         <line x1="12" y1="19" x2="12" y2="23"/>
@@ -498,6 +580,19 @@ const input = document.getElementById('input');
 const typing = document.getElementById('typing');
 const sendBtn = document.getElementById('send');
 const suggestions = document.getElementById('suggestions');
+
+// ─── Theme Switching ───────────────────────────────────
+let currentAccent = '#7c3aed';
+
+function setTheme(hex, rgb, dot) {
+  currentAccent = hex;
+  document.documentElement.style.setProperty('--accent', hex);
+  document.documentElement.style.setProperty('--accent-rgb', rgb);
+  document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', hex);
+  document.getElementById('theme-trigger').style.background = hex;
+  document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+  if (dot) dot.classList.add('active');
+}
 
 const deviceChipMap = {
   'light.bedroom': 'dev-light-bedroom',
@@ -651,7 +746,7 @@ function startMic() {
 function stopMic() {
   isRecording = false;
   document.getElementById('mic-btn').classList.remove('recording');
-  document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', '#4a9eff');
+  document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', currentAccent);
   input.placeholder = 'Talk to Jarvis or click the mic...';
   try { recognition.stop(); } catch(e) {}
 }
