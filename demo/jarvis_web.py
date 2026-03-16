@@ -321,22 +321,53 @@ HTML_TEMPLATE = """
   .input-row input::placeholder { color: #333; }
 
   .input-row button {
-    background: #4a9eff;
-    border: none;
+    background: transparent;
+    border: 1px solid rgba(74, 158, 255, 0.4);
     border-radius: 12px;
     padding: 14px 24px;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #4a9eff;
     cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
+    transition: all 0.15s;
     white-space: nowrap;
   }
 
-  .input-row button:hover { background: #3a8eef; }
+  .input-row button:hover { background: rgba(74, 158, 255, 0.1); border-color: rgba(74, 158, 255, 0.6); }
   .input-row button:active { transform: scale(0.97); }
-  .input-row button:disabled { background: #222; color: #444; cursor: not-allowed; }
+  .input-row button:disabled { background: transparent; border-color: rgba(255,255,255,0.08); color: #444; cursor: not-allowed; }
+
+  .mic-btn {
+    background: transparent;
+    border: 1px solid rgba(74, 158, 255, 0.4);
+    border-radius: 12px;
+    padding: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mic-btn:hover { background: rgba(74, 158, 255, 0.1); border-color: rgba(74, 158, 255, 0.6); }
+
+  .mic-btn.recording {
+    border-color: #e24b4a;
+    background: rgba(226, 75, 74, 0.1);
+    animation: mic-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(226, 75, 74, 0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(226, 75, 74, 0); }
+  }
+
+  .mic-icon { width: 20px; height: 20px; }
+
+  .input-row input { min-width: 0; }
 
   .typing-indicator {
     display: none;
@@ -442,7 +473,15 @@ HTML_TEMPLATE = """
 
 <div class="input-area">
   <div class="input-row">
-    <input type="text" id="input" placeholder="Talk to Jarvis..." autocomplete="off" />
+    <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
+      <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="#4a9eff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="1" width="6" height="12" rx="3"/>
+        <path d="M19 10v1a7 7 0 01-14 0v-1"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    </button>
+    <input type="text" id="input" placeholder="Talk to Jarvis or click the mic..." autocomplete="off" />
     <button id="send" onclick="sendMessage()">Send</button>
   </div>
   <div class="suggestions" id="suggestions">
@@ -554,6 +593,67 @@ function toggleTTS() {
   const btn = document.getElementById('tts-toggle');
   btn.textContent = 'TTS: ' + (ttsOn ? 'on' : 'off');
   btn.classList.toggle('off', !ttsOn);
+}
+
+// ─── Speech Recognition (mic input) ───────────────────
+// Uses the browser's built-in SpeechRecognition API.
+// Click the mic → speak → text appears → auto-sends to Jarvis.
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let isRecording = false;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event) => {
+    let transcript = '';
+    let isFinal = false;
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+      if (event.results[i].isFinal) isFinal = true;
+    }
+    input.value = transcript;
+    if (isFinal) {
+      stopMic();
+      sendMessage();
+    }
+  };
+
+  recognition.onend = () => { stopMic(); };
+  recognition.onerror = (e) => {
+    console.log('Speech recognition error:', e.error);
+    stopMic();
+  };
+}
+
+function toggleMic() {
+  if (isRecording) { stopMic(); }
+  else { startMic(); }
+}
+
+function startMic() {
+  if (!recognition) {
+    alert('Speech recognition not supported in this browser. Try Edge or Chrome.');
+    return;
+  }
+  // Stop any TTS that's playing so mic doesn't pick it up
+  speechSynthesis.cancel();
+  isRecording = true;
+  document.getElementById('mic-btn').classList.add('recording');
+  document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', '#e24b4a');
+  input.placeholder = 'Listening...';
+  recognition.start();
+}
+
+function stopMic() {
+  isRecording = false;
+  document.getElementById('mic-btn').classList.remove('recording');
+  document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', '#4a9eff');
+  input.placeholder = 'Talk to Jarvis or click the mic...';
+  try { recognition.stop(); } catch(e) {}
 }
 
 // ─── Chat ──────────────────────────────────────────────
