@@ -41,7 +41,7 @@ TTS_AVAILABLE = False
 
 # Voice — swap this to try different voices
 TTS_VOICE = "en-GB-RyanNeural"
-TTS_RATE = "+10%"  # Slightly faster for snappier assistant feel
+TTS_RATE = "+0%"  # Slightly faster for snappier assistant feel
 
 try:
     import edge_tts
