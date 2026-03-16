@@ -1,33 +1,78 @@
 """
-Jarvis Phase 1 — Demo v2 (Web UI)
-===================================
-A browser-based Jarvis interface. Looks way cooler than the terminal.
-Run this AFTER you've confirmed the terminal version works.
+Jarvis Phase 1 — Demo v2 (Web UI + TTS)
+=========================================
+A browser-based Jarvis interface with voice output.
 
 Setup:
-  pip install anthropic flask
+  pip install anthropic flask python-dotenv pyttsx3
   python jarvis_web.py
   Open http://localhost:5000 in your browser
-
-This serves a clean chat interface where you can talk to Jarvis
-and see device actions visualized in real-time.
 """
 
 import os
-from dotenv import load_dotenv
-load_dotenv()  # Load environment variables from .env file (if using Option B for API key)
 import json
 import re
+import threading
 from datetime import datetime
+
+from dotenv import load_dotenv
+load_dotenv()
 
 try:
     from anthropic import Anthropic
     from flask import Flask, request, jsonify, render_template_string
 except ImportError:
     print("\n❌ Missing packages. Run:")
-    print("   pip install anthropic flask")
+    print("   pip install anthropic flask python-dotenv pyttsx3")
     print("   Then try again.\n")
     exit(1)
+
+# ─── TTS Setup ─────────────────────────────────────────────────
+# Uses Windows SAPI (Speech API) directly via PowerShell subprocess.
+# This bypasses all pyttsx3 threading bugs — each call is a clean process.
+import subprocess
+
+tts_enabled = True
+TTS_AVAILABLE = False
+
+# Test if Windows SAPI works
+try:
+    subprocess.run(
+        ["powershell", "-Command", "Add-Type -AssemblyName System.Speech"],
+        capture_output=True, timeout=5
+    )
+    TTS_AVAILABLE = True
+    print("  🔊 TTS enabled (Windows SAPI) — Jarvis will speak responses")
+except Exception as e:
+    print(f"  🔇 TTS not available ({e}) — text-only mode")
+
+
+def speak(text):
+    """Speak text through PC speakers using Windows SAPI via PowerShell."""
+    if not TTS_AVAILABLE or not tts_enabled:
+        return
+
+    # Escape single quotes for PowerShell
+    safe_text = text.replace("'", "''")
+
+    ps_command = (
+        "Add-Type -AssemblyName System.Speech; "
+        "$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+        "$synth.Rate = 1; "  # -10 (slow) to 10 (fast), 1 is natural
+        "$synth.Volume = 100; "
+        f"$synth.Speak('{safe_text}')"
+    )
+
+    def _speak():
+        try:
+            subprocess.run(
+                ["powershell", "-Command", ps_command],
+                capture_output=True, timeout=30
+            )
+        except Exception as e:
+            print(f"  TTS error: {e}")
+
+    threading.Thread(target=_speak, daemon=True).start()
 
 # ─── CONFIG ────────────────────────────────────────────────────
 API_KEY = os.getenv("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
@@ -384,6 +429,27 @@ HTML_TEMPLATE = """
     border-color: rgba(74, 158, 255, 0.3);
     color: #4a9eff;
   }
+
+  .tts-toggle {
+    margin-left: auto;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    background: rgba(74, 222, 128, 0.08);
+    color: #4ade80;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tts-toggle:hover { background: rgba(74, 222, 128, 0.15); }
+
+  .tts-toggle.off {
+    border-color: rgba(255,255,255,0.08);
+    background: none;
+    color: #555;
+  }
 </style>
 </head>
 <body>
@@ -396,8 +462,8 @@ HTML_TEMPLATE = """
 <div class="status-bar">
   <div class="status-item"><div class="status-dot active"></div> Orchestrator online</div>
   <div class="status-item"><div class="status-dot"></div> Whisper (not connected)</div>
-  <div class="status-item"><div class="status-dot"></div> Piper (not connected)</div>
   <div class="status-item"><div class="status-dot active"></div> Claude API</div>
+  <button class="tts-toggle" id="tts-toggle" onclick="toggleTTS()">TTS: on</button>
 </div>
 
 <div class="devices-bar" id="devices">
@@ -529,6 +595,14 @@ function useSuggestion(btn) {
   sendMessage();
 }
 
+async function toggleTTS() {
+  const res = await fetch('/tts/toggle', { method: 'POST' });
+  const data = await res.json();
+  const btn = document.getElementById('tts-toggle');
+  btn.textContent = 'TTS: ' + (data.tts_enabled ? 'on' : 'off');
+  btn.classList.toggle('off', !data.tts_enabled);
+}
+
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter') sendMessage();
 });
@@ -586,6 +660,9 @@ def chat():
         conversation_history.append({"role": "assistant", "content": full_response})
         log_interaction(user_message, spoken_response, actions)
 
+        # Speak the response through PC speakers
+        speak(spoken_response)
+
         return jsonify({
             "response": spoken_response,
             "actions": actions,
@@ -621,6 +698,14 @@ def reset():
         if "brightness" in device_states[entity_id]:
             device_states[entity_id]["brightness"] = 0
     return jsonify({"status": "reset", "device_states": device_states})
+
+
+@app.route("/tts/toggle", methods=["POST"])
+def toggle_tts():
+    """Toggle TTS on/off."""
+    global tts_enabled
+    tts_enabled = not tts_enabled
+    return jsonify({"tts_enabled": tts_enabled})
 
 
 if __name__ == "__main__":
