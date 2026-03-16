@@ -14,18 +14,20 @@ This is your FOUNDATION. Everything else builds on top of this.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file (if using Option B for API key)
 import json
 import re
 from datetime import datetime
 
 # ─── CHANGE THIS ──────────────────────────────────────────────
 # Option A: Paste your key directly (fine for local dev, NEVER commit this)
-API_KEY = "YOUR_API_KEY_HERE"
+# API_KEY = "YOUR_API_KEY_HERE"
 
 # Option B (better): Set an environment variable instead
 # In PowerShell:  $env:ANTHROPIC_API_KEY = "sk-ant-..."
 # Then uncomment:
-# API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 # ──────────────────────────────────────────────────────────────
 
 try:

@@ -14,6 +14,8 @@ and see device actions visualized in real-time.
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file (if using Option B for API key)
 import json
 import re
 from datetime import datetime
