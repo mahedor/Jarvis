@@ -1,20 +1,21 @@
 """
-Jarvis Phase 1 — Demo v2 (Web UI + Streaming TTS)
-====================================================
-A browser-based Jarvis interface with STREAMING voice output.
-Claude's response is streamed token-by-token, split on sentence
-boundaries, and each sentence is sent to TTS immediately.
+Jarvis Phase 1 — Demo v2 (Streaming + Browser TTS)
+=====================================================
+Claude's response streams to the browser in real-time.
+Browser speaks each sentence INSTANTLY via Web Speech API.
+No server-side TTS, no file generation, no latency.
+
+Open in Microsoft Edge for the best neural voices.
 
 Setup:
-  pip install anthropic flask python-dotenv edge-tts pygame
+  pip install anthropic flask python-dotenv
   python jarvis_web.py
-  Open http://localhost:5000 in your browser
+  Open http://localhost:5000 in Microsoft Edge
 """
 
 import os
 import json
 import re
-import threading
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -25,62 +26,9 @@ try:
     from flask import Flask, request, jsonify, render_template_string
 except ImportError:
     print("\n❌ Missing packages. Run:")
-    print("   pip install anthropic flask python-dotenv edge-tts pygame")
+    print("   pip install anthropic flask python-dotenv")
     print("   Then try again.\n")
     exit(1)
-
-# ─── TTS Setup ─────────────────────────────────────────────────
-# Uses Microsoft Edge's neural TTS voices — fast, no API key needed.
-# Strategy: stream Claude's response (fast text), then ONE TTS call
-# for the full response (no sentence splitting = no gaps, natural flow).
-import asyncio
-import tempfile
-
-tts_enabled = True
-TTS_AVAILABLE = False
-
-# Voice — swap this to try different voices
-TTS_VOICE = "en-GB-RyanNeural"
-TTS_RATE = "+0%"  # Slightly faster for snappier assistant feel
-
-try:
-    import edge_tts
-    import pygame
-    pygame.mixer.init()
-    TTS_AVAILABLE = True
-    print(f"  🔊 TTS enabled (Edge Neural: {TTS_VOICE}) — Jarvis will speak")
-except ImportError as e:
-    print(f"  🔇 TTS missing package ({e}). Run: pip install edge-tts pygame")
-
-
-def speak(text):
-    """Generate and play TTS for the full text in a background thread."""
-    if not TTS_AVAILABLE or not tts_enabled or not text.strip():
-        return
-
-    def _speak():
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-                tmp_path = f.name
-
-            # Direct async API call — no subprocess, no CLI overhead
-            async def _gen():
-                communicate = edge_tts.Communicate(text, TTS_VOICE, rate=TTS_RATE)
-                await communicate.save(tmp_path)
-
-            asyncio.run(_gen())
-
-            pygame.mixer.music.load(tmp_path)
-            pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():
-                pygame.time.wait(50)
-            pygame.mixer.music.unload()
-            os.unlink(tmp_path)
-
-        except Exception as e:
-            print(f"  TTS error: {e}")
-
-    threading.Thread(target=_speak, daemon=True).start()
 
 # ─── CONFIG ────────────────────────────────────────────────────
 API_KEY = os.getenv("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
@@ -556,9 +504,7 @@ function addMessage(role, text, actions) {
       actions.forEach(a => {
         const card = document.createElement('div');
         card.className = 'action-card';
-        const service = a.service || '';
-        const entity = a.entity_id || '';
-        card.innerHTML = '<span class="bolt">&#9889;</span> ' + service + ' &rarr; ' + entity;
+        card.innerHTML = '<span class="bolt">&#9889;</span> ' + (a.service||'') + ' &rarr; ' + (a.entity_id||'');
         div.appendChild(card);
       });
     }
@@ -566,8 +512,52 @@ function addMessage(role, text, actions) {
 
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
+  return div;
 }
 
+// ─── Browser TTS (Web Speech API) ──────────────────────
+// This is INSTANT — no file generation, no network call.
+// Open in Microsoft Edge for the best neural voices.
+let ttsOn = true;
+let ttsVoice = null;
+
+function initTTS() {
+  const voices = speechSynthesis.getVoices();
+  // Prefer: Microsoft Ryan (Edge), then any British male, then default
+  const prefs = ['ryan', 'george', 'ryanneural'];
+  for (const p of prefs) {
+    const v = voices.find(v => v.name.toLowerCase().includes(p));
+    if (v) { ttsVoice = v; break; }
+  }
+  if (!ttsVoice) {
+    // Fallback to first English voice
+    ttsVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+  }
+}
+
+speechSynthesis.onvoiceschanged = initTTS;
+initTTS();
+
+function speakText(text) {
+  if (!ttsOn || !text.trim()) return;
+  speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  if (ttsVoice) utter.voice = ttsVoice;
+  utter.rate = 1.05;
+  utter.pitch = 0.95;
+  speechSynthesis.speak(utter);
+}
+
+function toggleTTS() {
+  ttsOn = !ttsOn;
+  if (!ttsOn) speechSynthesis.cancel();
+  const btn = document.getElementById('tts-toggle');
+  btn.textContent = 'TTS: ' + (ttsOn ? 'on' : 'off');
+  btn.classList.toggle('off', !ttsOn);
+}
+
+// ─── Chat ──────────────────────────────────────────────
+// Response appears, then browser speaks it INSTANTLY.
 async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
@@ -589,6 +579,9 @@ async function sendMessage() {
     typing.style.display = 'none';
     addMessage('jarvis', data.response, data.actions);
     syncDeviceChips(data.device_states);
+
+    // Speak via browser — INSTANT, no file generation
+    speakText(data.response);
   } catch (err) {
     typing.style.display = 'none';
     addMessage('jarvis', 'Something went wrong. Check that the server is running.');
@@ -603,22 +596,14 @@ function useSuggestion(btn) {
   sendMessage();
 }
 
-async function toggleTTS() {
-  const res = await fetch('/tts/toggle', { method: 'POST' });
-  const data = await res.json();
-  const btn = document.getElementById('tts-toggle');
-  btn.textContent = 'TTS: ' + (data.tts_enabled ? 'on' : 'off');
-  btn.classList.toggle('off', !data.tts_enabled);
-}
-
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter') sendMessage();
 });
 
 input.focus();
 
-// Speak the greeting when page loads
-fetch('/greeting', { method: 'POST' });
+// Greet on page load
+fetch('/greeting', { method: 'POST' }).then(r => r.json()).then(d => speakText(d.text));
 </script>
 </body>
 </html>
@@ -635,13 +620,13 @@ GREETING = "Good evening, Michael. Systems are online. What can I do for you?"
 
 @app.route("/greeting", methods=["POST"])
 def greeting():
-    """Speak the initial greeting when the page loads."""
-    speak(GREETING)
-    return jsonify({"status": "ok"})
+    """Return greeting text — browser handles TTS."""
+    return jsonify({"text": GREETING})
 
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    """Stream Claude internally (faster), return JSON, browser handles TTS."""
     global conversation_history
 
     data = request.json
@@ -651,18 +636,14 @@ def chat():
         return jsonify({"response": "I didn't catch that.", "actions": []})
 
     conversation_history.append({"role": "user", "content": user_message})
-
-    # Keep history manageable
     if len(conversation_history) > 20:
         conversation_history = conversation_history[-20:]
 
     try:
         current_prompt = build_system_prompt()
 
-        # Stream Claude's response — gets us the full text faster
-        # than waiting for a single blocking call
+        # Stream Claude internally — faster than blocking call
         full_response = ""
-
         with client.messages.stream(
             model="claude-sonnet-4-20250514",
             max_tokens=300,
@@ -672,7 +653,6 @@ def chat():
             for text_chunk in stream.text_stream:
                 full_response += text_chunk
 
-        # Parse and clean
         actions = parse_actions(full_response)
         spoken_response = clean_response(full_response)
 
@@ -682,13 +662,10 @@ def chat():
         conversation_history.append({"role": "assistant", "content": full_response})
         log_interaction(user_message, spoken_response, actions)
 
-        # ONE TTS call for the full response — no gaps, natural flow
-        speak(spoken_response)
-
         return jsonify({
             "response": spoken_response,
             "actions": actions,
-            "device_states": device_states,  # Send updated states to frontend
+            "device_states": device_states,
         })
 
     except Exception as e:
@@ -697,22 +674,16 @@ def chat():
 
 @app.route("/health")
 def health():
-    return jsonify({
-        "status": "online",
-        "service": "jarvis_orchestrator",
-        "version": "0.2.0",
-    })
+    return jsonify({"status": "online", "service": "jarvis_orchestrator", "version": "0.2.0"})
 
 
 @app.route("/devices")
 def devices():
-    """Get current state of all devices."""
     return jsonify(device_states)
 
 
 @app.route("/reset", methods=["POST"])
 def reset():
-    """Reset all devices to off/closed and clear conversation."""
     global conversation_history
     conversation_history = []
     for entity_id in device_states:
@@ -720,14 +691,6 @@ def reset():
         if "brightness" in device_states[entity_id]:
             device_states[entity_id]["brightness"] = 0
     return jsonify({"status": "reset", "device_states": device_states})
-
-
-@app.route("/tts/toggle", methods=["POST"])
-def toggle_tts():
-    """Toggle TTS on/off."""
-    global tts_enabled
-    tts_enabled = not tts_enabled
-    return jsonify({"tts_enabled": tts_enabled})
 
 
 if __name__ == "__main__":
@@ -738,9 +701,10 @@ if __name__ == "__main__":
         exit(1)
 
     print()
-    print("=" * 50)
-    print("  J.A.R.V.I.S. — Web Interface")
-    print("  Open http://localhost:5000 in your browser")
-    print("=" * 50)
+    print("=" * 56)
+    print("  J.A.R.V.I.S. — Streaming + Browser TTS")
+    print("  Open http://localhost:5000 in Microsoft Edge")
+    print("  (Edge has the best neural voices)")
+    print("=" * 56)
     print()
     app.run(debug=True, port=5000)
