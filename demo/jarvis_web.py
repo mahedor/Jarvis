@@ -28,47 +28,69 @@ except ImportError:
     exit(1)
 
 # ─── TTS Setup ─────────────────────────────────────────────────
-# Uses Windows SAPI (Speech API) directly via PowerShell subprocess.
-# This bypasses all pyttsx3 threading bugs — each call is a clean process.
+# Uses Microsoft Edge's neural TTS voices via the edge-tts package.
+# These are cloud-based neural voices — much more natural than SAPI.
+# No API key needed. Requires internet connection.
+# Playback via pygame.mixer (reliable cross-platform mp3 playback).
 import subprocess
+import sys
+import tempfile
 
 tts_enabled = True
 TTS_AVAILABLE = False
 
-# Test if Windows SAPI works
+# Voice options (pick one):
+# Male:   "en-US-GuyNeural"    — casual, warm (good Jarvis voice)
+#         "en-US-AndrewNeural" — authoritative, clear
+#         "en-GB-RyanNeural"   — British male (very Jarvis-like)
+#         "en-GB-ThomasNeural"   — another British male
+# Female: "en-US-JennyNeural"  — friendly, natural
+#         "en-US-AriaNeural"   — expressive, warm
+TTS_VOICE = "en-GB-RyanNeural"  # British male = closest to MCU Jarvis
+
 try:
-    subprocess.run(
-        ["powershell", "-Command", "Add-Type -AssemblyName System.Speech"],
-        capture_output=True, timeout=5
-    )
+    import edge_tts
+    import pygame
+    pygame.mixer.init()
     TTS_AVAILABLE = True
-    print("  🔊 TTS enabled (Windows SAPI) — Jarvis will speak responses")
-except Exception as e:
-    print(f"  🔇 TTS not available ({e}) — text-only mode")
+    print(f"  🔊 TTS enabled (Edge Neural: {TTS_VOICE}) — Jarvis will speak")
+except ImportError as e:
+    print(f"  🔇 TTS missing package ({e}). Run: pip install edge-tts pygame")
 
 
 def speak(text):
-    """Speak text through PC speakers using Windows SAPI via PowerShell."""
+    """Speak text using Edge TTS neural voices in a background thread."""
     if not TTS_AVAILABLE or not tts_enabled:
         return
 
-    # Escape single quotes for PowerShell
-    safe_text = text.replace("'", "''")
-
-    ps_command = (
-        "Add-Type -AssemblyName System.Speech; "
-        "$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-        "$synth.Rate = 1; "  # -10 (slow) to 10 (fast), 1 is natural
-        "$synth.Volume = 100; "
-        f"$synth.Speak('{safe_text}')"
-    )
-
     def _speak():
         try:
+            # Create a temp file for the audio
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                tmp_path = f.name
+
+            # Generate speech audio using python -m edge_tts
             subprocess.run(
-                ["powershell", "-Command", ps_command],
-                capture_output=True, timeout=30
+                [
+                    sys.executable, "-m", "edge_tts",
+                    "--voice", TTS_VOICE,
+                    "--rate", "+5%",
+                    "--text", text,
+                    "--write-media", tmp_path,
+                ],
+                capture_output=True, timeout=15
             )
+
+            # Play the mp3 using pygame
+            pygame.mixer.music.load(tmp_path)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                pygame.time.wait(100)
+
+            # Clean up
+            pygame.mixer.music.unload()
+            os.unlink(tmp_path)
+
         except Exception as e:
             print(f"  TTS error: {e}")
 
@@ -608,6 +630,9 @@ input.addEventListener('keydown', e => {
 });
 
 input.focus();
+
+// Speak the greeting when page loads
+fetch('/greeting', { method: 'POST' });
 </script>
 </body>
 </html>
@@ -617,6 +642,16 @@ input.focus();
 @app.route("/")
 def index():
     return render_template_string(HTML_TEMPLATE)
+
+
+GREETING = "Good evening, Michael. Systems are online. What can I do for you?"
+
+
+@app.route("/greeting", methods=["POST"])
+def greeting():
+    """Speak the initial greeting when the page loads."""
+    speak(GREETING)
+    return jsonify({"status": "ok"})
 
 
 @app.route("/chat", methods=["POST"])
