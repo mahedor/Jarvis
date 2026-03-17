@@ -1,14 +1,15 @@
 """
-Jarvis Phase 1 — Demo v2 (Streaming + Browser TTS)
-=====================================================
+Jarvis Phase 1 — Demo v2 (Streaming + Browser TTS + Notion)
+==============================================================
 Claude's response streams to the browser in real-time.
 Browser speaks each sentence INSTANTLY via Web Speech API.
 No server-side TTS, no file generation, no latency.
+Notion integration reads your databases for time tracking queries.
 
 Open in Microsoft Edge for the best neural voices.
 
 Setup:
-  pip install anthropic flask python-dotenv
+  pip install anthropic flask python-dotenv notion-client
   python jarvis_web.py
   Open http://localhost:5000 in Microsoft Edge
 """
@@ -16,6 +17,7 @@ Setup:
 import os
 import json
 import re
+import time as _time
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -26,12 +28,21 @@ try:
     from flask import Flask, request, jsonify, render_template_string
 except ImportError:
     print("\n❌ Missing packages. Run:")
-    print("   pip install anthropic flask python-dotenv")
+    print("   pip install anthropic flask python-dotenv notion-client")
     print("   Then try again.\n")
     exit(1)
 
+# ─── Notion Setup ──────────────────────────────────────────────
+NOTION_AVAILABLE = False
+try:
+    from notion_client import Client as NotionClient
+    NOTION_AVAILABLE = True
+except ImportError:
+    print("  📝 Notion not available. Run: pip install notion-client")
+
 # ─── CONFIG ────────────────────────────────────────────────────
 API_KEY = os.getenv("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
+NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")
 # Or set it directly: API_KEY = "sk-ant-..."
 
 app = Flask(__name__)
@@ -85,7 +96,30 @@ def get_device_status_text():
 
 
 def build_system_prompt():
-    """Build the system prompt with LIVE device states injected."""
+    """Build the system prompt with LIVE device states + Notion data."""
+    notion_data = get_notion_summary()
+    notion_section = ""
+    if notion_data:
+        notion_section = f"""
+
+NOTION DATA (Michael's workspace):
+{notion_data}
+
+UNDERSTANDING THE DATA:
+- The Work Table tracks 30-minute focused work blocks.
+- Productivity is rated 1-10. A 7 means natural, focused pace (like a 70% passing grade).
+  Above 7 means pushing faster than normal. Below 7 means distracted.
+- "Distracted? No" + Productivity 7+ = a good focused block.
+- "Distracted? Yes" + low Productivity = a rough block.
+- Difference (Hours) shows how long the actual block was.
+- The Start Table likely tracks when work sessions begin.
+
+When Michael asks about his time tracking, productivity, focus, or work habits,
+use this data to give accurate, insightful answers. You can summarize trends,
+calculate averages, spot patterns (e.g. "you're most productive in the evening"),
+count focused vs distracted blocks, or give encouragement. Keep it concise.
+If the data doesn't have what he's asking about, say what you CAN see."""
+
     return f"""You are Jarvis, a personal AI assistant for a smart home system.
 Your personality is helpful, witty, and concise — like the Jarvis from Iron Man but
 more casual and friendly. You're talking to Michael in his bedroom.
@@ -111,7 +145,7 @@ Available services:
 IMPORTANT: When asked about device status, use the CURRENT STATUS above to give accurate answers.
 If a light is already on and the user asks to turn it on, let them know it's already on.
 If they ask "what's on?" or "status?", report the current state of all devices.
-
+{notion_section}
 If the user says something conversational (not device-related), just respond naturally.
 If you're unsure which device, ask for clarification.
 """
@@ -142,6 +176,158 @@ def log_interaction(command, response, actions):
     os.makedirs("logs", exist_ok=True)
     with open("logs/interactions.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+# ─── Notion Integration ────────────────────────────────────────
+# Reads databases shared with the Jarvis integration.
+# Data is fetched on each request (with caching) and injected
+# into Claude's system prompt so Jarvis can answer questions.
+
+notion = NotionClient(auth=NOTION_API_KEY) if (NOTION_AVAILABLE and NOTION_API_KEY) else None
+_notion_cache = {"data": "", "ts": 0}
+NOTION_CACHE_TTL = 60  # seconds
+
+# Direct database IDs — bypasses flaky search endpoint
+NOTION_DATABASES = {
+    "Start Table": "d951c0d353b7498897e1a5c2ccf47599",
+    "Work Table": "daedb7b1888f46149d26211c82dbe13b",
+}
+
+
+def fetch_notion_databases():
+    """Discover all databases shared with the Jarvis integration."""
+    if not notion:
+        return []
+    try:
+        resp = notion.search(filter={"property": "object", "value": "database"})
+        return resp.get("results", [])
+    except Exception as e:
+        print(f"  Notion error: {e}")
+        return []
+
+
+def format_notion_prop(prop):
+    """Extract a readable value from a Notion property."""
+    t = prop.get("type", "")
+    if t == "title":
+        return "".join(x.get("plain_text", "") for x in prop.get("title", []))
+    elif t == "rich_text":
+        return "".join(x.get("plain_text", "") for x in prop.get("rich_text", []))
+    elif t == "number":
+        v = prop.get("number")
+        return str(v) if v is not None else ""
+    elif t == "select":
+        s = prop.get("select")
+        return s.get("name", "") if s else ""
+    elif t == "multi_select":
+        return ", ".join(s.get("name", "") for s in prop.get("multi_select", []))
+    elif t == "date":
+        d = prop.get("date")
+        if d:
+            start = d.get("start", "")
+            end = d.get("end", "")
+            return f"{start} to {end}" if end else start
+        return ""
+    elif t == "checkbox":
+        return "Yes" if prop.get("checkbox") else "No"
+    elif t == "status":
+        s = prop.get("status")
+        return s.get("name", "") if s else ""
+    elif t == "formula":
+        f = prop.get("formula", {})
+        ft = f.get("type", "")
+        return str(f.get(ft, ""))
+    elif t == "rollup":
+        r = prop.get("rollup", {})
+        rt = r.get("type", "")
+        if rt == "number":
+            return str(r.get("number", ""))
+        return ""
+    elif t == "relation":
+        return str(len(prop.get("relation", []))) + " linked"
+    elif t == "people":
+        return ", ".join(p.get("name", "") for p in prop.get("people", []))
+    elif t == "url":
+        return prop.get("url", "") or ""
+    elif t == "email":
+        return prop.get("email", "") or ""
+    elif t == "phone_number":
+        return prop.get("phone_number", "") or ""
+    elif t == "created_time":
+        return prop.get("created_time", "")[:10]
+    elif t == "last_edited_time":
+        return prop.get("last_edited_time", "")[:10]
+    else:
+        return ""
+
+
+def query_notion_db(database_id, limit=20):
+    """Query a Notion database and return formatted rows."""
+    if not NOTION_API_KEY:
+        return []
+    try:
+        import requests
+        resp = requests.post(
+            f"https://api.notion.com/v1/databases/{database_id}/query",
+            headers={
+                "Authorization": f"Bearer {NOTION_API_KEY}",
+                "Notion-Version": "2022-06-28",
+                "Content-Type": "application/json",
+            },
+            json={
+                "page_size": limit,
+                "sorts": [{"timestamp": "created_time", "direction": "descending"}],
+            },
+        )
+        data = resp.json()
+        if "results" not in data:
+            print(f"  Notion API error: {data.get('message', data)}")
+            return []
+        rows = []
+        for page in data["results"]:
+            props = page.get("properties", {})
+            row = {}
+            for name, prop in props.items():
+                val = format_notion_prop(prop)
+                if val:
+                    row[name] = val
+            if row:
+                rows.append(row)
+        return rows
+    except Exception as e:
+        print(f"  Notion query error: {e}")
+        return []
+
+
+def get_notion_summary():
+    """Build a formatted summary of all shared Notion databases."""
+    now = _time.time()
+    if _notion_cache["data"] and (now - _notion_cache["ts"]) < NOTION_CACHE_TTL:
+        return _notion_cache["data"]
+
+    if not notion:
+        return ""
+
+    sections = []
+    for db_name, db_id in NOTION_DATABASES.items():
+        rows = query_notion_db(db_id, limit=30)
+        if not rows:
+            continue
+
+        lines = [f"  {db_name} ({len(rows)} entries):"]
+        for i, row in enumerate(rows, 1):
+            parts = [f"{k}: {v}" for k, v in row.items()]
+            lines.append(f"    {i}. " + " | ".join(parts))
+        sections.append("\n".join(lines))
+
+    summary = "\n\n".join(sections)
+    _notion_cache["data"] = summary
+    _notion_cache["ts"] = now
+
+    if summary:
+        print(f"  📝 Notion: loaded {len(sections)} database(s)")
+
+    return summary
 
 
 # ─── Web UI ────────────────────────────────────────────────────
@@ -1628,12 +1814,53 @@ def chat():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "online", "service": "jarvis_orchestrator", "version": "0.2.0"})
+    return jsonify({"status": "online", "service": "jarvis_orchestrator", "version": "0.3.0"})
 
 
 @app.route("/devices")
 def devices():
     return jsonify(device_states)
+
+
+@app.route("/notion")
+def notion_debug():
+    """Debug endpoint — see what Notion data Jarvis can access."""
+    summary = get_notion_summary()
+    return jsonify({
+        "available": NOTION_AVAILABLE,
+        "connected": notion is not None,
+        "databases": list(NOTION_DATABASES.keys()),
+        "summary": summary,
+    })
+
+
+@app.route("/notion/raw")
+def notion_raw():
+    """Raw debug — see exactly what Notion API returns."""
+    if not notion:
+        return jsonify({"error": "Notion not connected"})
+    results = {}
+    for db_name, db_id in NOTION_DATABASES.items():
+        try:
+            import requests as req
+            resp = req.post(
+                f"https://api.notion.com/v1/databases/{db_id}/query",
+                headers={
+                    "Authorization": f"Bearer {NOTION_API_KEY}",
+                    "Notion-Version": "2022-06-28",
+                    "Content-Type": "application/json",
+                },
+                json={"page_size": 3},
+            )
+            data = resp.json()
+            pages = data.get("results", [])
+            results[db_name] = {
+                "num_results": len(pages),
+                "first_page_properties": pages[0].get("properties", {}) if pages else data,
+            }
+        except Exception as e:
+            results[db_name] = {"error": str(e)}
+    return jsonify(results)
 
 
 @app.route("/reset", methods=["POST"])
@@ -1656,9 +1883,13 @@ if __name__ == "__main__":
 
     print()
     print("=" * 56)
-    print("  J.A.R.V.I.S. — Streaming + Browser TTS")
+    print("  J.A.R.V.I.S. — Streaming + Browser TTS + Notion")
     print("  Open http://localhost:5000 in Microsoft Edge")
     print("  (Edge has the best neural voices)")
+    if notion:
+        print("  📝 Notion connected")
+    else:
+        print("  📝 Notion not configured (set NOTION_API_KEY in .env)")
     print("=" * 56)
     print()
     app.run(debug=True, port=5000)
