@@ -517,7 +517,7 @@ HTML_TEMPLATE = """
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    cursor: default;
+    cursor: none;
     transition: opacity 0.6s ease;
   }
 
@@ -525,6 +525,40 @@ HTML_TEMPLATE = """
     opacity: 0;
     pointer-events: none;
   }
+
+  .ss-cursor-core {
+    position: fixed;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #666;
+    box-shadow: 0 0 6px var(--accent), 0 0 15px rgba(var(--accent-rgb), 0.4);
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.15s;
+  }
+
+  .ss-cursor-ring {
+    position: fixed;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--accent-rgb), 0.4);
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: width 0.25s ease-out, height 0.25s ease-out, border-color 0.25s, background 0.25s;
+  }
+
+  .ss-cursor-ring.hover {
+    width: 44px;
+    height: 44px;
+    border-color: rgba(var(--accent-rgb), 0.6);
+    background: rgba(var(--accent-rgb), 0.06);
+  }
+
+  .ss-cursor-core.hidden, .ss-cursor-ring.hidden { opacity: 0; }
 
   .ss-ring {
     width: 240px;
@@ -666,7 +700,7 @@ HTML_TEMPLATE = """
     flex-direction: column;
     gap: 6px;
     z-index: 101;
-    cursor: default;
+    cursor: none;
   }
 
   .ss-toggle {
@@ -677,7 +711,7 @@ HTML_TEMPLATE = """
     font-size: 10px;
     letter-spacing: 1px;
     color: rgba(255,255,255,0.2);
-    cursor: pointer;
+    cursor: none;
     transition: color 0.15s;
     user-select: none;
   }
@@ -704,6 +738,8 @@ HTML_TEMPLATE = """
 <body>
 
 <div class="screensaver" id="screensaver">
+  <div class="ss-cursor-core" id="ss-cursor-core"></div>
+  <div class="ss-cursor-ring" id="ss-cursor-ring"></div>
   <div class="ss-grid" id="ss-grid"></div>
   <canvas class="ss-canvas" id="ss-canvas"></canvas>
   <div style="position:relative">
@@ -1022,9 +1058,46 @@ input.focus();
 
 // ─── Screensaver ───────────────────────────────────
 const screensaver = document.getElementById('screensaver');
+const ssCore = document.getElementById('ss-cursor-core');
+const ssRing = document.getElementById('ss-cursor-ring');
 let ssActive = true;
 let ssClockInterval;
 let ssAnimFrame;
+
+// Cursor: core follows mouse exactly, ring trails behind with smooth lerp
+let mouseX = -100, mouseY = -100;
+let ringX = -100, ringY = -100;
+
+screensaver.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  ssCore.style.left = mouseX + 'px';
+  ssCore.style.top = mouseY + 'px';
+});
+
+screensaver.addEventListener('mouseenter', () => {
+  ssCore.classList.remove('hidden');
+  ssRing.classList.remove('hidden');
+});
+screensaver.addEventListener('mouseleave', () => {
+  ssCore.classList.add('hidden');
+  ssRing.classList.add('hidden');
+});
+
+function animateRing() {
+  ringX += (mouseX - ringX) * 0.12;
+  ringY += (mouseY - ringY) * 0.12;
+  ssRing.style.left = ringX + 'px';
+  ssRing.style.top = ringY + 'px';
+  if (ssActive) requestAnimationFrame(animateRing);
+}
+animateRing();
+
+// Expand ring on hoverable elements
+document.querySelectorAll('.ss-toggle, .ss-check, .theme-dot, .theme-trigger').forEach(el => {
+  el.addEventListener('mouseenter', () => ssRing.classList.add('hover'));
+  el.addEventListener('mouseleave', () => ssRing.classList.remove('hover'));
+});
 
 function updateSSClock() {
   const now = new Date();
