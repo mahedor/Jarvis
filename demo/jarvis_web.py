@@ -1,9 +1,13 @@
 """
-Jarvis Phase 1 — Demo v2 (Streaming + Browser TTS)
-=====================================================
+Jarvis Phase 1 — Demo v2 (Streaming + Browser TTS + Voice Mode)
+=================================================================
 Claude's response streams to the browser in real-time.
 Browser speaks each sentence INSTANTLY via Web Speech API.
 No server-side TTS, no file generation, no latency.
+
+Two modes:
+  - Chat mode: text bubbles, type or speak
+  - Voice mode: waveform visualization, pure voice interaction
 
 Open in Microsoft Edge for the best neural voices.
 
@@ -200,11 +204,45 @@ HTML_TEMPLATE = """
     margin-top: 4px;
   }
 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 4px;
+  }
+
+  /* ─── Mode Toggle ─────────────────────────── */
+  .mode-toggle {
+    display: flex;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+
+  .mode-btn {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    background: none;
+    border: none;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .mode-btn:hover { color: #888; }
+
+  .mode-btn.active {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.1);
+  }
+
   .theme-picker {
     display: flex;
     align-items: center;
     gap: 0;
-    padding-top: 6px;
     position: relative;
   }
 
@@ -381,6 +419,7 @@ HTML_TEMPLATE = """
     color: #e0e0e0;
     outline: none;
     transition: border-color 0.2s;
+    min-width: 0;
   }
 
   .input-row input:focus {
@@ -435,8 +474,6 @@ HTML_TEMPLATE = """
   }
 
   .mic-icon { width: 20px; height: 20px; }
-
-  .input-row input { min-width: 0; }
 
   .typing-indicator {
     display: none;
@@ -507,7 +544,152 @@ HTML_TEMPLATE = """
     color: #555;
   }
 
-  /* ─── Screensaver ─────────────────────────────────── */
+  /* ─── Voice Mode ──────────────────────────── */
+  .voice-mode {
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .voice-mode.active {
+    display: flex;
+    flex: 1;
+  }
+
+  .chat-mode {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .chat-mode.hidden { display: none; }
+
+  .voice-style-bar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 32px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    align-items: center;
+  }
+
+  .voice-style-label {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 2px;
+    color: #333;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+
+  .voice-style-chip {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #444;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: none;
+  }
+
+  .voice-style-chip:hover {
+    border-color: rgba(var(--accent-rgb), 0.3);
+    color: #888;
+  }
+
+  .voice-style-chip.active {
+    border-color: rgba(var(--accent-rgb), 0.5);
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
+  }
+
+  .voice-canvas-area {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .voice-canvas-area canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .voice-status {
+    position: absolute;
+    bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.2);
+    pointer-events: none;
+    transition: all 0.3s;
+  }
+
+  .voice-status.active-state { color: var(--accent); }
+
+  .voice-jarvis-label {
+    position: absolute;
+    top: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+    font-size: 13px;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.1);
+    pointer-events: none;
+  }
+
+  .voice-mic-area {
+    padding: 20px 32px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .voice-mic-btn {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 1px solid rgba(var(--accent-rgb), 0.4);
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .voice-mic-btn:hover {
+    background: rgba(var(--accent-rgb), 0.08);
+    border-color: rgba(var(--accent-rgb), 0.6);
+  }
+
+  .voice-mic-btn.recording {
+    border-color: #e24b4a;
+    background: rgba(226, 75, 74, 0.08);
+    animation: mic-pulse 1.5s ease-in-out infinite;
+  }
+
+  .voice-mic-btn svg { width: 24px; height: 24px; }
+
+  .voice-mic-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #333;
+    text-transform: uppercase;
+  }
+
+  /* ─── Screensaver ─────────────────────────────── */
   .screensaver {
     position: fixed;
     inset: 0;
@@ -737,6 +919,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
 
+<!-- ─── Screensaver ────────────────────────────── -->
 <div class="screensaver" id="screensaver">
   <div class="ss-cursor-core" id="ss-cursor-core"></div>
   <div class="ss-cursor-ring" id="ss-cursor-ring"></div>
@@ -769,20 +952,27 @@ HTML_TEMPLATE = """
   </div>
 </div>
 
+<!-- ─── Main App ───────────────────────────────── -->
 <div class="header">
   <div>
     <h1>J.A.R.V.I.S.</h1>
     <p>Just A Rather Very Intelligent System — Phase 1 Demo</p>
   </div>
-  <div class="theme-picker">
-    <div class="theme-trigger" id="theme-trigger"></div>
-    <div class="theme-tray">
-      <div class="theme-dot" style="background:#4a9eff" onclick="setTheme('#4a9eff','74,158,255',this)"></div>
-      <div class="theme-dot" style="background:#00e5c8" onclick="setTheme('#00e5c8','0,229,200',this)"></div>
-      <div class="theme-dot active" style="background:#7c3aed" onclick="setTheme('#7c3aed','124,58,237',this)"></div>
-      <div class="theme-dot" style="background:#f59e0b" onclick="setTheme('#f59e0b','245,158,11',this)"></div>
-      <div class="theme-dot" style="background:#ef4444" onclick="setTheme('#ef4444','239,68,68',this)"></div>
-      <div class="theme-dot" style="background:#22c55e" onclick="setTheme('#22c55e','34,197,94',this)"></div>
+  <div class="header-right">
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-chat" onclick="setMode('chat')">chat</button>
+      <button class="mode-btn" id="mode-voice" onclick="setMode('voice')">voice</button>
+    </div>
+    <div class="theme-picker">
+      <div class="theme-trigger" id="theme-trigger"></div>
+      <div class="theme-tray">
+        <div class="theme-dot" style="background:#4a9eff" onclick="setTheme('#4a9eff','74,158,255',this)"></div>
+        <div class="theme-dot" style="background:#00e5c8" onclick="setTheme('#00e5c8','0,229,200',this)"></div>
+        <div class="theme-dot active" style="background:#7c3aed" onclick="setTheme('#7c3aed','124,58,237',this)"></div>
+        <div class="theme-dot" style="background:#f59e0b" onclick="setTheme('#f59e0b','245,158,11',this)"></div>
+        <div class="theme-dot" style="background:#ef4444" onclick="setTheme('#ef4444','239,68,68',this)"></div>
+        <div class="theme-dot" style="background:#22c55e" onclick="setTheme('#22c55e','34,197,94',this)"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -794,65 +984,122 @@ HTML_TEMPLATE = """
   <button class="tts-toggle" id="tts-toggle" onclick="toggleTTS()">TTS: on</button>
 </div>
 
-<div class="devices-bar" id="devices">
-  <div class="device-chip" id="dev-light-bedroom">bedroom light: off</div>
-  <div class="device-chip" id="dev-light-lamp">bedroom lamp: off</div>
-  <div class="device-chip" id="dev-switch-fan">bedroom fan: off</div>
-  <div class="device-chip" id="dev-cover-blinds">blinds: closed</div>
-</div>
+<!-- ─── Chat Mode ──────────────────────────────── -->
+<div class="chat-mode" id="chat-mode">
+  <div class="devices-bar" id="devices">
+    <div class="device-chip" id="dev-light-bedroom">bedroom light: off</div>
+    <div class="device-chip" id="dev-light-lamp">bedroom lamp: off</div>
+    <div class="device-chip" id="dev-switch-fan">bedroom fan: off</div>
+    <div class="device-chip" id="dev-cover-blinds">blinds: closed</div>
+  </div>
 
-<div class="chat-area" id="chat">
-  <div class="message jarvis">
-    <div class="label">Jarvis</div>
-    <div class="text">Good evening, Michael. Systems are online. What can I do for you?</div>
+  <div class="chat-area" id="chat">
+    <div class="message jarvis">
+      <div class="label">Jarvis</div>
+      <div class="text">Good evening, Michael. Systems are online. What can I do for you?</div>
+    </div>
+  </div>
+
+  <div class="typing-indicator" id="typing">
+    <div class="dots"><span></span><span></span><span></span></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
+        <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="1" width="6" height="12" rx="3"/>
+          <path d="M19 10v1a7 7 0 01-14 0v-1"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <input type="text" id="input" placeholder="Talk to Jarvis or click the mic..." autocomplete="off" />
+      <button id="send" onclick="sendMessage()">Send</button>
+    </div>
+    <div class="suggestions" id="suggestions">
+      <button class="suggestion" onclick="useSuggestion(this)">Turn on the bedroom lights</button>
+      <button class="suggestion" onclick="useSuggestion(this)">Dim the lamp to 50%</button>
+      <button class="suggestion" onclick="useSuggestion(this)">Open the blinds</button>
+      <button class="suggestion" onclick="useSuggestion(this)">What's the status of everything?</button>
+    </div>
   </div>
 </div>
 
-<div class="typing-indicator" id="typing">
-  <div class="dots"><span></span><span></span><span></span></div>
-</div>
+<!-- ─── Voice Mode ─────────────────────────────── -->
+<div class="voice-mode" id="voice-mode">
+  <div class="voice-style-bar">
+    <span class="voice-style-label">style</span>
+    <button class="voice-style-chip active" onclick="setVoiceStyle('waveform', this)">waveform</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('bars', this)">bars</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('orb', this)">orb</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('ring', this)">ring</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('pulse', this)">pulse</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('spiral', this)">spiral</button>
+  </div>
 
-<div class="input-area">
-  <div class="input-row">
-    <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
-      <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <div class="voice-canvas-area">
+    <canvas id="voice-canvas"></canvas>
+    <span class="voice-jarvis-label">JARVIS</span>
+    <div class="voice-status" id="voice-status">idle</div>
+  </div>
+
+  <div class="voice-mic-area">
+    <button class="voice-mic-btn" id="voice-mic-btn" onclick="toggleVoiceMic()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="1" width="6" height="12" rx="3"/>
         <path d="M19 10v1a7 7 0 01-14 0v-1"/>
         <line x1="12" y1="19" x2="12" y2="23"/>
         <line x1="8" y1="23" x2="16" y2="23"/>
       </svg>
     </button>
-    <input type="text" id="input" placeholder="Talk to Jarvis or click the mic..." autocomplete="off" />
-    <button id="send" onclick="sendMessage()">Send</button>
-  </div>
-  <div class="suggestions" id="suggestions">
-    <button class="suggestion" onclick="useSuggestion(this)">Turn on the bedroom lights</button>
-    <button class="suggestion" onclick="useSuggestion(this)">Dim the lamp to 50%</button>
-    <button class="suggestion" onclick="useSuggestion(this)">Open the blinds</button>
-    <button class="suggestion" onclick="useSuggestion(this)">What's the status of everything?</button>
+    <div class="voice-mic-hint">click to speak</div>
   </div>
 </div>
 
 <script>
+// ═══════════════════════════════════════════════
+// ─── Shared State ──────────────────────────────
+// ═══════════════════════════════════════════════
 const chat = document.getElementById('chat');
 const input = document.getElementById('input');
 const typing = document.getElementById('typing');
 const sendBtn = document.getElementById('send');
 const suggestions = document.getElementById('suggestions');
-
-// ─── Theme Switching ───────────────────────────────────
 let currentAccent = '#7c3aed';
+let accentRGB = [124, 58, 237];
+let currentMode = 'chat';
 
+// ─── Theme Switching ───────────────────────────
 function setTheme(hex, rgb, dot) {
   currentAccent = hex;
+  accentRGB = rgb.split(',').map(Number);
   document.documentElement.style.setProperty('--accent', hex);
   document.documentElement.style.setProperty('--accent-rgb', rgb);
-  document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', hex);
+  document.querySelectorAll('.mic-btn svg, .voice-mic-btn svg').forEach(svg => {
+    if (!svg.closest('.recording')) svg.setAttribute('stroke', hex);
+  });
   document.getElementById('theme-trigger').style.background = hex;
   document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
   if (dot) dot.classList.add('active');
 }
 
+// ─── Mode Switching ────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-chat').classList.toggle('active', mode === 'chat');
+  document.getElementById('mode-voice').classList.toggle('active', mode === 'voice');
+  document.getElementById('chat-mode').classList.toggle('hidden', mode === 'voice');
+  document.getElementById('voice-mode').classList.toggle('active', mode === 'voice');
+
+  if (mode === 'voice') {
+    resizeVoiceCanvas();
+    if (!voiceAnimRunning) { voiceAnimRunning = true; drawVoice(); }
+  }
+  if (mode === 'chat') { input.focus(); }
+}
+
+// ─── Device Chips ──────────────────────────────
 const deviceChipMap = {
   'light.bedroom': 'dev-light-bedroom',
   'light.bedroom_lamp': 'dev-light-lamp',
@@ -908,22 +1155,21 @@ function addMessage(role, text, actions) {
   return div;
 }
 
-// ─── Browser TTS (Web Speech API) ──────────────────────
-// This is INSTANT — no file generation, no network call.
-// Open in Microsoft Edge for the best neural voices.
+// ═══════════════════════════════════════════════
+// ─── Browser TTS (Web Speech API) ──────────────
+// ═══════════════════════════════════════════════
 let ttsOn = true;
 let ttsVoice = null;
+let ttsSpeaking = false;
 
 function initTTS() {
   const voices = speechSynthesis.getVoices();
-  // Prefer: Microsoft Ryan (Edge), then any British male, then default
   const prefs = ['ryan', 'george', 'ryanneural'];
   for (const p of prefs) {
     const v = voices.find(v => v.name.toLowerCase().includes(p));
     if (v) { ttsVoice = v; break; }
   }
   if (!ttsVoice) {
-    // Fallback to first English voice
     ttsVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
   }
 }
@@ -938,6 +1184,8 @@ function speakText(text) {
   if (ttsVoice) utter.voice = ttsVoice;
   utter.rate = 1.05;
   utter.pitch = 0.95;
+  utter.onstart = () => { ttsSpeaking = true; setVoiceState('speaking'); };
+  utter.onend = () => { ttsSpeaking = false; setVoiceState('idle'); };
   speechSynthesis.speak(utter);
 }
 
@@ -949,9 +1197,9 @@ function toggleTTS() {
   btn.classList.toggle('off', !ttsOn);
 }
 
-// ─── Speech Recognition (mic input) ───────────────────
-// Uses the browser's built-in SpeechRecognition API.
-// Click the mic → speak → text appears → auto-sends to Jarvis.
+// ═══════════════════════════════════════════════
+// ─── Speech Recognition (shared) ───────────────
+// ═══════════════════════════════════════════════
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let isRecording = false;
@@ -969,49 +1217,73 @@ if (SpeechRecognition) {
       transcript += event.results[i][0].transcript;
       if (event.results[i].isFinal) isFinal = true;
     }
-    input.value = transcript;
+    if (currentMode === 'chat') input.value = transcript;
     if (isFinal) {
-      stopMic();
-      sendMessage();
+      stopAllMics();
+      if (currentMode === 'chat') {
+        sendMessage();
+      } else {
+        sendVoiceMessage(transcript);
+      }
     }
   };
 
-  recognition.onend = () => { stopMic(); };
+  recognition.onend = () => { stopAllMics(); };
   recognition.onerror = (e) => {
     console.log('Speech recognition error:', e.error);
-    stopMic();
+    stopAllMics();
   };
 }
 
+// ─── Chat Mode Mic ─────────────────────────────
 function toggleMic() {
-  if (isRecording) { stopMic(); }
-  else { startMic(); }
+  if (isRecording) { stopAllMics(); }
+  else { startMic('chat'); }
 }
 
-function startMic() {
+// ─── Voice Mode Mic ────────────────────────────
+function toggleVoiceMic() {
+  if (isRecording) { stopAllMics(); }
+  else { startMic('voice'); }
+}
+
+function startMic(mode) {
   if (!recognition) {
     alert('Speech recognition not supported in this browser. Try Edge or Chrome.');
     return;
   }
-  // Stop any TTS that's playing so mic doesn't pick it up
   speechSynthesis.cancel();
   isRecording = true;
-  document.getElementById('mic-btn').classList.add('recording');
-  document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', '#e24b4a');
-  input.placeholder = 'Listening...';
+  setVoiceState('listening');
+
+  if (mode === 'chat') {
+    document.getElementById('mic-btn').classList.add('recording');
+    document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', '#e24b4a');
+    input.placeholder = 'Listening...';
+  } else {
+    document.getElementById('voice-mic-btn').classList.add('recording');
+    document.getElementById('voice-mic-btn').querySelector('svg').setAttribute('stroke', '#e24b4a');
+  }
   recognition.start();
 }
 
-function stopMic() {
+function stopAllMics() {
   isRecording = false;
+  // Chat mic reset
   document.getElementById('mic-btn').classList.remove('recording');
   document.getElementById('mic-btn').querySelector('svg').setAttribute('stroke', currentAccent);
   input.placeholder = 'Talk to Jarvis or click the mic...';
+  // Voice mic reset
+  document.getElementById('voice-mic-btn').classList.remove('recording');
+  document.getElementById('voice-mic-btn').querySelector('svg').setAttribute('stroke', currentAccent);
+
+  if (!ttsSpeaking) setVoiceState('idle');
   try { recognition.stop(); } catch(e) {}
 }
 
-// ─── Chat ──────────────────────────────────────────────
-// Response appears, then browser speaks it INSTANTLY.
+// ═══════════════════════════════════════════════
+// ─── Chat Mode Send ────────────────────────────
+// ═══════════════════════════════════════════════
 async function sendMessage() {
   const text = input.value.trim();
   if (!text) return;
@@ -1033,8 +1305,6 @@ async function sendMessage() {
     typing.style.display = 'none';
     addMessage('jarvis', data.response, data.actions);
     syncDeviceChips(data.device_states);
-
-    // Speak via browser — INSTANT, no file generation
     speakText(data.response);
   } catch (err) {
     typing.style.display = 'none';
@@ -1056,7 +1326,425 @@ input.addEventListener('keydown', e => {
 
 input.focus();
 
-// ─── Screensaver ───────────────────────────────────
+// ═══════════════════════════════════════════════
+// ─── Voice Mode Send ───────────────────────────
+// ═══════════════════════════════════════════════
+async function sendVoiceMessage(text) {
+  if (!text.trim()) return;
+  setVoiceState('thinking');
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    });
+    const data = await res.json();
+    syncDeviceChips(data.device_states);
+    // Also add to chat history so switching modes shows the conversation
+    addMessage('user', text);
+    addMessage('jarvis', data.response, data.actions);
+    speakText(data.response);
+  } catch (err) {
+    setVoiceState('idle');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ─── Voice Waveform Engine ─────────────────────
+// ═══════════════════════════════════════════════
+const voiceCanvas = document.getElementById('voice-canvas');
+const vCtx = voiceCanvas.getContext('2d');
+let voiceStyle = 'waveform';
+let voiceState = 'idle';
+let voiceAnimRunning = false;
+let vTime = 0;
+
+function resizeVoiceCanvas() {
+  const area = voiceCanvas.parentElement;
+  if (!area) return;
+  voiceCanvas.width = area.clientWidth * devicePixelRatio;
+  voiceCanvas.height = area.clientHeight * devicePixelRatio;
+  vCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+resizeVoiceCanvas();
+
+function setVoiceStyle(name, el) {
+  voiceStyle = name;
+  document.querySelectorAll('.voice-style-chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+function setVoiceState(state) {
+  voiceState = state;
+  const label = document.getElementById('voice-status');
+  if (label) {
+    label.textContent = state;
+    label.classList.toggle('active-state', state !== 'idle');
+  }
+}
+
+function getVAmp() {
+  switch (voiceState) {
+    case 'idle': return 0.03 + Math.sin(vTime * 0.8) * 0.02;
+    case 'listening': return 0.2 + Math.sin(vTime * 3) * 0.15 + Math.sin(vTime * 7.3) * 0.08 + Math.random() * 0.1;
+    case 'thinking': return 0.08 + Math.sin(vTime * 1.5) * 0.05;
+    case 'speaking': return 0.25 + Math.sin(vTime * 4.5) * 0.12 + Math.sin(vTime * 11) * 0.06 + Math.sin(vTime * 2.1) * 0.08;
+    default: return 0.05;
+  }
+}
+
+function getVFreqData(count) {
+  const out = [];
+  const amp = getVAmp();
+  for (let i = 0; i < count; i++) {
+    const f = i / count;
+    const base = amp * (1 - f * 0.6);
+    const wave = Math.sin(vTime * 3 + i * 0.4) * 0.3 + Math.sin(vTime * 7 + i * 0.8) * 0.15;
+    out.push(Math.max(0, Math.min(1, base + wave * amp)));
+  }
+  return out;
+}
+
+// ─── Main draw loop ────────────────────────────
+function drawVoice() {
+  if (currentMode !== 'voice') { voiceAnimRunning = false; return; }
+  vTime += 0.016;
+  const w = voiceCanvas.width / devicePixelRatio;
+  const h = voiceCanvas.height / devicePixelRatio;
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = accentRGB;
+  const amp = getVAmp();
+
+  vCtx.clearRect(0, 0, w, h);
+
+  switch (voiceStyle) {
+    case 'waveform': vDrawWaveform(w, h, cx, cy, r, amp); break;
+    case 'bars': vDrawBars(w, h, cx, cy, r, amp); break;
+    case 'orb': vDrawOrb(w, h, cx, cy, r, amp); break;
+    case 'ring': vDrawRing(w, h, cx, cy, r, amp); break;
+    case 'pulse': vDrawPulse(w, h, cx, cy, r, amp); break;
+    case 'spiral': vDrawSpiral(w, h, cx, cy, r, amp); break;
+  }
+
+  requestAnimationFrame(drawVoice);
+}
+
+// ── 1. Waveform (oscilloscope) ──────────────────
+function vDrawWaveform(w, h, cx, cy, r, amp) {
+  const count = 128;
+  const spread = w * 0.6;
+  const startX = cx - spread / 2;
+
+  function yAt(i) {
+    return cy + Math.sin(vTime * 2.5 + i * 0.08) * amp * 120
+              + Math.sin(vTime * 4.1 + i * 0.15) * amp * 60
+              + Math.sin(vTime * 6.7 + i * 0.05) * amp * 30;
+  }
+
+  // Glow layer
+  vCtx.beginPath();
+  for (let i = 0; i < count; i++) {
+    const x = startX + (i / count) * spread;
+    if (i === 0) vCtx.moveTo(x, yAt(i));
+    else vCtx.lineTo(x, yAt(i));
+  }
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.15)`;
+  vCtx.lineWidth = 8;
+  vCtx.stroke();
+
+  // Main line
+  vCtx.beginPath();
+  for (let i = 0; i < count; i++) {
+    const x = startX + (i / count) * spread;
+    if (i === 0) vCtx.moveTo(x, yAt(i));
+    else vCtx.lineTo(x, yAt(i));
+  }
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.7)`;
+  vCtx.lineWidth = 2;
+  vCtx.stroke();
+
+  // Mirror line (fainter)
+  vCtx.beginPath();
+  for (let i = 0; i < count; i++) {
+    const x = startX + (i / count) * spread;
+    const y = cy - (yAt(i) - cy) * 0.4;
+    if (i === 0) vCtx.moveTo(x, y);
+    else vCtx.lineTo(x, y);
+  }
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.2)`;
+  vCtx.lineWidth = 1;
+  vCtx.stroke();
+
+  // Center line
+  vCtx.beginPath();
+  vCtx.moveTo(startX, cy);
+  vCtx.lineTo(startX + spread, cy);
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.06)`;
+  vCtx.lineWidth = 1;
+  vCtx.stroke();
+}
+
+// ── 2. Bars (frequency visualizer) ──────────────
+function vDrawBars(w, h, cx, cy, r, amp) {
+  const count = 48;
+  const barWidth = 4;
+  const gap = 4;
+  const totalWidth = count * (barWidth + gap) - gap;
+  const startX = cx - totalWidth / 2;
+  const maxH = h * 0.35;
+  const freq = getVFreqData(count);
+
+  for (let i = 0; i < count; i++) {
+    const x = startX + i * (barWidth + gap);
+    const barH = Math.max(2, freq[i] * maxH);
+
+    // Upward bar
+    const grad = vCtx.createLinearGradient(x, cy, x, cy - barH);
+    grad.addColorStop(0, `rgba(${r.join(',')}, 0.6)`);
+    grad.addColorStop(1, `rgba(${r.join(',')}, 0.15)`);
+    vCtx.fillStyle = grad;
+    vCtx.fillRect(x, cy - barH, barWidth, barH);
+
+    // Reflection
+    const grad2 = vCtx.createLinearGradient(x, cy, x, cy + barH * 0.4);
+    grad2.addColorStop(0, `rgba(${r.join(',')}, 0.2)`);
+    grad2.addColorStop(1, `rgba(${r.join(',')}, 0)`);
+    vCtx.fillStyle = grad2;
+    vCtx.fillRect(x, cy + 2, barWidth, barH * 0.4);
+
+    // Top cap
+    vCtx.fillStyle = `rgba(${r.join(',')}, 0.9)`;
+    vCtx.fillRect(x, cy - barH - 2, barWidth, 2);
+  }
+
+  // Center line
+  vCtx.beginPath();
+  vCtx.moveTo(startX - 10, cy);
+  vCtx.lineTo(startX + totalWidth + 10, cy);
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.06)`;
+  vCtx.lineWidth = 1;
+  vCtx.stroke();
+}
+
+// ── 3. Orb (morphing sphere) ────────────────────
+function vDrawOrb(w, h, cx, cy, r, amp) {
+  const baseRadius = 80;
+  const points = 120;
+
+  // Ambient glow
+  const glowR = baseRadius + amp * 100 + 40;
+  const glow = vCtx.createRadialGradient(cx, cy, baseRadius * 0.3, cx, cy, glowR);
+  glow.addColorStop(0, `rgba(${r.join(',')}, ${0.08 + amp * 0.1})`);
+  glow.addColorStop(0.5, `rgba(${r.join(',')}, ${0.03 + amp * 0.04})`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  vCtx.fillStyle = glow;
+  vCtx.fillRect(0, 0, w, h);
+
+  // Morphing shape — multiple layers
+  for (let layer = 2; layer >= 0; layer--) {
+    const layerScale = 1 + layer * 0.15;
+    const layerAlpha = layer === 0 ? 0.6 : layer === 1 ? 0.2 : 0.08;
+
+    vCtx.beginPath();
+    for (let i = 0; i <= points; i++) {
+      const angle = (i / points) * Math.PI * 2;
+      const noise = Math.sin(angle * 3 + vTime * 2) * amp * 40
+                  + Math.sin(angle * 5 + vTime * 3.3) * amp * 20
+                  + Math.sin(angle * 7 + vTime * 1.7) * amp * 10;
+      const radius = (baseRadius + noise) * layerScale;
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy + Math.sin(angle) * radius;
+      if (i === 0) vCtx.moveTo(x, y);
+      else vCtx.lineTo(x, y);
+    }
+    vCtx.closePath();
+
+    if (layer === 0) {
+      const fill = vCtx.createRadialGradient(cx, cy - 20, 10, cx, cy, baseRadius + amp * 50);
+      fill.addColorStop(0, `rgba(${r.join(',')}, 0.12)`);
+      fill.addColorStop(1, `rgba(${r.join(',')}, 0.02)`);
+      vCtx.fillStyle = fill;
+      vCtx.fill();
+    }
+
+    vCtx.strokeStyle = `rgba(${r.join(',')}, ${layerAlpha})`;
+    vCtx.lineWidth = layer === 0 ? 2 : 1;
+    vCtx.stroke();
+  }
+
+  // Inner core dot
+  const coreR = 3 + amp * 8;
+  vCtx.beginPath();
+  vCtx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  vCtx.fillStyle = `rgba(${r.join(',')}, ${0.5 + amp * 0.4})`;
+  vCtx.fill();
+}
+
+// ── 4. Ring (circular waveform) ─────────────────
+function vDrawRing(w, h, cx, cy, r, amp) {
+  const baseRadius = 100;
+  const count = 180;
+
+  // Glow
+  const glow = vCtx.createRadialGradient(cx, cy, baseRadius - 20, cx, cy, baseRadius + 60);
+  glow.addColorStop(0, `rgba(${r.join(',')}, 0.03)`);
+  glow.addColorStop(0.5, `rgba(${r.join(',')}, ${0.02 + amp * 0.06})`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  vCtx.fillStyle = glow;
+  vCtx.fillRect(0, 0, w, h);
+
+  // Base circle
+  vCtx.beginPath();
+  vCtx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.08)`;
+  vCtx.lineWidth = 1;
+  vCtx.stroke();
+
+  // Outer waveform
+  vCtx.beginPath();
+  for (let i = 0; i <= count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const wave = Math.sin(angle * 8 + vTime * 3) * amp * 35
+               + Math.sin(angle * 13 + vTime * 5) * amp * 15
+               + Math.sin(angle * 3 + vTime * 1.5) * amp * 20;
+    const radius = baseRadius + wave;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (i === 0) vCtx.moveTo(x, y);
+    else vCtx.lineTo(x, y);
+  }
+  vCtx.closePath();
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.6)`;
+  vCtx.lineWidth = 1.5;
+  vCtx.stroke();
+
+  // Inner waveform
+  vCtx.beginPath();
+  for (let i = 0; i <= count; i++) {
+    const angle = (i / count) * Math.PI * 2;
+    const wave = Math.sin(angle * 8 + vTime * 3) * amp * 25
+               + Math.sin(angle * 13 + vTime * 5) * amp * 10;
+    const radius = baseRadius - wave * 0.5;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (i === 0) vCtx.moveTo(x, y);
+    else vCtx.lineTo(x, y);
+  }
+  vCtx.closePath();
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.2)`;
+  vCtx.lineWidth = 1;
+  vCtx.stroke();
+
+  // Spinning dot
+  const dotAngle = vTime * 1.2;
+  const dx = cx + Math.cos(dotAngle) * baseRadius;
+  const dy = cy + Math.sin(dotAngle) * baseRadius;
+  vCtx.beginPath();
+  vCtx.arc(dx, dy, 3 + amp * 4, 0, Math.PI * 2);
+  vCtx.fillStyle = `rgba(${r.join(',')}, 0.8)`;
+  vCtx.fill();
+}
+
+// ── 5. Pulse (expanding concentric rings) ───────
+function vDrawPulse(w, h, cx, cy, r, amp) {
+  const maxRings = 8;
+  const maxRadius = Math.min(w, h) * 0.4;
+  const speed = 1 + amp * 2;
+
+  // Central glow
+  const coreGlow = vCtx.createRadialGradient(cx, cy, 0, cx, cy, 50 + amp * 40);
+  coreGlow.addColorStop(0, `rgba(${r.join(',')}, ${0.15 + amp * 0.2})`);
+  coreGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  vCtx.fillStyle = coreGlow;
+  vCtx.fillRect(0, 0, w, h);
+
+  for (let i = 0; i < maxRings; i++) {
+    const phase = ((vTime * speed * 0.3 + i / maxRings) % 1);
+    const radius = phase * maxRadius;
+    const alpha = (1 - phase) * (0.3 + amp * 0.3);
+
+    vCtx.beginPath();
+    const segments = 60;
+    for (let j = 0; j <= segments; j++) {
+      const angle = (j / segments) * Math.PI * 2;
+      const distort = amp * 15 * Math.sin(angle * 4 + vTime * 2 + i);
+      const rad = radius + distort;
+      const x = cx + Math.cos(angle) * rad;
+      const y = cy + Math.sin(angle) * rad;
+      if (j === 0) vCtx.moveTo(x, y);
+      else vCtx.lineTo(x, y);
+    }
+    vCtx.closePath();
+    vCtx.strokeStyle = `rgba(${r.join(',')}, ${Math.max(0, alpha)})`;
+    vCtx.lineWidth = 1.5 * (1 - phase) + 0.5;
+    vCtx.stroke();
+  }
+
+  // Core dot
+  const coreR = 5 + amp * 10;
+  vCtx.beginPath();
+  vCtx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  vCtx.fillStyle = `rgba(${r.join(',')}, ${0.6 + amp * 0.3})`;
+  vCtx.fill();
+}
+
+// ── 6. Spiral ───────────────────────────────────
+function vDrawSpiral(w, h, cx, cy, r, amp) {
+  const turns = 4;
+  const points = 300;
+  const maxRadius = 140 + amp * 60;
+
+  // Glow
+  const glow = vCtx.createRadialGradient(cx, cy, 0, cx, cy, maxRadius);
+  glow.addColorStop(0, `rgba(${r.join(',')}, 0.06)`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  vCtx.fillStyle = glow;
+  vCtx.fillRect(0, 0, w, h);
+
+  // Main spiral
+  vCtx.beginPath();
+  for (let i = 0; i < points; i++) {
+    const t = i / points;
+    const angle = t * Math.PI * 2 * turns + vTime * 1.5;
+    const radius = t * maxRadius;
+    const wobble = Math.sin(t * 20 + vTime * 4) * amp * 20;
+    const x = cx + Math.cos(angle) * (radius + wobble);
+    const y = cy + Math.sin(angle) * (radius + wobble);
+    if (i === 0) vCtx.moveTo(x, y);
+    else vCtx.lineTo(x, y);
+  }
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.5)`;
+  vCtx.lineWidth = 1.5;
+  vCtx.stroke();
+
+  // Counter-rotating spiral
+  vCtx.beginPath();
+  for (let i = 0; i < points; i++) {
+    const t = i / points;
+    const angle = -t * Math.PI * 2 * turns - vTime * 1.2;
+    const radius = t * maxRadius * 0.85;
+    const wobble = Math.sin(t * 15 + vTime * 3) * amp * 15;
+    const x = cx + Math.cos(angle) * (radius + wobble);
+    const y = cy + Math.sin(angle) * (radius + wobble);
+    if (i === 0) vCtx.moveTo(x, y);
+    else vCtx.lineTo(x, y);
+  }
+  vCtx.strokeStyle = `rgba(${r.join(',')}, 0.15)`;
+  vCtx.lineWidth = 1;
+  vCtx.stroke();
+
+  // Center
+  vCtx.beginPath();
+  vCtx.arc(cx, cy, 3 + amp * 5, 0, Math.PI * 2);
+  vCtx.fillStyle = `rgba(${r.join(',')}, 0.7)`;
+  vCtx.fill();
+}
+
+// ═══════════════════════════════════════════════
+// ─── Screensaver ───────────────────────────────
+// ═══════════════════════════════════════════════
 const screensaver = document.getElementById('screensaver');
 const ssCore = document.getElementById('ss-cursor-core');
 const ssRing = document.getElementById('ss-cursor-ring');
@@ -1112,7 +1800,7 @@ function updateSSClock() {
 updateSSClock();
 ssClockInterval = setInterval(updateSSClock, 10000);
 
-// ─── Canvas Effects (particles + orbits) ───────────
+// ─── Canvas Effects (particles + orbits + all 10) ───────────
 const ssCanvas = document.getElementById('ss-canvas');
 const ctx = ssCanvas.getContext('2d');
 let particles = [];
@@ -1122,7 +1810,7 @@ let warpTime = 0;
 let helixTime = 0;
 let neuralTime = 0;
 
-// Tendrils — organic branching dendrites growing from the ring
+// Tendrils
 let tendrilBranches = [];
 let tendrilTimer = 0;
 
@@ -1142,7 +1830,7 @@ function spawnTendril(cx, cy) {
   });
 }
 
-function branchTendril(parent, cx, cy) {
+function branchTendril(parent) {
   if (parent.depth > 2) return;
   const last = parent.points[parent.points.length - 1];
   for (let i = 0; i < 2; i++) {
@@ -1164,7 +1852,6 @@ function branchTendril(parent, cx, cy) {
 // Neural network nodes
 let neurons = [];
 let synapses = [];
-let neuralPulses = [];
 
 function initNeural() {
   neurons = [];
@@ -1183,7 +1870,6 @@ function initNeural() {
       pulsePhase: Math.random() * Math.PI * 2,
     });
   }
-  // Connect nearby neurons
   for (let i = 0; i < count; i++) {
     for (let j = i + 1; j < count; j++) {
       const dx = neurons[i].x - neurons[j].x;
@@ -1226,13 +1912,13 @@ function spawnCircuit(cx, cy) {
   });
 }
 
-function resizeCanvas() {
+function resizeSSCanvas() {
   ssCanvas.width = window.innerWidth;
   ssCanvas.height = window.innerHeight;
   initNeural();
 }
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
+resizeSSCanvas();
+window.addEventListener('resize', () => { resizeSSCanvas(); resizeVoiceCanvas(); });
 
 // Create particles
 for (let i = 0; i < 60; i++) {
@@ -1309,7 +1995,6 @@ function drawEffects() {
     ctx.strokeStyle = 'rgba(' + rgb.join(',') + ',0.07)';
     ctx.lineWidth = 0.5;
 
-    // Horizontal lines that warp toward center
     for (let row = -2; row <= h / spacing + 2; row++) {
       ctx.beginPath();
       for (let col = 0; col <= w; col += 4) {
@@ -1325,7 +2010,6 @@ function drawEffects() {
       ctx.stroke();
     }
 
-    // Vertical lines that warp toward center
     for (let col = -2; col <= w / spacing + 2; col++) {
       ctx.beginPath();
       for (let row = 0; row <= h; row += 4) {
@@ -1342,24 +2026,20 @@ function drawEffects() {
     }
   }
 
-  // ── Neural Network ──
+  // Neural Network
   if (effectsOn.neural) {
     neuralTime += 0.01;
-    const w = ssCanvas.width;
-    const h = ssCanvas.height;
 
-    // Move neurons slowly (drifting, organic)
     neurons.forEach(n => {
       n.x += n.vx;
       n.y += n.vy;
-      if (n.x < -20) n.x = w + 20;
-      if (n.x > w + 20) n.x = -20;
-      if (n.y < -20) n.y = h + 20;
-      if (n.y > h + 20) n.y = -20;
+      if (n.x < -20) n.x = ssCanvas.width + 20;
+      if (n.x > ssCanvas.width + 20) n.x = -20;
+      if (n.y < -20) n.y = ssCanvas.height + 20;
+      if (n.y > ssCanvas.height + 20) n.y = -20;
       n.energy = 0.3 + Math.sin(n.pulsePhase + neuralTime * 2) * 0.3;
     });
 
-    // Draw synapses (connections between neurons)
     synapses.forEach(s => {
       const a = neurons[s.from];
       const b = neurons[s.to];
@@ -1378,7 +2058,6 @@ function drawEffects() {
       ctx.stroke();
     });
 
-    // Draw neurons (nodes)
     neurons.forEach(n => {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
@@ -1387,7 +2066,7 @@ function drawEffects() {
     });
   }
 
-  // ── Tendrils (organic dendrites) ──
+  // Tendrils
   if (effectsOn.tendrils) {
     tendrilTimer++;
     if (tendrilTimer % 40 === 0 && tendrilBranches.filter(t => t.depth === 0).length < 8) {
@@ -1402,10 +2081,9 @@ function drawEffects() {
         const ny = last.y + Math.sin(t.angle) * t.speed;
         t.points.push({ x: nx, y: ny });
 
-        // Branch occasionally
         if (!t.branched && t.points.length > 15 && Math.random() < 0.02 && t.depth < 3) {
           t.branched = true;
-          branchTendril(t, cx, cy);
+          branchTendril(t);
         }
       }
 
@@ -1421,7 +2099,6 @@ function drawEffects() {
         ctx.lineWidth = t.thickness;
         ctx.stroke();
 
-        // Glowing tip
         if (t.life > 0.2) {
           const tip = t.points[t.points.length - 1];
           ctx.beginPath();
@@ -1434,7 +2111,7 @@ function drawEffects() {
     tendrilBranches = tendrilBranches.filter(t => t.life > 0);
   }
 
-  // ── Starfield ──
+  // Starfield
   if (effectsOn.starfield) {
     const hw = ssCanvas.width / 2;
     const hh = ssCanvas.height / 2;
@@ -1456,7 +2133,7 @@ function drawEffects() {
     });
   }
 
-  // ── Circuit Traces ──
+  // Circuit Traces
   if (effectsOn.circuits) {
     circuitTimer++;
     if (circuitTimer % 20 === 0 && circuits.length < 30) spawnCircuit(cx, cy);
@@ -1487,7 +2164,7 @@ function drawEffects() {
     circuits = circuits.filter(c => c.life > 0);
   }
 
-  // ── DNA Helix ──
+  // DNA Helix
   if (effectsOn.helix) {
     helixTime += 0.015;
     const helixX = ssCanvas.width - 60;
@@ -1502,19 +2179,16 @@ function drawEffects() {
       const x2 = helixX + Math.sin(phase + Math.PI) * amp;
       const depth1 = (Math.sin(phase) + 1) / 2;
       const depth2 = (Math.sin(phase + Math.PI) + 1) / 2;
-      // Connecting rung
       ctx.beginPath();
       ctx.moveTo(x1, yy);
       ctx.lineTo(x2, yy);
       ctx.strokeStyle = 'rgba(' + rgb.join(',') + ',0.06)';
       ctx.lineWidth = 0.5;
       ctx.stroke();
-      // Strand 1
       ctx.beginPath();
       ctx.arc(x1, yy, 2 + depth1, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(' + rgb.join(',') + ',' + (0.1 + depth1 * 0.25) + ')';
       ctx.fill();
-      // Strand 2
       ctx.beginPath();
       ctx.arc(x2, yy, 2 + depth2, 0, Math.PI * 2);
       ctx.fillStyle = 'rgba(' + rgb.join(',') + ',' + (0.1 + depth2 * 0.25) + ')';
@@ -1527,7 +2201,7 @@ function drawEffects() {
 
 drawEffects();
 
-// ─── Effect toggles ────────────────────────────────
+// ─── Effect toggles ────────────────────────────
 function toggleEffect(name, el) {
   effectsOn[name] = !effectsOn[name];
   el.classList.toggle('on', effectsOn[name]);
@@ -1628,7 +2302,7 @@ def chat():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "online", "service": "jarvis_orchestrator", "version": "0.2.0"})
+    return jsonify({"status": "online", "service": "jarvis_orchestrator", "version": "0.3.0"})
 
 
 @app.route("/devices")
@@ -1656,7 +2330,7 @@ if __name__ == "__main__":
 
     print()
     print("=" * 56)
-    print("  J.A.R.V.I.S. — Streaming + Browser TTS")
+    print("  J.A.R.V.I.S. — Streaming + Browser TTS + Voice Mode")
     print("  Open http://localhost:5000 in Microsoft Edge")
     print("  (Edge has the best neural voices)")
     print("=" * 56)
