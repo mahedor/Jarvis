@@ -1,9 +1,12 @@
 """
-Jarvis Phase 1 — Demo v2 (Streaming + Browser TTS + Voice Mode)
-=================================================================
+Jarvis Phase 1 — Demo v2 (Streaming + Browser TTS + Voice Mode + Intent Classifier)
+=====================================================================================
 Claude's response streams to the browser in real-time.
 Browser speaks each sentence INSTANTLY via Web Speech API.
 No server-side TTS, no file generation, no latency.
+
+Intent classifier routes simple commands locally (~0.01ms) instead of
+calling Claude (~1-2s). Only complex/conversational messages go to Claude.
 
 Two modes:
   - Chat mode: text bubbles, type or speak
@@ -20,6 +23,7 @@ Setup:
 import os
 import json
 import re
+import time
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -34,17 +38,16 @@ except ImportError:
     print("   Then try again.\n")
     exit(1)
 
+from intent_classifier import classify
+
 # ─── CONFIG ────────────────────────────────────────────────────
 API_KEY = os.getenv("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
-# Or set it directly: API_KEY = "sk-ant-..."
 
 app = Flask(__name__)
 client = Anthropic(api_key=API_KEY)
 conversation_history = []
 
 # ─── Device State Tracking ─────────────────────────────────────
-# This simulates what Home Assistant would provide in the real setup.
-# Each device has a state and optional attributes (like brightness).
 device_states = {
     "light.bedroom": {"state": "off", "friendly_name": "Bedroom main light", "brightness": 0},
     "light.bedroom_lamp": {"state": "off", "friendly_name": "Bedroom lamp", "brightness": 0},
@@ -67,7 +70,7 @@ def update_device_state(action):
         if "brightness" in data:
             device_states[entity_id]["brightness"] = data["brightness"]
         elif "brightness" in device_states[entity_id] and "turn_on" in service:
-            device_states[entity_id]["brightness"] = 255  # Default to full brightness
+            device_states[entity_id]["brightness"] = 255
     elif "turn_off" in service or "close" in service:
         device_states[entity_id]["state"] = "closed" if "cover" in entity_id else "off"
         if "brightness" in device_states[entity_id]:
@@ -135,13 +138,16 @@ def clean_response(text):
     return re.sub(r'\[ACTION:.*?\]', '', text).strip()
 
 
-def log_interaction(command, response, actions):
+def log_interaction(command, response, actions, tier=3, latency_ms=0):
+    """Log every interaction to a JSONL file. Now includes tier and latency."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "command": command,
         "response": response,
         "actions": actions,
         "intent": "home_control" if actions else "conversation",
+        "tier": tier,
+        "latency_ms": round(latency_ms, 2),
     }
     os.makedirs("logs", exist_ok=True)
     with open("logs/interactions.jsonl", "a", encoding="utf-8") as f:
@@ -149,6 +155,7 @@ def log_interaction(command, response, actions):
 
 
 # ─── Routes ────────────────────────────────────────────────────
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -165,7 +172,10 @@ def greeting():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    """Stream Claude internally (faster), return JSON, browser handles TTS."""
+    """
+    Intent classifier routes simple commands locally (~0.01ms).
+    Only complex/conversational messages go to Claude (~1-2s).
+    """
     global conversation_history
 
     data = request.json
@@ -174,6 +184,31 @@ def chat():
     if not user_message:
         return jsonify({"response": "I didn't catch that.", "actions": []})
 
+    start_time = time.perf_counter()
+
+    # ─── Intent Classifier ─────────────────────
+    # Try to handle locally BEFORE calling Claude
+    result = classify(user_message, device_states)
+
+    if result["tier"] < 3:
+        # Handled locally — no Claude needed!
+        for action in result["actions"]:
+            update_device_state(action)
+
+        latency = (time.perf_counter() - start_time) * 1000
+        log_interaction(user_message, result["response"], result["actions"],
+                        tier=result["tier"], latency_ms=latency)
+
+        return jsonify({
+            "response": result["response"],
+            "actions": result["actions"],
+            "device_states": device_states,
+            "tier": result["tier"],
+            "latency_ms": round(latency, 2),
+        })
+
+    # ─── Tier 3: Claude API ────────────────────
+    # Complex/conversational — needs real intelligence
     conversation_history.append({"role": "user", "content": user_message})
     if len(conversation_history) > 20:
         conversation_history = conversation_history[-20:]
@@ -181,7 +216,6 @@ def chat():
     try:
         current_prompt = build_system_prompt()
 
-        # Stream Claude internally — faster than blocking call
         full_response = ""
         with client.messages.stream(
             model="claude-sonnet-4-20250514",
@@ -199,12 +233,17 @@ def chat():
             update_device_state(action)
 
         conversation_history.append({"role": "assistant", "content": full_response})
-        log_interaction(user_message, spoken_response, actions)
+
+        latency = (time.perf_counter() - start_time) * 1000
+        log_interaction(user_message, spoken_response, actions,
+                        tier=3, latency_ms=latency)
 
         return jsonify({
             "response": spoken_response,
             "actions": actions,
             "device_states": device_states,
+            "tier": 3,
+            "latency_ms": round(latency, 2),
         })
 
     except Exception as e:
@@ -213,7 +252,12 @@ def chat():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "online", "service": "jarvis_orchestrator", "version": "0.3.0"})
+    return jsonify({
+        "status": "online",
+        "service": "jarvis_orchestrator",
+        "version": "0.4.0",
+        "intent_classifier": "active",
+    })
 
 
 @app.route("/devices")
@@ -242,6 +286,7 @@ if __name__ == "__main__":
     print()
     print("=" * 56)
     print("  J.A.R.V.I.S. — Streaming + Browser TTS + Voice Mode")
+    print("  Intent Classifier: ACTIVE (Tier 1-2 handled locally)")
     print("  Open http://localhost:5000 in Microsoft Edge")
     print("  (Edge has the best neural voices)")
     print("=" * 56)
