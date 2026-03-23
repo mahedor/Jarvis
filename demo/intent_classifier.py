@@ -498,20 +498,119 @@ def _build_everything_response(action, device_states):
     }
 
 
+# ─── Time-of-day Context Commands ─────────────────────────────
+GOODNIGHT_PHRASES = [
+    "goodnight", "good night", "night night",
+    "i'm going to sleep", "going to sleep",
+    "heading to bed", "going to bed", "i'm going to bed",
+    "time for bed", "off to bed",
+]
+GOODNIGHT_HOUR = 20  # 8pm — before this, falls through to Claude (could be saying bye to someone)
+
+GOODMORNING_PHRASES = [
+    "good morning", "goodmorning", "morning",
+    "i'm awake", "i just woke up", "just woke up",
+    "rise and shine", "wakey wakey",
+]
+GOODMORNING_HOUR_START = 5   # 5am — before this, falls through to Claude
+GOODMORNING_HOUR_END   = 12  # noon — after this, falls through to Claude
+
+
+def check_context_commands(text, device_states, now):
+    """
+    Handle commands whose response depends on time of day.
+    Returns a result dict or None.
+    """
+    lower = normalize(text)
+
+    if any(phrase in lower for phrase in GOODNIGHT_PHRASES):
+        if now.hour >= GOODNIGHT_HOUR:
+            return _build_goodnight_response(device_states)
+        return None  # Before 8pm — ambiguous, let Claude handle it
+
+    if any(phrase in lower for phrase in GOODMORNING_PHRASES):
+        if GOODMORNING_HOUR_START <= now.hour < GOODMORNING_HOUR_END:
+            return _build_goodmorning_response(device_states)
+        return None  # Outside 5am-noon — ambiguous, let Claude handle it
+
+    return None
+
+
+def _build_goodmorning_response(device_states):
+    """Turn on lights and open covers for wake-up."""
+    actions = []
+    for entity_id, info in device_states.items():
+        entity_type = entity_id.split(".")[0]
+        state = info["state"]
+        if entity_type == "light" and state == "off":
+            actions.append({"service": "light.turn_on", "entity_id": entity_id, "data": {}})
+        elif entity_type == "cover" and state == "closed":
+            actions.append({"service": "cover.open_cover", "entity_id": entity_id, "data": {}})
+
+    response = (
+        "Good morning! Turning on the lights and opening the blinds."
+        if actions else
+        "Good morning! Everything's already set up."
+    )
+    return {
+        "intent": "goodmorning",
+        "tier": TIER_LOCAL,
+        "confidence": 1.0,
+        "response": response,
+        "actions": actions,
+    }
+
+
+def _build_goodnight_response(device_states):
+    """Turn off all lights/switches and close all covers for bedtime."""
+    actions = []
+    for entity_id, info in device_states.items():
+        entity_type = entity_id.split(".")[0]
+        state = info["state"]
+        if entity_type == "light" and state == "on":
+            actions.append({"service": "light.turn_off", "entity_id": entity_id, "data": {}})
+        elif entity_type == "switch" and state == "on":
+            actions.append({"service": "switch.turn_off", "entity_id": entity_id, "data": {}})
+        elif entity_type == "cover" and state == "open":
+            actions.append({"service": "cover.close_cover", "entity_id": entity_id, "data": {}})
+
+    response = (
+        "Goodnight. Turning everything off and closing the blinds."
+        if actions else
+        "Goodnight. Everything's already off."
+    )
+    return {
+        "intent": "goodnight",
+        "tier": TIER_LOCAL,
+        "confidence": 1.0,
+        "response": response,
+        "actions": actions,
+    }
+
+
 # ─── Main Classification Entry Point ──────────────────────────
 
-def classify(text, device_states):
+def classify(text, device_states, _now=None):
     """
     Classify a user message and return the intent + tier.
 
+    Args:
+      _now: override datetime.now() — for testing time-aware commands only.
+
     Returns a dict with:
-      - intent: str (time_query, date_query, device_control, device_status, conversation)
+      - intent: str (time_query, date_query, device_control, device_status, goodmorning, goodnight, conversation)
       - tier: int (1, 2, or 3)
       - confidence: float (0.0-1.0)
       - response: str (if tier 1 or 2, the response to send)
       - actions: list (if tier 2, HA actions to execute)
     """
+    now = _now or datetime.now()
+
     result = check_tier1(text)
+    if result:
+        return result
+
+    result = check_context_commands(text, device_states, now)
     if result:
         return result
 
@@ -536,6 +635,13 @@ if __name__ == "__main__":
         "switch.bedroom_fan":   {"state": "off",    "friendly_name": "Bedroom fan"},
         "cover.bedroom_blinds": {"state": "closed", "friendly_name": "Bedroom blinds"},
     }
+
+    # Tuples are (command, expected_tier) or (command, expected_tier, _now).
+    # _now overrides datetime.now() — used to test time-aware commands.
+    _9pm  = datetime(2024, 1, 1, 21, 0)
+    _2pm  = datetime(2024, 1, 1, 14, 0)
+    _8pm  = datetime(2024, 1, 1, 20, 0)   # boundary: exactly 8pm → triggers
+    _759pm = datetime(2024, 1, 1, 19, 59) # one minute before → falls to Claude
 
     test_commands = [
         # ── Tier 1 — keyword path ────────────────────────────
@@ -582,6 +688,22 @@ if __name__ == "__main__":
         # ── Tier 2 — already done (lamp is already on) ──────
         ("Turn on the lamp", TIER_LOCAL),
 
+        # ── Goodmorning — time-aware ─────────────────────────
+        ("Good morning",     TIER_LOCAL,  datetime(2024, 1, 1,  7, 0)),  # 7am → triggers
+        ("Goodmorning",      TIER_LOCAL,  datetime(2024, 1, 1,  5, 0)),  # exactly 5am → triggers
+        ("Morning",          TIER_LOCAL,  datetime(2024, 1, 1,  9, 30)), # phrase variant
+        ("Good morning",     TIER_LOCAL,  datetime(2024, 1, 1, 11, 59)), # 11:59am → triggers
+        ("Good morning",     TIER_CLAUDE, datetime(2024, 1, 1, 12, 0)),  # noon → falls to Claude
+        ("Good morning",     TIER_CLAUDE, datetime(2024, 1, 1,  3, 0)),  # 3am → falls to Claude
+
+        # ── Goodnight — time-aware ───────────────────────────
+        ("Goodnight",        TIER_LOCAL,  _9pm),    # 9pm → triggers
+        ("Good night",       TIER_LOCAL,  _9pm),    # alternate spelling
+        ("I'm going to bed", TIER_LOCAL,  _9pm),    # phrase variant
+        ("Goodnight",        TIER_LOCAL,  _8pm),    # exactly 8pm → triggers
+        ("Goodnight",        TIER_CLAUDE, _759pm),  # 7:59pm → falls to Claude
+        ("Goodnight",        TIER_CLAUDE, _2pm),    # afternoon → falls to Claude
+
         # ── Tier 3 — should go to Claude ────────────────────
         ("What should I eat for dinner?",   TIER_CLAUDE),
         ("Tell me a joke",                  TIER_CLAUDE),
@@ -589,12 +711,12 @@ if __name__ == "__main__":
         ("What's the meaning of life?",     TIER_CLAUDE),
         ("Set the mood for a movie",        TIER_CLAUDE),
 
-        # ── Edge cases ─────────────────────────────────────────
-        ("Make things dark", TIER_CLAUDE),  # "dark" isn't a recognized action or device 
-        ("Turn the heater on", TIER_CLAUDE),  
-        ("Set an alarm", TIER_CLAUDE),  
-        ("Play Spotify", TIER_CLAUDE),  
-        ("Call Dad", TIER_CLAUDE),  
+        # ── Edge cases ──────────────────────────────────────
+        ("Make things dark",   TIER_CLAUDE),
+        ("Turn the heater on", TIER_CLAUDE),
+        ("Set an alarm",       TIER_CLAUDE),
+        ("Play Spotify",       TIER_CLAUDE),
+        ("Call Dad",           TIER_CLAUDE),
     ]
 
     print("=" * 60)
@@ -606,8 +728,10 @@ if __name__ == "__main__":
     print()
 
     passed = failed = 0
-    for command, expected_tier in test_commands:
-        result = classify(command, test_states)
+    for entry in test_commands:
+        command, expected_tier, *rest = entry
+        _now = rest[0] if rest else None
+        result = classify(command, test_states, _now=_now)
         actual_tier = result["tier"]
         ok = actual_tier == expected_tier
         passed += ok

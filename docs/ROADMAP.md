@@ -1,6 +1,6 @@
 # Jarvis — Definitive Phase Roadmap (v4)
 
-> Every single feature discussed, organized by phase. Last updated: March 16, 2026.
+> Every single feature discussed, organized by phase. Last updated: March 21, 2026.
 > 
 > Tags: `[NEW]` = added during planning · `[LATEST]` = just added · `[CAREER]` = portfolio enhancer · `[DONE]` = completed
 
@@ -24,11 +24,24 @@
 - ~~Custom cursor (gray dot + accent trailing ring)~~ `[DONE]`
 - ~~Claude streaming (internal, faster response generation)~~ `[DONE]`
 - ~~Interaction logging to JSONL~~ `[DONE]`
+- Voice mode — toggleable waveform/orb UI for voice-only interaction (no chat bubbles, just speak and listen) `[LATEST]`
+
+### ⚡ NEXT UP
+10. **Development agents — automated code quality pipeline** `[LATEST]`
+    - See `jarvis-dev-agents.md` for full details, implementation code, and build order
+    - **Core (run every change):**
+      - Linter (ESLint + ruff) — catches syntax errors instantly (~15 min to build)
+      - QA Agent (Playwright) — boots server + clicks through all UI + takes screenshots (~1-2 hrs to build)
+    - **Extras (run when needed):**
+      - Diff verification — catches missing code after refactors
+      - Performance — page load, FPS, API response time
+    - Single command runs full pipeline: `python run_agents.py`
 
 ### Career Enhancements
-6. Local intent classifier (DistilBERT fine-tuned) `[CAREER]`
+6. ~~Local intent classifier (rules + spaCy + embeddings)~~ `[DONE]` `[CAREER]` ⏳ *review code deeper*
 7. Eval suite — test commands + accuracy tracking `[CAREER]`
 8. ~~GitHub repo + ADRs + documentation~~ `[DONE]` `[CAREER]`
+9. Local failsafe LLM (Llama 3.2 3B via Ollama) — offline fallback when internet drops `[LATEST]`
 
 **Hardware needed:** Beelink Mini S12 Pro, ReSpeaker USB Mic Array, Zigbee dongle, smart bulbs, speaker
 
@@ -38,7 +51,9 @@
 
 ### Core
 9. Facial recognition greeting (DeepFace/InsightFace)
-10. Room presence detection (in bed, at desk, etc.)
+10. Room presence detection + duration tracking (in bed, at desk, on couch, out of room) `[LATEST]`
+    - Camera detects location/position, orchestrator logs timestamped state changes
+    - Enables queries like "How long was I on the couch today?"
 11. Multi-person face support
 12. Activity recognition — sleeping, showering, getting ready, at desk `[NEW]`
 13. Bed made / room cleanliness detection — custom trained classifier `[NEW]`
@@ -95,6 +110,7 @@
     - Plaid API for bank transactions OR voice logging ("Jarvis, I spent $45 on gas")
     - Motorcycle fund + car fund progress tracking
 34. Tesla vehicle integration (TeslaPy) `[NEW]`
+35. Presence duration analytics — aggregate couch/desk/bed/room time from Phase 2 camera data `[LATEST]`
 
 **Hardware:** Oura Ring (Gen 3/4 + membership)
 **Depends on:** Phase 1 (voice for logging), Phase 3 (calendar/habits for correlation)
@@ -104,15 +120,33 @@
 ## Phase 5: Coaching, Reflection + Intelligence — 3-4 weeks
 
 ### Core
-35. End-of-day check-in conversation
-36. Pattern recognition + coaching ("You skip gym on 4+ meeting days")
-37. Goal tracking + accountability (proactive nudges)
-38. Proactive habit calls — Jarvis initiates check-ins `[LATEST]`
-39. Medication impact reports — Benadryl effect on sleep, etc. `[NEW]`
+36. End-of-day check-in conversation
+37. Pattern recognition + coaching ("You skip gym on 4+ meeting days")
+38. Goal tracking + accountability (proactive nudges)
+39. Proactive habit calls — Jarvis initiates check-ins `[LATEST]`
+40. Medication impact reports — Benadryl effect on sleep, etc. `[NEW]`
+41. Proactive outreach — Jarvis texts/calls your phone when you need intervention `[LATEST]`
+    - Twilio API for SMS and voice calls
+    - Triggered by: doom scrolling (ActivityWatch), missed tasks (calendar), broken patterns (no gym)
+    - Auto-escalation: notification → text → phone call → app lock → screen lock
+    - Phone locking via Android Device Admin API on companion app
+    - Jarvis voice conversations during calls — talks you through what to do
+    - Configurable frequency limits, quiet hours, snooze option
+    - Research-backed: nudge theory, temporal discounting, varied interventions to prevent habituation
+    - Nudge variation pools per level — Claude generates contextually unique messages to prevent habituation
+    - Scaffolding withdrawal system — Jarvis gradually reduces intervention as behavior improves (SDT-based internalization)
+    - Companion app lock screen shows Jarvis interface: why you're locked, unlock conditions, voice interaction
 
 ### Career Enhancements
-40. RAG over personal data — vector search for coaching context `[CAREER]`
-41. Statistical modeling — Bayesian inference for correlations `[CAREER]`
+42. RAG over personal data — vector search for coaching context `[CAREER]`
+43. Statistical modeling — Bayesian inference for correlations `[CAREER]`
+44. Evaluate MCP (Model Context Protocol) for multi-source data access `[CAREER]`
+45. Per-user nudge experimentation framework — multi-armed bandit optimization on nudge strategies `[LATEST]` `[CAREER]`
+    - Baseline measurement week per user (no nudges, just observe)
+    - Randomized A/B testing across nudge types, tones, channels
+    - Compliance rate, time-to-comply, relapse rate, escalation depth tracked per strategy
+    - Epsilon-greedy or Thompson Sampling for real-time optimization
+    - Cross-user insights improve starting defaults for new users
 
 **Depends on:** Phase 4 (need 2-4 weeks of data history)
 
@@ -121,20 +155,24 @@
 ## Phase 6: Companion App (Phone + Wall Tablet) — 3-4 weeks
 
 ### Core
-42. Phone app (React Native / Flutter)
-43. Wall tablet dashboard (kiosk mode web app)
-44. Tablet screensaver / ambient display
+45. Phone app (React Native / Flutter) `[LATEST update]`
+    - Companion app with Device Admin permissions for screen locking and app blocking
+    - Receives commands from Jarvis server via Firebase Cloud Messaging
+    - Commands: lock_screen, block_app, grayscale_on, show_message, play_tts
+46. Wall tablet dashboard (kiosk mode web app)
+47. Tablet screensaver / ambient display
     - Clock, weather, sleep score, subtle animation
     - Wakes to full Jarvis UI on tap or approach
-45. Dynamic screensaver states based on system status `[LATEST]`
+48. Dynamic screensaver states based on system status `[LATEST]`
     - Red glow when something is down
     - Pulse effect when updating
     - Color/effect changes for notifications
-46. Data visualizations (sleep trends, habits, spending, screen time)
-47. Notification routing (push to phone + surface on tablet)
+49. Data visualizations (sleep trends, habits, spending, screen time)
+50. Notification routing (push to phone + surface on tablet)
+51. Multi-user onboarding system — goals, priorities, shortcomings, nudge preferences `[LATEST]`
 
 ### Career
-48. Demo video — 2-3 min walkthrough for LinkedIn `[CAREER]`
+52. Demo video — 2-3 min walkthrough for LinkedIn `[CAREER]`
 
 **Hardware:** Cheap Android tablet + wall mount
 **Depends on:** All previous phases
@@ -148,9 +186,9 @@
 | Phase 1 | 8 core + demo features | 2-4 weeks | 🟡 Demo complete, needs hardware |
 | Phase 2 | 9 | 3-4 weeks | ⬜ Planned |
 | Phase 3 | 7 | 2-3 weeks | 🟡 Notion done, rest planned |
-| Phase 4 | 10 | 3-4 weeks | ⬜ Planned |
-| Phase 5 | 7 | 3-4 weeks | ⬜ Planned |
-| Phase 6 | 7 | 3-4 weeks | ⬜ Planned |
-| **Total** | **48 features** | **16-23 weeks** | |
+| Phase 4 | 11 | 3-4 weeks | ⬜ Planned |
+| Phase 5 | 10 | 3-4 weeks | ⬜ Planned |
+| Phase 6 | 8 | 3-4 weeks | ⬜ Planned |
+| **Total** | **56 features** | **16-23 weeks** | |
 
-Career enhancements: 9 items
+Career enhancements: 13 items
