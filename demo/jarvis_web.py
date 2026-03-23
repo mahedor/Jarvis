@@ -246,3 +246,4 @@ if __name__ == "__main__":
     print("  (Edge has the best neural voices)")
     print("=" * 56)
     print()
+    app.run(debug=True, port=5000)
