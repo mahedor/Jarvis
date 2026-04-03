@@ -23,6 +23,7 @@ Install:
 """
 
 import re
+import random
 from datetime import datetime
 
 # ─── Optional ML dependencies ──────────────────────────────────
@@ -42,6 +43,159 @@ try:
 except ImportError:
     _embedder = None
     EMBEDDINGS_AVAILABLE = False
+
+
+# ─── Filler Phrases ────────────────────────────────────────────
+# Spoken client-side while Claude generates a Tier 3 response.
+
+_FILLERS = {
+    "question": [
+        "Uhh... one sec.",
+        "Let me think about that.",
+        "Hmm, good question.",
+        "Let me check on that.",
+        "One moment...",
+        "Yeah, give me a sec.",
+        "Hmm... let me see.",
+    ],
+    "command": [
+        "Sure, give me a second.",
+        "On it.",
+        "Right away.",
+        "Let me work on that.",
+        "Just a moment.",
+        "Yeah, one sec.",
+        "Alright, hang on.",
+    ],
+    "statement": [
+        "Hmm.",
+        "Interesting.",
+        "Got it, let me think.",
+        "I see.",
+        "Noted.",
+        "Right...",
+    ],
+    "complaint": [
+        "I hear you.",
+        "Let me help with that.",
+        "Say no more.",
+        "Yeah, hang on.",
+        "Let's sort that out.",
+    ],
+    "reflection": [
+        "Now that's a big one...",
+        "Let me ponder that.",
+        "Hmm, that's interesting.",
+        "Give me a moment to think.",
+        "Uhh... okay, let me think.",
+    ],
+    "general": [
+        "Give me a moment.",
+        "Let me think...",
+        "One sec.",
+        "Just a moment.",
+        "Hmm.",
+        "Yeah, hang on.",
+    ],
+}
+
+# Keywords for the two categories spaCy can't reliably detect structurally
+_COMPLAINT_WORDS = (
+    "ugh", "i hate", "i'm so tired", "i am so tired", "so stressed",
+    "this sucks", "i'm frustrated", "so frustrated", "i'm exhausted",
+    "i can't stand", "i'm overwhelmed", "nothing is working",
+)
+_REFLECTION_WORDS = (
+    "i wonder", "what if ", "meaning of", "do you think",
+    "what do you think", "sometimes i", "i've been thinking",
+)
+
+
+def _classify_input_type(text):
+    """
+    Classify user input for filler phrase selection.
+
+    Priority order:
+      1. Ends with '?' — unambiguous question, fast check
+      2. Complaint / reflection — semantic, keywords are still most reliable
+      3. spaCy structural parse — question (wh-word or aux inversion),
+         command (imperative: VB root with no subject),
+         statement (declarative: root has a subject)
+      4. Keyword fallback if spaCy is unavailable
+      5. General catch-all
+    """
+    lower = text.lower().strip()
+
+    # 1. Punctuation shortcut
+    if text.rstrip().endswith("?"):
+        return "question"
+
+    # 2. Semantic categories — keywords outperform structural parse here
+    # Use word-boundary regex so short words like "ugh" don't match substrings
+    # (e.g. "ugh" would otherwise match "through").
+    if any(re.search(r'\b' + re.escape(w) + r'\b', lower) for w in _COMPLAINT_WORDS):
+        return "complaint"
+    if any(re.search(r'\b' + re.escape(w) + r'\b', lower) for w in _REFLECTION_WORDS):
+        return "reflection"
+
+    # 3. spaCy structural detection
+    if SPACY_AVAILABLE:
+        doc = _nlp(text)
+
+        for token in doc:
+            if token.dep_ != "ROOT":
+                continue
+
+            child_deps = {c.dep_ for c in token.children}
+
+            # Imperative: base-form verb (VB) as root with no subject.
+            # Checked BEFORE wh-word scan so "Explain how X works" → command,
+            # not question (the subordinate "how" would otherwise steal it).
+            if token.tag_ == "VB" and "nsubj" not in child_deps and "expl" not in child_deps:
+                return "command"
+
+            # Question via wh-word in the sentence
+            if any(t.tag_ in ("WP", "WRB", "WP$") for t in doc):
+                return "question"
+
+            # Question via aux inversion — first token is a modal or aux verb
+            # e.g. "Is it raining?", "Should I take a break"
+            first = doc[0]
+            if first.tag_ in ("MD", "VBZ", "VBP", "VBD", "VBN") and first.dep_ in ("aux", "ROOT"):
+                return "question"
+
+            # Declarative statement: root has an explicit subject
+            if "nsubj" in child_deps or "nsubjpass" in child_deps:
+                return "statement"
+
+            break  # only inspect ROOT
+
+    else:
+        # Keyword fallback when spaCy is unavailable
+        wh = ("what ", "where ", "who ", "when ", "why ", "how ", "which ")
+        if any(lower.startswith(w) for w in wh):
+            return "question"
+        aux = ("is ", "are ", "was ", "were ", "can ", "could ", "will ", "would ",
+               "should ", "do ", "does ", "did ", "have ", "has ", "had ")
+        if any(lower.startswith(a) for a in aux):
+            return "question"
+        imperatives = (
+            "tell ", "show ", "remind ", "play ", "set ", "check ", "find ",
+            "look ", "search ", "give ", "make ", "create ", "help ", "explain ",
+            "describe ", "recommend ", "suggest ", "calculate ", "convert ",
+            "schedule ", "list ", "read ", "write ", "summarize ", "translate ",
+        )
+        if any(lower.startswith(v) for v in imperatives):
+            return "command"
+        if any(lower.startswith(s) for s in ("i ", "it ", "that ", "this ", "the ", "my ")):
+            return "statement"
+
+    return "general"
+
+
+def get_filler_phrase(text):
+    """Return a random filler phrase appropriate for the given input type."""
+    return random.choice(_FILLERS[_classify_input_type(text)])
 
 
 # ─── Tier Constants ────────────────────────────────────────────
@@ -717,6 +871,8 @@ if __name__ == "__main__":
         ("Set an alarm",       TIER_CLAUDE),
         ("Play Spotify",       TIER_CLAUDE),
         ("Call Dad",           TIER_CLAUDE),
+
+        ("Hey man, what's the weather gonna be like?", TIER_CLAUDE),
     ]
 
     print("=" * 60)
@@ -749,4 +905,78 @@ if __name__ == "__main__":
     print("-" * 60)
     print(f"  Results: {passed}/{passed+failed} passed", end="")
     print(f" ({failed} failed)" if failed else " — all clear!")
+    print()
+
+    # ── Filler Classification Tests ──────────────────────────────
+    print("=" * 60)
+    print("  Filler Input-Type Classifier — Test Suite")
+    print("=" * 60)
+    print()
+
+    filler_tests = [
+        # ── Questions — punctuation shortcut ────────────────────
+        ("What should I eat for dinner?",            "question"),
+        ("How productive was I today?",              "question"),
+        ("Is there anything interesting happening?", "question"),
+        ("Why do I always procrastinate?",           "question"),
+        ("Can you recommend a movie?",               "question"),
+        # '?' beats 'do you think' → should still be question
+        ("What do you think about my day?",          "question"),
+
+        # ── Questions — no '?', spaCy wh-word ───────────────────
+        ("What's the best way to study",             "question"),
+        ("How should I spend my evening",            "question"),
+        ("Who invented the internet",                "question"),
+
+        # ── Questions — aux inversion, no '?' ───────────────────
+        ("Is this a good idea",                      "question"),
+        ("Can you help me think through this",       "question"),
+        ("Should I take a break",                    "question"),
+
+        # ── Commands — imperative (spaCy VB, no nsubj) ──────────
+        ("Tell me a joke",                           "command"),
+        ("Summarize my day",                         "command"),
+        ("Recommend something to watch tonight",     "command"),
+        ("Help me write a grocery list",             "command"),
+        ("Explain how black holes work",             "command"),
+        ("Give me a motivational quote",             "command"),
+        ("Play something relaxing",                  "command"),
+
+        # ── Statements — declarative (spaCy nsubj) ──────────────
+        ("I had a really productive day",            "statement"),
+        ("The weather looks nice today",             "statement"),
+        ("I'm thinking about learning guitar",       "statement"),
+        ("That documentary was really good",         "statement"),
+        ("My schedule is packed this week",          "statement"),
+
+        # ── Complaints — keyword ─────────────────────────────────
+        ("Ugh I can't focus today",                  "complaint"),
+        ("I'm so frustrated right now",              "complaint"),
+        ("I hate when this happens",                 "complaint"),
+        ("I'm so tired of everything",               "complaint"),
+        ("I can't stand how disorganised I am",      "complaint"),
+
+        # ── Reflection — keyword ─────────────────────────────────
+        ("I wonder if I'm making the right choices", "reflection"),
+        ("Sometimes I think about the future",       "reflection"),
+        ("I've been thinking about changing careers","reflection"),
+        ("What if things had gone differently",      "reflection"),
+    ]
+
+    f_passed = f_failed = 0
+    for phrase, expected in filler_tests:
+        actual = _classify_input_type(phrase)
+        ok = actual == expected
+        f_passed += ok
+        f_failed += not ok
+        status = "OK  " if ok else "FAIL"
+        print(f"  [{status}] [{actual:<10}] \"{phrase}\"", end="")
+        if not ok:
+            print(f"  <-- expected {expected}", end="")
+        print()
+
+    print()
+    print("-" * 60)
+    print(f"  Results: {f_passed}/{f_passed+f_failed} passed", end="")
+    print(f" ({f_failed} failed)" if f_failed else " — all clear!")
     print()

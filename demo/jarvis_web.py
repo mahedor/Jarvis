@@ -38,10 +38,12 @@ except ImportError:
     print("   Then try again.\n")
     exit(1)
 
-from intent_classifier import classify
+from intent_classifier import classify, get_filler_phrase
 
 # ─── CONFIG ────────────────────────────────────────────────────
 API_KEY = os.getenv("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
+FILLER_ENABLED = True   # dev flag — set False to disable filler phrases globally
+TTS_ENABLED = True      # dev flag — set False to disable browser TTS globally
 
 app = Flask(__name__)
 client = Anthropic(api_key=API_KEY)
@@ -158,7 +160,7 @@ def log_interaction(command, response, actions, tier=3, latency_ms=0):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", tts_enabled=TTS_ENABLED)
 
 
 GREETING = "Good evening, Michael. Systems are online. What can I do for you?"
@@ -168,6 +170,29 @@ GREETING = "Good evening, Michael. Systems are online. What can I do for you?"
 def greeting():
     """Return greeting text — browser handles TTS."""
     return jsonify({"text": GREETING})
+
+
+@app.route("/filler", methods=["POST"])
+def filler():
+    """
+    Return a filler phrase if this will be a Tier 3 (Claude) request, else null.
+    Called by the frontend simultaneously with /chat so the phrase can be
+    spoken immediately while Claude generates.
+    """
+    if not FILLER_ENABLED:
+        return jsonify({"filler": None})
+
+    data = request.json
+    user_message = data.get("message", "").strip()
+    if not user_message:
+        return jsonify({"filler": None})
+
+    # Run the classifier (< 5ms) — skip filler for instant Tier 1/2 responses
+    result = classify(user_message, device_states)
+    if result["tier"] < 3:
+        return jsonify({"filler": None})
+
+    return jsonify({"filler": get_filler_phrase(user_message)})
 
 
 @app.route("/chat", methods=["POST"])

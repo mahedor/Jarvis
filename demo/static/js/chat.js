@@ -13,16 +13,26 @@ async function sendMessage() {
   chat.scrollTop = chat.scrollHeight;
 
   try {
-    const res = await fetch('/chat', {
+    // Fire both requests simultaneously — filler returns in ~5ms
+    const chatPromise = fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text }),
     });
+    const fillerRes = await fetch('/filler', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    });
+    const fillerData = await fillerRes.json();
+    if (fillerData.filler) speakText(fillerData.filler);
+
+    const res = await chatPromise;
     const data = await res.json();
     typing.style.display = 'none';
     addMessage('jarvis', data.response, data.actions);
     syncDeviceChips(data.device_states);
-    speakText(data.response);
+    speakText(data.response);  // cancels filler if still playing
   } catch (err) {
     typing.style.display = 'none';
     addMessage('jarvis', 'Something went wrong. Check that the server is running.');
@@ -51,17 +61,26 @@ async function sendVoiceMessage(text) {
   setVoiceState('thinking');
 
   try {
-    const res = await fetch('/chat', {
+    // Fire both requests simultaneously — filler returns in ~5ms
+    const chatPromise = fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: text }),
     });
+    const fillerRes = await fetch('/filler', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text }),
+    });
+    const fillerData = await fillerRes.json();
+    if (fillerData.filler) speakText(fillerData.filler);
+
+    const res = await chatPromise;
     const data = await res.json();
     syncDeviceChips(data.device_states);
-    // Also add to chat history so switching modes shows the conversation
     addMessage('user', text);
     addMessage('jarvis', data.response, data.actions);
-    speakText(data.response);
+    speakText(data.response);  // cancels filler if still playing
   } catch (err) {
     setVoiceState('idle');
   }

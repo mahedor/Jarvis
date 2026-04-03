@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // ─── Browser TTS (Web Speech API) ──────────────
 // ═══════════════════════════════════════════════
-let ttsOn = true;
+let ttsOn = document.querySelector('meta[name="tts-enabled"]').content === 'true';
 let ttsVoice = null;
 let ttsSpeaking = false;
 
@@ -30,14 +30,6 @@ function speakText(text) {
   utter.onstart = () => { ttsSpeaking = true; setVoiceState('speaking'); };
   utter.onend = () => { ttsSpeaking = false; setVoiceState('idle'); };
   speechSynthesis.speak(utter);
-}
-
-function toggleTTS() {
-  ttsOn = !ttsOn;
-  if (!ttsOn) speechSynthesis.cancel();
-  const btn = document.getElementById('tts-toggle');
-  btn.textContent = 'TTS: ' + (ttsOn ? 'on' : 'off');
-  btn.classList.toggle('off', !ttsOn);
 }
 
 // ═══════════════════════════════════════════════
