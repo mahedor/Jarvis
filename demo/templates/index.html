@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="tts-enabled" content="{{ tts_enabled | tojson }}">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>J.A.R.V.I.S.</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+<!-- ─── Screensaver ────────────────────────────── -->
+<div class="screensaver" id="screensaver">
+  <div class="ss-cursor-core" id="ss-cursor-core"></div>
+  <div class="ss-cursor-ring" id="ss-cursor-ring"></div>
+  <div class="ss-grid" id="ss-grid"></div>
+  <canvas class="ss-canvas" id="ss-canvas"></canvas>
+  <div style="position:relative">
+    <div class="ss-pulse" id="ss-pulse">
+      <div class="ss-pulse-wave"></div>
+      <div class="ss-pulse-wave"></div>
+      <div class="ss-pulse-wave"></div>
+    </div>
+    <div class="ss-ring">
+      <span class="ss-initial">JARVIS</span>
+    </div>
+  </div>
+  <div class="ss-time" id="ss-time"></div>
+  <div class="ss-date" id="ss-date"></div>
+  <div class="ss-hint">click or press any key</div>
+  <div class="ss-controls" id="ss-controls">
+    <div class="ss-toggle" onclick="toggleEffect('particles', this)"><div class="ss-check"></div>particles</div>
+    <div class="ss-toggle" onclick="toggleEffect('grid', this)"><div class="ss-check"></div>grid</div>
+    <div class="ss-toggle" onclick="toggleEffect('pulse', this)"><div class="ss-check"></div>pulse</div>
+    <div class="ss-toggle" onclick="toggleEffect('orbits', this)"><div class="ss-check"></div>orbits</div>
+    <div class="ss-toggle" onclick="toggleEffect('warpgrid', this)"><div class="ss-check"></div>warp</div>
+    <div class="ss-toggle" onclick="toggleEffect('neural', this)"><div class="ss-check"></div>neural</div>
+    <div class="ss-toggle" onclick="toggleEffect('tendrils', this)"><div class="ss-check"></div>tendrils</div>
+    <div class="ss-toggle" onclick="toggleEffect('starfield', this)"><div class="ss-check"></div>starfield</div>
+    <div class="ss-toggle" onclick="toggleEffect('circuits', this)"><div class="ss-check"></div>circuits</div>
+    <div class="ss-toggle" onclick="toggleEffect('helix', this)"><div class="ss-check"></div>helix</div>
+  </div>
+</div>
+
+<!-- ─── Main App ───────────────────────────────── -->
+<div class="header">
+  <div>
+    <h1>J.A.R.V.I.S.</h1>
+    <p>Just A Rather Very Intelligent System — Phase 1 Demo</p>
+  </div>
+  <div class="header-right">
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-chat" onclick="setMode('chat')">chat</button>
+      <button class="mode-btn" id="mode-voice" onclick="setMode('voice')">voice</button>
+    </div>
+    <div class="theme-picker">
+      <div class="theme-trigger" id="theme-trigger"></div>
+      <div class="theme-tray">
+        <div class="theme-dot" style="background:#4a9eff" onclick="setTheme('#4a9eff','74,158,255',this)"></div>
+        <div class="theme-dot" style="background:#00e5c8" onclick="setTheme('#00e5c8','0,229,200',this)"></div>
+        <div class="theme-dot active" style="background:#7c3aed" onclick="setTheme('#7c3aed','124,58,237',this)"></div>
+        <div class="theme-dot" style="background:#f59e0b" onclick="setTheme('#f59e0b','245,158,11',this)"></div>
+        <div class="theme-dot" style="background:#ef4444" onclick="setTheme('#ef4444','239,68,68',this)"></div>
+        <div class="theme-dot" style="background:#22c55e" onclick="setTheme('#22c55e','34,197,94',this)"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-item"><div class="status-dot active"></div> Orchestrator online</div>
+  <div class="status-item"><div class="status-dot"></div> Whisper (not connected)</div>
+  <div class="status-item"><div class="status-dot active"></div> Claude API</div>
+</div>
+
+<!-- ─── Chat Mode ──────────────────────────────── -->
+<div class="chat-mode" id="chat-mode">
+  <div class="devices-bar" id="devices">
+    <div class="device-chip" id="dev-light-bedroom">bedroom light: off</div>
+    <div class="device-chip" id="dev-light-lamp">bedroom lamp: off</div>
+    <div class="device-chip" id="dev-switch-fan">bedroom fan: off</div>
+    <div class="device-chip" id="dev-cover-blinds">blinds: closed</div>
+  </div>
+
+  <div class="chat-area" id="chat">
+    <div class="message jarvis">
+      <div class="label">Jarvis</div>
+      <div class="text">Good evening, Michael. Systems are online. What can I do for you?</div>
+    </div>
+  </div>
+
+  <div class="typing-indicator" id="typing">
+    <div class="dots"><span></span><span></span><span></span></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
+        <svg class="mic-icon" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="1" width="6" height="12" rx="3"/>
+          <path d="M19 10v1a7 7 0 01-14 0v-1"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <input type="text" id="input" placeholder="Talk to Jarvis or click the mic..." autocomplete="off" />
+      <button id="send" onclick="sendMessage()">Send</button>
+    </div>
+    <div class="suggestions" id="suggestions">
+      <button class="suggestion" onclick="useSuggestion(this)">Turn on the bedroom lights</button>
+      <button class="suggestion" onclick="useSuggestion(this)">Dim the lamp to 50%</button>
+      <button class="suggestion" onclick="useSuggestion(this)">Open the blinds</button>
+      <button class="suggestion" onclick="useSuggestion(this)">What's the status of everything?</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Voice Mode ─────────────────────────────── -->
+<div class="voice-mode" id="voice-mode">
+  <div class="voice-style-bar">
+    <span class="voice-style-label">style</span>
+    <button class="voice-style-chip active" onclick="setVoiceStyle('waveform', this)">waveform</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('bars', this)">bars</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('orb', this)">orb</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('ring', this)">ring</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('pulse', this)">pulse</button>
+    <button class="voice-style-chip" onclick="setVoiceStyle('spiral', this)">spiral</button>
+  </div>
+
+  <div class="voice-canvas-area">
+    <canvas id="voice-canvas"></canvas>
+    <span class="voice-jarvis-label">JARVIS</span>
+    <div class="voice-status" id="voice-status">idle</div>
+  </div>
+
+  <div class="voice-mic-area">
+    <button class="voice-mic-btn" id="voice-mic-btn" onclick="toggleVoiceMic()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="1" width="6" height="12" rx="3"/>
+        <path d="M19 10v1a7 7 0 01-14 0v-1"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    </button>
+    <div class="voice-mic-hint">click to speak</div>
+  </div>
+</div>
+
+<!-- Scripts loaded in order — later files use globals from earlier ones -->
+<script src="{{ url_for('static', filename='js/state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+<script src="{{ url_for('static', filename='js/voice-engine.js') }}"></script>
+<script src="{{ url_for('static', filename='js/screensaver.js') }}"></script>
+
+</body>
+</html>
