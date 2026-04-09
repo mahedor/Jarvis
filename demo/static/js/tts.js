@@ -32,6 +32,14 @@ function speakText(text) {
   speechSynthesis.speak(utter);
 }
 
+function toggleTTS() {
+  ttsOn = !ttsOn;
+  if (!ttsOn) speechSynthesis.cancel();
+  const btn = document.getElementById('tts-toggle');
+  btn.textContent = 'TTS: ' + (ttsOn ? 'on' : 'off');
+  btn.classList.toggle('off', !ttsOn);
+}
+
 // ═══════════════════════════════════════════════
 // ─── Speech Recognition (shared) ───────────────
 // ═══════════════════════════════════════════════
