@@ -215,6 +215,8 @@ def chat():
     # Try to handle locally BEFORE calling Claude
     result = classify(user_message, device_states)
 
+    print(f"[classifier] layer={result.get('matched_layer','?')} tier={result['tier']} intent={result['intent']} | \"{user_message}\"")
+
     if result["tier"] < 3:
         # Handled locally — no Claude needed!
         for action in result["actions"]:

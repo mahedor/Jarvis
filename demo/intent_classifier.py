@@ -375,6 +375,23 @@ def _embed_classify(text, embeddings, labels):
 
 
 # ─── Tier 1: Direct Responses ──────────────────────────────────
+# Compiled patterns for fast, precise matching.
+# Broad substrings like "what time" / "what day" false-fire on sentences like
+# "What time does X happen?" or "What day does the store open?", so each
+# pattern requires enough surrounding context to confirm a local time/date query.
+_TIME_KW_RE = re.compile(
+    r"\btime is it\b"               # "what time is it"
+    r"|what'?s the time\b"          # "what's the time"
+    r"|\bcurrent time\b(?!\s+in\b)" # "current time" — but NOT "current time in London"
+)
+_DATE_KW_RE = re.compile(
+    r"what'?s the date\b"           # "what's the date (today)"
+    r"|\btoday'?s date\b"           # "today's date"
+    r"|\bwhat day is (it|today)\b"  # "what day is it / today" — not "what day does X"
+    r"|\bwhat date is it\b"         # "what date is it"
+)
+
+
 def check_tier1(text):
     """
     Instant responses that don't need any intelligence.
@@ -383,17 +400,17 @@ def check_tier1(text):
     lower = normalize(text)
 
     # Fast keyword path
-    if any(p in lower for p in ["what time", "current time", "time is it", "what's the time"]):
-        return _make_time_response()
-    if any(p in lower for p in ["what day", "what's the date", "today's date", "what date"]):
-        return _make_date_response()
+    if _TIME_KW_RE.search(lower):
+        return {**_make_time_response(), "matched_layer": "tier1_keyword"}
+    if _DATE_KW_RE.search(lower):
+        return {**_make_date_response(), "matched_layer": "tier1_keyword"}
 
     # Embedding fallback — catches "tell me the time", "what hour is it", etc.
     label = _embed_classify(lower, _tier1_embeddings, _tier1_labels)
     if label == "time_query":
-        return _make_time_response()
+        return {**_make_time_response(), "matched_layer": "tier1_embedding"}
     if label == "date_query":
-        return _make_date_response()
+        return {**_make_date_response(), "matched_layer": "tier1_embedding"}
 
     return None
 
@@ -433,28 +450,39 @@ def check_tier2(text, device_states):
         r"device status", r"what.?s everything", r"status\??$",
     ]
     if any(re.search(p, lower) for p in status_patterns):
-        return _build_status_response(lower, device_states)
+        result = _build_status_response(lower, device_states)
+        result["matched_layer"] = "tier2_keyword"
+        return result
 
     # ── "Turn everything off/on" ────────────
     if any(re.search(r'\b' + re.escape(word) + r'\b', lower) for word in EVERYTHING_WORDS):
         action = _extract_action(lower)
         if action:
-            return _build_everything_response(action, device_states)
+            result = _build_everything_response(action, device_states)
+            result["matched_layer"] = "tier2_keyword"
+            return result
 
     # ── Standard device commands ────────────
     # B: keyword extraction on normalized text
+    matched_layer = "tier2_keyword"
     action = _extract_action(lower)
 
     # C: spaCy if keyword failed
     if action is None:
         action = _spacy_extract_action(lower)
+        if action is not None:
+            matched_layer = "tier2_spacy"
 
     # D: embeddings if both failed
     if action is None:
         label = _embed_classify(lower, _intent_embeddings, _intent_labels)
         if label == "status":
-            return _build_status_response(lower, device_states)
+            result = _build_status_response(lower, device_states)
+            result["matched_layer"] = "tier2_embedding"
+            return result
         action = label  # turn_on / turn_off / open_cover / close_cover / None
+        if action is not None:
+            matched_layer = "tier2_embedding"
 
     if action is None:
         return None
@@ -493,13 +521,14 @@ def check_tier2(text, device_states):
         return {
             "intent": "device_control", "tier": TIER_LOCAL, "confidence": 0.9,
             "response": f"The {friendly_name.lower()} is already {current_state}.",
-            "actions": [],
+            "actions": [], "matched_layer": matched_layer,
         }
 
     return {
         "intent": "device_control", "tier": TIER_LOCAL, "confidence": 0.9,
         "response": _generate_response(action, friendly_name, brightness),
         "actions": [{"service": service, "entity_id": device_id, "data": data}],
+        "matched_layer": matched_layer,
     }
 
 
@@ -679,12 +708,16 @@ def check_context_commands(text, device_states, now):
 
     if any(phrase in lower for phrase in GOODNIGHT_PHRASES):
         if now.hour >= GOODNIGHT_HOUR:
-            return _build_goodnight_response(device_states)
+            result = _build_goodnight_response(device_states)
+            result["matched_layer"] = "tier2_keyword"
+            return result
         return None  # Before 8pm — ambiguous, let Claude handle it
 
     if any(phrase in lower for phrase in GOODMORNING_PHRASES):
         if GOODMORNING_HOUR_START <= now.hour < GOODMORNING_HOUR_END:
-            return _build_goodmorning_response(device_states)
+            result = _build_goodmorning_response(device_states)
+            result["matched_layer"] = "tier2_keyword"
+            return result
         return None  # Outside 5am-noon — ambiguous, let Claude handle it
 
     return None
@@ -775,6 +808,7 @@ def classify(text, device_states, _now=None):
     return {
         "intent": "conversation", "tier": TIER_CLAUDE,
         "confidence": 0.0, "response": None, "actions": [],
+        "matched_layer": "tier3_claude",
     }
 
 
@@ -873,6 +907,11 @@ if __name__ == "__main__":
         ("Call Dad",           TIER_CLAUDE),
 
         ("Hey man, what's the weather gonna be like?", TIER_CLAUDE),
+
+        # ── Tier 1 false-positive regression tests ───────────
+        # "what time" / "current time" in a non-time-query context
+        ("What time does the muffin man pull up?",  TIER_CLAUDE),
+        ("What's the current time in London?",      TIER_CLAUDE),
     ]
 
     print("=" * 60)
@@ -894,7 +933,8 @@ if __name__ == "__main__":
         failed += not ok
         status = "OK  " if ok else "FAIL"
         response = result["response"] or "(--> Claude)"
-        print(f"  [{status}] [Tier {actual_tier}] \"{command}\"")
+        layer = result.get("matched_layer", "?")
+        print(f"  [{status}] [Tier {actual_tier}] [{layer}] \"{command}\"")
         print(f"           Intent: {result['intent']} | {response}")
         if result["actions"]:
             for a in result["actions"]:
