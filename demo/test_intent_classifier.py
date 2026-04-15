@@ -9,7 +9,7 @@ from datetime import datetime
 from intent_classifier import (
     TIER_DIRECT, TIER_LOCAL, TIER_CLAUDE,
     SPACY_AVAILABLE, EMBEDDINGS_AVAILABLE,
-    classify, _classify_input_type,
+    classify, _classify_input_type, normalize,
 )
 
 # ─── Shared device state fixture ───────────────────────────────
@@ -157,6 +157,50 @@ CLASSIFY_TESTS = [
     # ── Goodmorning / goodnight with filler prefix ───────
     ("Hey Jarvis, good morning",   TIER_LOCAL,  datetime(2024, 1, 1, 7, 0)),
     ("Hey Jarvis, goodnight",      TIER_LOCAL,  _9pm),
+
+    # ── Negation — must NOT act, route to Claude ──────────
+    ("Don't turn on the lights",                    TIER_CLAUDE),
+    ("Do not open the blinds",                      TIER_CLAUDE),
+    ("Never turn on the lights",                    TIER_CLAUDE),
+    ("Won't you turn on the lights",                TIER_CLAUDE),
+    ("Please don't turn on the fan",                TIER_CLAUDE),  # "please" strips, negation caught
+    ("Hey Jarvis, don't turn on the lights",        TIER_CLAUDE),  # prefix stripped, negation caught
+
+    # ── Action incompatible with entity type → Claude ─────
+    ("Kill the blinds",     TIER_CLAUDE),   # turn_off + cover — invalid combo
+    ("Open the lamp",       TIER_CLAUDE),   # open_cover + light — invalid combo
+    ("Raise the fan",       TIER_CLAUDE),   # open_cover + switch — invalid combo
+    ("Enable the blinds",   TIER_CLAUDE),   # turn_on + cover — invalid combo
+    ("Lower the lamp",      TIER_CLAUDE),   # close_cover + light — invalid combo
+    ("Close the fan",       TIER_CLAUDE),   # close_cover + switch — invalid combo
+
+    # ── Valid actions on correct entity types ─────────────
+    ("Disable the bedroom lamp",     TIER_LOCAL),
+    ("Power on the fan",             TIER_LOCAL),
+    ("Deactivate the bedroom lamp",  TIER_LOCAL),
+
+    # ── Status with prefix ─────────────────────────────────
+    ("Are the lights on?",                          TIER_LOCAL),
+    ("Hey Jarvis, are the lights on?",              TIER_LOCAL),
+    ("Hey Jarvis, what's on?",                      TIER_LOCAL),
+
+    # ── Questions/observations about devices — not commands ─
+    # NOTE: "What lights do you have?" embeds close enough to "which lights are on
+    # right now" to cross EMBEDDING_THRESHOLD — returns a status response instead
+    # of routing to Claude. Harmless but a known embedding false positive.
+    ("What lights do you have?",                    TIER_LOCAL),
+    ("I see the lights are off",                    TIER_CLAUDE),
+
+    # ── Strips to empty string → Claude ───────────────────
+    ("Can you please",                              TIER_CLAUDE),
+
+    # ── Deep prefix stack resolves correctly ──────────────
+    ("Hey Jarvis, I'd like you to please go ahead and turn on the bedroom lights",
+                                                    TIER_LOCAL),
+
+    # ── Word-boundary fix: "pleased" no longer stripped ───
+    # "turn on" + "lights" still found → TIER_LOCAL (noted limitation)
+    ("Pleased to turn on the lights",               TIER_LOCAL),
 ]
 
 
@@ -210,6 +254,118 @@ FILLER_TESTS = [
     ("Sometimes I think about the future",       "reflection"),
     ("I've been thinking about changing careers","reflection"),
     ("What if things had gone differently",      "reflection"),
+]
+
+
+# ─── normalize() Unit Tests ────────────────────────────────────
+# Each entry is (input, expected_output).
+# These test the string transformation directly — independent of
+# whether the classifier ultimately routes correctly.
+
+NORMALIZE_TESTS = [
+
+    # ── No prefix — passthrough (just lowercased + stripped) ─────
+    ("Turn on the lights",           "turn on the lights"),
+    ("What time is it?",             "what time is it?"),
+    ("Good morning",                 "good morning"),
+    ("",                             ""),
+    ("   ",                          ""),        # whitespace only
+    ("  Turn on the lights  ",       "turn on the lights"),  # leading/trailing whitespace
+
+    # ── Mixed case — always lowercased ───────────────────────────
+    ("HEY JARVIS, TURN ON THE LIGHTS",          "turn on the lights"),
+    ("PLEASE Turn On The Lights",               "turn on the lights"),
+    ("Hey JARVIS, Can You Please open the blinds", "open the blinds"),
+
+    # ── Single prefix — every entry in FILLER_PREFIXES ───────────
+    ("Hey Jarvis, turn on the lights",           "turn on the lights"),
+    ("Jarvis, turn on the lights",               "turn on the lights"),  # matches "jarvis,"
+    ("Jarvis turn on the lights",                "turn on the lights"),  # matches "jarvis" (no comma)
+    ("Can you please turn on the lights",        "turn on the lights"),
+    ("Could you please open the blinds",         "open the blinds"),
+    ("Would you please close the blinds",        "close the blinds"),
+    # bare "can you" / "could you" / "would you" are NOT stripped (ambiguous — also start questions)
+    ("Can you turn on the lights",               "can you turn on the lights"),
+    ("Could you open the blinds",                "could you open the blinds"),
+    ("Would you turn off the fan",               "would you turn off the fan"),
+    ("I want you to turn on the lights",         "turn on the lights"),
+    ("I'd like you to open the blinds",          "open the blinds"),
+    ("I need you to turn off the fan",           "turn off the fan"),
+    ("I want to turn on the lights",             "turn on the lights"),
+    ("I'd like to turn off the lamp",            "turn off the lamp"),
+    ("Please turn on the lights",                "turn on the lights"),
+    ("Go ahead and turn on the lights",          "turn on the lights"),
+
+    # ── Double-stacked prefixes ───────────────────────────────────
+    # These are the cases the old single-pass break would NOT fully strip
+    ("Hey Jarvis, please turn on the lights",        "turn on the lights"),
+    ("Hey Jarvis, can you please turn on the lights","turn on the lights"),
+    ("Hey Jarvis, could you please close the blinds","close the blinds"),
+    ("Hey Jarvis, would you please turn on the fan", "turn on the fan"),
+    ("Hey Jarvis, I'd like to turn off the lamp",    "turn off the lamp"),
+    ("Hey Jarvis, I want to open the blinds",        "open the blinds"),
+    ("Hey Jarvis, go ahead and turn on the fan",     "turn on the fan"),
+    # bare "can you" / "could you" not stripped, so these stop after "hey jarvis"
+    ("Hey Jarvis, can you turn on the lights",       "can you turn on the lights"),
+    ("Hey Jarvis, could you open the blinds",        "could you open the blinds"),
+    # "please" + bare modal — "please" strips, then "can you" is not a prefix
+    ("Please can you turn on the lights",            "can you turn on the lights"),
+    ("Please could you open the blinds",             "could you open the blinds"),
+
+    # ── Triple-stacked prefixes ───────────────────────────────────
+    ("Jarvis, please can you turn off the lamp",             "can you turn off the lamp"),
+    ("Hey Jarvis, can you please go ahead and dim the lamp", "dim the lamp"),  # hey jarvis → can you please → go ahead and → all stripped
+    ("Hey Jarvis, please go ahead and turn on the fan",      "turn on the fan"),
+
+    # ── Wake word alone → empty string ───────────────────────────
+    ("Hey Jarvis",      ""),
+    ("Jarvis",          ""),
+    ("Please",          ""),
+    ("Can you please",  ""),
+    ("Go ahead and",    ""),
+
+    # ── Comma handling ────────────────────────────────────────────
+    # After stripping "hey jarvis", a leading comma must be eaten
+    ("Hey Jarvis, turn on the lights",   "turn on the lights"),  # comma eaten
+    ("Hey Jarvis,turn on the lights",    "turn on the lights"),  # no space after comma
+    ("Hey Jarvis,,turn on the lights",   "turn on the lights"),  # lstrip(",") eats all leading commas
+
+    # ── Prefix must be at the START — not stripped mid-sentence ──
+    ("Turn on the lights please",               "turn on the lights please"),
+    ("I think please turn on the lights",       "i think please turn on the lights"),
+    # "can you" is NOT a listed prefix — not stripped, routes to Claude correctly
+    ("Can you believe it turned on",            "can you believe it turned on"),
+    ("She said hey jarvis to me",               "she said hey jarvis to me"),     # not at start
+
+    # ── Longest prefix wins (greedy match) ───────────────────────
+    # "can you please" must match before "can you" (sorted by length desc)
+    ("Can you please turn on the lights",  "turn on the lights"),  # not "please turn on the lights"
+    ("Could you please open the blinds",   "open the blinds"),     # not "please open the blinds"
+
+    # ── Prefix that's a substring of content — only start matters ─
+    ("I need you to activate I need you to listen", "activate i need you to listen"),
+
+    # ── Word-boundary guard: prefix must not eat into a real word ─
+    # "please" (6 chars) must NOT match the start of "pleased" (7 chars)
+    ("Pleased to meet you",                             "pleased to meet you"),
+    ("Pleased to turn on the lights",                   "pleased to turn on the lights"),
+
+    # ── Repeated wake word — loop strips both occurrences ─────────
+    ("Hey Jarvis, hey Jarvis, turn on the lights",      "turn on the lights"),
+
+    # ── 4-deep stack — tests that the while loop keeps going ──────
+    ("Hey Jarvis, I'd like you to please go ahead and turn on the lights",
+                                                        "turn on the lights"),
+
+    # ── Prefix immediately followed by next with no space ─────────
+    ("Jarvis,please turn on the lights",                "turn on the lights"),
+
+    # ── Wake word + exclamation — punctuation left behind ─────────
+    ("Hey Jarvis!",                                     "!"),
+
+    # ── Double space inside prefix — breaks startswith, not stripped ─
+    # "hey  jarvis" ≠ "hey jarvis" so the prefix doesn't match at all
+    ("Hey  Jarvis, turn on the lights",                 "hey  jarvis, turn on the lights"),
 ]
 
 
@@ -277,7 +433,34 @@ def run_filler_tests():
     return f_failed
 
 
+def run_normalize_tests():
+    print("=" * 60)
+    print("  normalize() — Unit Tests")
+    print("=" * 60)
+    print()
+
+    passed = failed = 0
+    for text, expected in NORMALIZE_TESTS:
+        actual = normalize(text)
+        ok = actual == expected
+        passed += ok
+        failed += not ok
+        status = "OK  " if ok else "FAIL"
+        display = repr(text) if len(text) <= 45 else repr(text[:42] + "...")
+        print(f"  [{status}] {display}")
+        if not ok:
+            print(f"           expected: {expected!r}")
+            print(f"           got:      {actual!r}")
+    print()
+    print("-" * 60)
+    print(f"  Results: {passed}/{passed+failed} passed", end="")
+    print(f" ({failed} failed)" if failed else " — all clear!")
+    print()
+    return failed
+
+
 if __name__ == "__main__":
-    failures = run_classify_tests()
+    failures = run_normalize_tests()
+    failures += run_classify_tests()
     failures += run_filler_tests()
     raise SystemExit(failures)  # non-zero exit if anything failed

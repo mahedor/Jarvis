@@ -206,10 +206,13 @@ TIER_CLAUDE = 3   # Complex/conversational — requires Claude API
 
 # ─── Option A: Normalization ───────────────────────────────────
 FILLER_PREFIXES = [
-    # Longest first so "can you please" matches before "can you"
     "hey jarvis", "jarvis,", "jarvis",
+    # "can you please" etc. are unambiguous command forms — safe to strip.
+    # Bare "can you" / "could you" / "would you" are NOT listed: they also start
+    # questions ("Can you believe it?") and stripping them mid-sentence would
+    # produce nonsense normalized text. Keyword/embedding matching works fine
+    # on the un-stripped string anyway.
     "can you please", "could you please", "would you please",
-    "can you", "could you", "would you",
     "i want you to", "i'd like you to", "i need you to",
     "i want to", "i'd like to",
     "please", "go ahead and",
@@ -229,7 +232,13 @@ def normalize(text):
         changed = False
         for prefix in sorted(FILLER_PREFIXES, key=len, reverse=True):
             if s.startswith(prefix):
-                s = s[len(prefix):].strip().lstrip(",").strip()
+                rest = s[len(prefix):]
+                # Word-boundary guard: if the prefix ends with a letter, the next
+                # character must not also be a letter — otherwise we eat the start
+                # of a real word (e.g. "please" would wrongly strip from "pleased to…").
+                if prefix[-1].isalpha() and rest and rest[0].isalpha():
+                    continue
+                s = rest.strip().lstrip(",").strip()
                 changed = True
                 break
     return s
@@ -384,6 +393,12 @@ def _embed_classify(text, embeddings, labels):
     return None
 
 
+# ─── Negation Guard ────────────────────────────────────────────
+# If a negation word appears in the command we cannot safely act on it —
+# route to Claude so it can respond intelligently ("Sure, I won't do that").
+_NEGATION_RE = re.compile(r"\b(don'?t|do\s+not|never|won'?t)\b")
+
+
 # ─── Tier 1: Direct Responses ──────────────────────────────────
 # Compiled patterns for fast, precise matching.
 # Broad substrings like "what time" / "what day" false-fire on sentences like
@@ -465,6 +480,12 @@ def check_tier2(text, device_states):
         result = _build_status_response(normalized, device_states)
         result["matched_layer"] = "tier2_keyword"
         return result
+
+    # ── Negation guard ──────────────────────
+    # Must come after status checks (so "Is the fan not on?" still routes correctly)
+    # but before action extraction (so we never act on a negated command).
+    if _NEGATION_RE.search(normalized):
+        return None
 
     # ── "Turn everything off/on" ────────────
     if any(re.search(r'\b' + re.escape(word) + r'\b', normalized) for word in EVERYTHING_WORDS):
