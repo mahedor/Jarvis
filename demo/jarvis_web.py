@@ -93,9 +93,7 @@ def get_device_status_text():
     return "\n".join(lines)
 
 
-def build_system_prompt():
-    """Build the system prompt with LIVE device states injected."""
-    return f"""You are Jarvis, a personal AI assistant for a smart home system.
+SYSTEM_STATIC = """You are Jarvis, a personal AI assistant for a smart home system.
 Your personality is helpful, witty, and concise — like the Jarvis from Iron Man but
 more casual and friendly. You're talking to Michael in his bedroom.
 
@@ -107,23 +105,40 @@ RULES:
 DEVICE CONTROL:
 When the user asks to control a device, respond with a natural confirmation AND include
 an action block on its own line in this exact format:
-[ACTION: {{"service": "light.turn_on", "entity_id": "light.bedroom", "data": {{}}}}]
-
-Available devices and their CURRENT STATUS:
-{get_device_status_text()}
+[ACTION: {"service": "light.turn_on", "entity_id": "light.bedroom", "data": {}}]
 
 Available services:
-- light.turn_on / light.turn_off (data: {{"brightness": 0-255}})
+- light.turn_on / light.turn_off (data: {"brightness": 0-255})
 - switch.turn_on / switch.turn_off
 - cover.open_cover / cover.close_cover
 
-IMPORTANT: When asked about device status, use the CURRENT STATUS above to give accurate answers.
-If a light is already on and the user asks to turn it on, let them know it's already on.
-If they ask "what's on?" or "status?", report the current state of all devices.
-
 If the user says something conversational (not device-related), just respond naturally.
-If you're unsure which device, ask for clarification.
-"""
+If you're unsure which device, ask for clarification."""
+
+
+def build_system_prompt():
+    """
+    Returns system prompt as a list of content blocks for prompt caching.
+    The static block (personality, rules, action format) is marked cacheable —
+    only the dynamic device status block changes per request.
+    """
+    return [
+        {
+            "type": "text",
+            "text": SYSTEM_STATIC,
+            "cache_control": {"type": "ephemeral"},
+        },
+        {
+            "type": "text",
+            "text": (
+                f"CURRENT DEVICE STATUS:\n{get_device_status_text()}\n\n"
+                "IMPORTANT: When asked about device status, use the CURRENT STATUS above "
+                "to give accurate answers. If a light is already on and the user asks to "
+                "turn it on, let them know it's already on. If they ask 'what's on?' or "
+                "'status?', report the current state of all devices."
+            ),
+        },
+    ]
 
 
 def parse_actions(text):

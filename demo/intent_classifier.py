@@ -206,22 +206,41 @@ TIER_CLAUDE = 3   # Complex/conversational — requires Claude API
 
 # ─── Option A: Normalization ───────────────────────────────────
 FILLER_PREFIXES = [
-    # Longest first so "can you please" matches before "can you"
     "hey jarvis", "jarvis,", "jarvis",
+    # "can you please" etc. are unambiguous command forms — safe to strip.
+    # Bare "can you" / "could you" / "would you" are NOT listed: they also start
+    # questions ("Can you believe it?") and stripping them mid-sentence would
+    # produce nonsense normalized text. Keyword/embedding matching works fine
+    # on the un-stripped string anyway.
     "can you please", "could you please", "would you please",
-    "can you", "could you", "would you",
     "i want you to", "i'd like you to", "i need you to",
     "i want to", "i'd like to",
     "please", "go ahead and",
 ]
 
 def normalize(text):
-    """Lowercase, strip one filler prefix, collapse whitespace."""
+    """
+    Return the normalized (lowercased, filler-stripped) form of text.
+
+    Only the *normalized* form is returned. The caller is responsible for
+    keeping the original text if it is needed — see the comment in classify()
+    for why we deliberately preserve both.
+    """
     s = text.lower().strip()
-    for prefix in sorted(FILLER_PREFIXES, key=len, reverse=True):
-        if s.startswith(prefix):
-            s = s[len(prefix):].strip().lstrip(",").strip()
-            break
+    changed = True
+    while changed:
+        changed = False
+        for prefix in sorted(FILLER_PREFIXES, key=len, reverse=True):
+            if s.startswith(prefix):
+                rest = s[len(prefix):]
+                # Word-boundary guard: if the prefix ends with a letter, the next
+                # character must not also be a letter — otherwise we eat the start
+                # of a real word (e.g. "please" would wrongly strip from "pleased to…").
+                if prefix[-1].isalpha() and rest and rest[0].isalpha():
+                    continue
+                s = rest.strip().lstrip(",").strip()
+                changed = True
+                break
     return s
 
 
@@ -374,6 +393,12 @@ def _embed_classify(text, embeddings, labels):
     return None
 
 
+# ─── Negation Guard ────────────────────────────────────────────
+# If a negation word appears in the command we cannot safely act on it —
+# route to Claude so it can respond intelligently ("Sure, I won't do that").
+_NEGATION_RE = re.compile(r"\b(don'?t|do\s+not|never|won'?t)\b")
+
+
 # ─── Tier 1: Direct Responses ──────────────────────────────────
 # Compiled patterns for fast, precise matching.
 # Broad substrings like "what time" / "what day" false-fire on sentences like
@@ -397,16 +422,17 @@ def check_tier1(text):
     Instant responses that don't need any intelligence.
     Returns a response dict or None if not Tier 1.
     """
-    lower = normalize(text)
+    original   = text
+    normalized = normalize(text)
 
     # Fast keyword path
-    if _TIME_KW_RE.search(lower):
+    if _TIME_KW_RE.search(normalized):
         return {**_make_time_response(), "matched_layer": "tier1_keyword"}
-    if _DATE_KW_RE.search(lower):
+    if _DATE_KW_RE.search(normalized):
         return {**_make_date_response(), "matched_layer": "tier1_keyword"}
 
     # Embedding fallback — catches "tell me the time", "what hour is it", etc.
-    label = _embed_classify(lower, _tier1_embeddings, _tier1_labels)
+    label = _embed_classify(normalized, _tier1_embeddings, _tier1_labels)
     if label == "time_query":
         return {**_make_time_response(), "matched_layer": "tier1_embedding"}
     if label == "date_query":
@@ -440,7 +466,8 @@ def check_tier2(text, device_states):
       D. Embedding similarity (semantic fallback)
     Returns a result dict or None if not a device command.
     """
-    lower = normalize(text)  # A
+    original   = text           # A — kept for response generation / logging
+    normalized = normalize(text)  # filler prefixes stripped; used for all matching below
 
     # ── Status queries ──────────────────────
     status_patterns = [
@@ -449,14 +476,20 @@ def check_tier2(text, device_states):
         r"are the .+ on", r"are the .+ off",
         r"device status", r"what.?s everything", r"status\??$",
     ]
-    if any(re.search(p, lower) for p in status_patterns):
-        result = _build_status_response(lower, device_states)
+    if any(re.search(p, normalized) for p in status_patterns):
+        result = _build_status_response(normalized, device_states)
         result["matched_layer"] = "tier2_keyword"
         return result
 
+    # ── Negation guard ──────────────────────
+    # Must come after status checks (so "Is the fan not on?" still routes correctly)
+    # but before action extraction (so we never act on a negated command).
+    if _NEGATION_RE.search(normalized):
+        return None
+
     # ── "Turn everything off/on" ────────────
-    if any(re.search(r'\b' + re.escape(word) + r'\b', lower) for word in EVERYTHING_WORDS):
-        action = _extract_action(lower)
+    if any(re.search(r'\b' + re.escape(word) + r'\b', normalized) for word in EVERYTHING_WORDS):
+        action = _extract_action(normalized)
         if action:
             result = _build_everything_response(action, device_states)
             result["matched_layer"] = "tier2_keyword"
@@ -465,19 +498,19 @@ def check_tier2(text, device_states):
     # ── Standard device commands ────────────
     # B: keyword extraction on normalized text
     matched_layer = "tier2_keyword"
-    action = _extract_action(lower)
+    action = _extract_action(normalized)
 
     # C: spaCy if keyword failed
     if action is None:
-        action = _spacy_extract_action(lower)
+        action = _spacy_extract_action(normalized)
         if action is not None:
             matched_layer = "tier2_spacy"
 
     # D: embeddings if both failed
     if action is None:
-        label = _embed_classify(lower, _intent_embeddings, _intent_labels)
+        label = _embed_classify(normalized, _intent_embeddings, _intent_labels)
         if label == "status":
-            result = _build_status_response(lower, device_states)
+            result = _build_status_response(normalized, device_states)
             result["matched_layer"] = "tier2_embedding"
             return result
         action = label  # turn_on / turn_off / open_cover / close_cover / None
@@ -487,11 +520,11 @@ def check_tier2(text, device_states):
     if action is None:
         return None
 
-    device_id = _extract_device(lower)
+    device_id = _extract_device(normalized)
     if device_id is None:
         return None
 
-    brightness = _extract_brightness(lower)
+    brightness = _extract_brightness(normalized)
     data = {}
     entity_type = device_id.split(".")[0]
 
@@ -704,16 +737,17 @@ def check_context_commands(text, device_states, now):
     Handle commands whose response depends on time of day.
     Returns a result dict or None.
     """
-    lower = normalize(text)
+    original   = text
+    normalized = normalize(text)
 
-    if any(phrase in lower for phrase in GOODNIGHT_PHRASES):
+    if any(phrase in normalized for phrase in GOODNIGHT_PHRASES):
         if now.hour >= GOODNIGHT_HOUR:
             result = _build_goodnight_response(device_states)
             result["matched_layer"] = "tier2_keyword"
             return result
         return None  # Before 8pm — ambiguous, let Claude handle it
 
-    if any(phrase in lower for phrase in GOODMORNING_PHRASES):
+    if any(phrase in normalized for phrase in GOODMORNING_PHRASES):
         if GOODMORNING_HOUR_START <= now.hour < GOODMORNING_HOUR_END:
             result = _build_goodmorning_response(device_states)
             result["matched_layer"] = "tier2_keyword"
@@ -790,233 +824,44 @@ def classify(text, device_states, _now=None):
       - confidence: float (0.0-1.0)
       - response: str (if tier 1 or 2, the response to send)
       - actions: list (if tier 2, HA actions to execute)
+      - original_text: str — the exact string the user said, before normalization
+
+    Why we preserve both original and normalized text:
+      Matching runs on the normalized form (filler prefixes stripped), but the
+      original phrasing is needed by the web layer, interaction logger, and TTS.
+      Stamping it on the result dict avoids re-threading it through every caller.
     """
     now = _now or datetime.now()
 
     result = check_tier1(text)
     if result:
+        result["original_text"] = text
         return result
 
     result = check_context_commands(text, device_states, now)
     if result:
+        result["original_text"] = text
         return result
 
     result = check_tier2(text, device_states)
     if result:
+        result["original_text"] = text
         return result
 
     return {
         "intent": "conversation", "tier": TIER_CLAUDE,
         "confidence": 0.0, "response": None, "actions": [],
         "matched_layer": "tier3_claude",
+        "original_text": text,
     }
 
 
-# ─── Test Suite ────────────────────────────────────────────────
-# Run this file directly to test the classifier:
-#   python intent_classifier.py
+# ─── Tests ─────────────────────────────────────────────────────
+# See demo/test_intent_classifier.py
+#   python demo/test_intent_classifier.py
 
 if __name__ == "__main__":
-    test_states = {
-        "light.bedroom":        {"state": "off",    "friendly_name": "Bedroom main light", "brightness": 0},
-        "light.bedroom_lamp":   {"state": "on",     "friendly_name": "Bedroom lamp",       "brightness": 128},
-        "switch.bedroom_fan":   {"state": "off",    "friendly_name": "Bedroom fan"},
-        "cover.bedroom_blinds": {"state": "closed", "friendly_name": "Bedroom blinds"},
-    }
+    # Kept so `python intent_classifier.py` still works
+    import subprocess, sys
+    raise SystemExit(subprocess.call([sys.executable, __file__.replace("intent_classifier.py", "test_intent_classifier.py")]))
 
-    # Tuples are (command, expected_tier) or (command, expected_tier, _now).
-    # _now overrides datetime.now() — used to test time-aware commands.
-    _9pm  = datetime(2024, 1, 1, 21, 0)
-    _2pm  = datetime(2024, 1, 1, 14, 0)
-    _8pm  = datetime(2024, 1, 1, 20, 0)   # boundary: exactly 8pm → triggers
-    _759pm = datetime(2024, 1, 1, 19, 59) # one minute before → falls to Claude
-
-    test_commands = [
-        # ── Tier 1 — keyword path ────────────────────────────
-        ("What time is it?",          TIER_DIRECT),
-        ("What's the date today?",    TIER_DIRECT),
-        # Tier 1 via embeddings (novel phrasings)
-        ("Tell me the current time",  TIER_DIRECT),
-        ("What hour is it?",          TIER_DIRECT),
-        ("What day is today?",        TIER_DIRECT),
-
-        # ── Tier 2 — keyword path ────────────────────────────
-        ("Turn on the bedroom lights",   TIER_LOCAL),
-        ("Turn off the lamp",            TIER_LOCAL),
-        ("Dim the lamp to 50%",          TIER_LOCAL),
-        ("Open the blinds",              TIER_LOCAL),
-        ("Close the blinds",             TIER_LOCAL),
-        ("Turn on the fan",              TIER_LOCAL),
-        ("Turn off everything",          TIER_LOCAL),
-        ("Switch on the lights",         TIER_LOCAL),
-        ("Kill the lights",              TIER_LOCAL),
-        ("Shut the blinds",              TIER_LOCAL),
-
-        # ── Tier 2 — normalization (Option A) ───────────────
-        ("Hey Jarvis, turn on the lights",  TIER_LOCAL),
-        ("Can you please turn off the fan", TIER_LOCAL),
-        ("Could you open the blinds",       TIER_LOCAL),
-        ("Please dim the lamp to 30%",      TIER_LOCAL),
-
-        # ── Tier 2 — spaCy path (Option C) ──────────────────
-        ("The lamp should be switched off", TIER_LOCAL),
-        ("I need the blinds raised",        TIER_LOCAL),
-
-        # ── Tier 2 — embedding path (Option D) ──────────────
-        ("Cut the power to the lights",           TIER_LOCAL),
-        ("Let some light in through the blinds",  TIER_LOCAL),
-        ("Put the fan on",                        TIER_LOCAL),
-
-        # ── Tier 2 — status queries ──────────────────────────
-        ("What's the status of everything?", TIER_LOCAL),
-        ("Is the light on?",                 TIER_LOCAL),
-        ("Status?",                          TIER_LOCAL),
-        ("What's on?",                       TIER_LOCAL),
-
-        # ── Tier 2 — already done (lamp is already on) ──────
-        ("Turn on the lamp", TIER_LOCAL),
-
-        # ── Goodmorning — time-aware ─────────────────────────
-        ("Good morning",     TIER_LOCAL,  datetime(2024, 1, 1,  7, 0)),  # 7am → triggers
-        ("Goodmorning",      TIER_LOCAL,  datetime(2024, 1, 1,  5, 0)),  # exactly 5am → triggers
-        ("Morning",          TIER_LOCAL,  datetime(2024, 1, 1,  9, 30)), # phrase variant
-        ("Good morning",     TIER_LOCAL,  datetime(2024, 1, 1, 11, 59)), # 11:59am → triggers
-        ("Good morning",     TIER_CLAUDE, datetime(2024, 1, 1, 12, 0)),  # noon → falls to Claude
-        ("Good morning",     TIER_CLAUDE, datetime(2024, 1, 1,  3, 0)),  # 3am → falls to Claude
-
-        # ── Goodnight — time-aware ───────────────────────────
-        ("Goodnight",        TIER_LOCAL,  _9pm),    # 9pm → triggers
-        ("Good night",       TIER_LOCAL,  _9pm),    # alternate spelling
-        ("I'm going to bed", TIER_LOCAL,  _9pm),    # phrase variant
-        ("Goodnight",        TIER_LOCAL,  _8pm),    # exactly 8pm → triggers
-        ("Goodnight",        TIER_CLAUDE, _759pm),  # 7:59pm → falls to Claude
-        ("Goodnight",        TIER_CLAUDE, _2pm),    # afternoon → falls to Claude
-
-        # ── Tier 3 — should go to Claude ────────────────────
-        ("What should I eat for dinner?",   TIER_CLAUDE),
-        ("Tell me a joke",                  TIER_CLAUDE),
-        ("How productive was I today?",     TIER_CLAUDE),
-        ("What's the meaning of life?",     TIER_CLAUDE),
-        ("Set the mood for a movie",        TIER_CLAUDE),
-
-        # ── Edge cases ──────────────────────────────────────
-        ("Make things dark",   TIER_CLAUDE),
-        ("Turn the heater on", TIER_CLAUDE),
-        ("Set an alarm",       TIER_CLAUDE),
-        ("Play Spotify",       TIER_CLAUDE),
-        ("Call Dad",           TIER_CLAUDE),
-
-        ("Hey man, what's the weather gonna be like?", TIER_CLAUDE),
-
-        # ── Tier 1 false-positive regression tests ───────────
-        # "what time" / "current time" in a non-time-query context
-        ("What time does the muffin man pull up?",  TIER_CLAUDE),
-        ("What's the current time in London?",      TIER_CLAUDE),
-    ]
-
-    print("=" * 60)
-    print("  JARVIS Intent Classifier — Test Suite")
-    print()
-    print(f"  spaCy:      {'available' if SPACY_AVAILABLE      else 'NOT INSTALLED'}")
-    print(f"  Embeddings: {'available' if EMBEDDINGS_AVAILABLE else 'NOT INSTALLED'}")
-    print("=" * 60)
-    print()
-
-    passed = failed = 0
-    for entry in test_commands:
-        command, expected_tier, *rest = entry
-        _now = rest[0] if rest else None
-        result = classify(command, test_states, _now=_now)
-        actual_tier = result["tier"]
-        ok = actual_tier == expected_tier
-        passed += ok
-        failed += not ok
-        status = "OK  " if ok else "FAIL"
-        response = result["response"] or "(--> Claude)"
-        layer = result.get("matched_layer", "?")
-        print(f"  [{status}] [Tier {actual_tier}] [{layer}] \"{command}\"")
-        print(f"           Intent: {result['intent']} | {response}")
-        if result["actions"]:
-            for a in result["actions"]:
-                extra = f" (data: {a['data']})" if a.get("data") else ""
-                print(f"           => {a['service']} -> {a['entity_id']}{extra}")
-        print()
-
-    print("-" * 60)
-    print(f"  Results: {passed}/{passed+failed} passed", end="")
-    print(f" ({failed} failed)" if failed else " — all clear!")
-    print()
-
-    # ── Filler Classification Tests ──────────────────────────────
-    print("=" * 60)
-    print("  Filler Input-Type Classifier — Test Suite")
-    print("=" * 60)
-    print()
-
-    filler_tests = [
-        # ── Questions — punctuation shortcut ────────────────────
-        ("What should I eat for dinner?",            "question"),
-        ("How productive was I today?",              "question"),
-        ("Is there anything interesting happening?", "question"),
-        ("Why do I always procrastinate?",           "question"),
-        ("Can you recommend a movie?",               "question"),
-        # '?' beats 'do you think' → should still be question
-        ("What do you think about my day?",          "question"),
-
-        # ── Questions — no '?', spaCy wh-word ───────────────────
-        ("What's the best way to study",             "question"),
-        ("How should I spend my evening",            "question"),
-        ("Who invented the internet",                "question"),
-
-        # ── Questions — aux inversion, no '?' ───────────────────
-        ("Is this a good idea",                      "question"),
-        ("Can you help me think through this",       "question"),
-        ("Should I take a break",                    "question"),
-
-        # ── Commands — imperative (spaCy VB, no nsubj) ──────────
-        ("Tell me a joke",                           "command"),
-        ("Summarize my day",                         "command"),
-        ("Recommend something to watch tonight",     "command"),
-        ("Help me write a grocery list",             "command"),
-        ("Explain how black holes work",             "command"),
-        ("Give me a motivational quote",             "command"),
-        ("Play something relaxing",                  "command"),
-
-        # ── Statements — declarative (spaCy nsubj) ──────────────
-        ("I had a really productive day",            "statement"),
-        ("The weather looks nice today",             "statement"),
-        ("I'm thinking about learning guitar",       "statement"),
-        ("That documentary was really good",         "statement"),
-        ("My schedule is packed this week",          "statement"),
-
-        # ── Complaints — keyword ─────────────────────────────────
-        ("Ugh I can't focus today",                  "complaint"),
-        ("I'm so frustrated right now",              "complaint"),
-        ("I hate when this happens",                 "complaint"),
-        ("I'm so tired of everything",               "complaint"),
-        ("I can't stand how disorganised I am",      "complaint"),
-
-        # ── Reflection — keyword ─────────────────────────────────
-        ("I wonder if I'm making the right choices", "reflection"),
-        ("Sometimes I think about the future",       "reflection"),
-        ("I've been thinking about changing careers","reflection"),
-        ("What if things had gone differently",      "reflection"),
-    ]
-
-    f_passed = f_failed = 0
-    for phrase, expected in filler_tests:
-        actual = _classify_input_type(phrase)
-        ok = actual == expected
-        f_passed += ok
-        f_failed += not ok
-        status = "OK  " if ok else "FAIL"
-        print(f"  [{status}] [{actual:<10}] \"{phrase}\"", end="")
-        if not ok:
-            print(f"  <-- expected {expected}", end="")
-        print()
-
-    print()
-    print("-" * 60)
-    print(f"  Results: {f_passed}/{f_passed+f_failed} passed", end="")
-    print(f" ({f_failed} failed)" if f_failed else " — all clear!")
-    print()
