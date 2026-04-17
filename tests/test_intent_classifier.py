@@ -2,8 +2,13 @@
 Test suite for the JARVIS intent classifier.
 
 Run directly:
-  python demo/test_intent_classifier.py
+  python tests/test_intent_classifier.py
 """
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "demo"))
 
 from datetime import datetime
 from intent_classifier import (
