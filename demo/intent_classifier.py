@@ -857,11 +857,13 @@ def classify(text, device_states, _now=None):
 
 
 # ─── Tests ─────────────────────────────────────────────────────
-# See demo/test_intent_classifier.py
-#   python demo/test_intent_classifier.py
+# See tests/test_intent_classifier.py
+#   python tests/test_intent_classifier.py
 
 if __name__ == "__main__":
-    # Kept so `python intent_classifier.py` still works
+    # Kept so `python demo/intent_classifier.py` still works
     import subprocess, sys
-    raise SystemExit(subprocess.call([sys.executable, __file__.replace("intent_classifier.py", "test_intent_classifier.py")]))
+    from pathlib import Path
+    tests_file = Path(__file__).resolve().parent.parent / "tests" / "test_intent_classifier.py"
+    raise SystemExit(subprocess.call([sys.executable, str(tests_file)]))
 
