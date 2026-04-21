@@ -38,7 +38,7 @@ except ImportError:
     print("   Then try again.\n")
     exit(1)
 
-from intent_classifier import classify, get_filler_phrase
+from intent_classifier import classify, get_filler_phrase  # noqa: E402
 
 # ─── CONFIG ────────────────────────────────────────────────────
 API_KEY = os.getenv("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
@@ -230,7 +230,10 @@ def chat():
     # Try to handle locally BEFORE calling Claude
     result = classify(user_message, device_states)
 
-    print(f"[classifier] layer={result.get('matched_layer','?')} tier={result['tier']} intent={result['intent']} | \"{user_message}\"")
+    print(
+        f"[classifier] layer={result.get('matched_layer','?')} tier={result['tier']}"
+        f" intent={result['intent']} | \"{user_message}\""
+    )
 
     if result["tier"] < 3:
         # Handled locally — no Claude needed!
