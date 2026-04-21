@@ -13,12 +13,13 @@ Setup:
 This is your FOUNDATION. Everything else builds on top of this.
 """
 
-import os
-from dotenv import load_dotenv
-load_dotenv()  # Load environment variables from .env file (if using Option B for API key)
 import json
+import os
 import re
 from datetime import datetime
+
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file (if using Option B for API key)
 
 # ─── CHANGE THIS ──────────────────────────────────────────────
 # Option A: Paste your key directly (fine for local dev, NEVER commit this)
@@ -139,7 +140,7 @@ def log_interaction(command, response, actions):
         "actions": actions,
         "intent": "home_control" if actions else "conversation",
     }
-    
+
     os.makedirs("logs", exist_ok=True)
     with open("logs/interactions.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry) + "\n")

@@ -1,0 +1,12 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "W"]
+ignore = [
+    # E402 fires on intentional post-sys.path / post-try imports; suppressed inline
+    # where needed — no blanket ignore here.
+]
+
+[lint.per-file-ignores]
+# test file imports intent_classifier via sys.path manipulation at top of file
+"tests/test_intent_classifier.py" = ["E402"]

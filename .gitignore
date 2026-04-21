@@ -4,6 +4,7 @@
 # Python
 __pycache__/
 *.pyc
+.venv/
 
 # Logs
 logs/
@@ -11,3 +12,13 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code
+.claude/
+
+# Dependencies
+node_modules/
+
+# Linter caches
+.ruff_cache/
+.eslintcache

@@ -422,7 +422,6 @@ def check_tier1(text):
     Instant responses that don't need any intelligence.
     Returns a response dict or None if not Tier 1.
     """
-    original   = text
     normalized = normalize(text)
 
     # Fast keyword path
@@ -466,7 +465,6 @@ def check_tier2(text, device_states):
       D. Embedding similarity (semantic fallback)
     Returns a result dict or None if not a device command.
     """
-    original   = text           # A — kept for response generation / logging
     normalized = normalize(text)  # filler prefixes stripped; used for all matching below
 
     # ── Status queries ──────────────────────
@@ -737,7 +735,6 @@ def check_context_commands(text, device_states, now):
     Handle commands whose response depends on time of day.
     Returns a result dict or None.
     """
-    original   = text
     normalized = normalize(text)
 
     if any(phrase in normalized for phrase in GOODNIGHT_PHRASES):
@@ -862,7 +859,8 @@ def classify(text, device_states, _now=None):
 
 if __name__ == "__main__":
     # Kept so `python demo/intent_classifier.py` still works
-    import subprocess, sys
+    import subprocess
+    import sys
     from pathlib import Path
     tests_file = Path(__file__).resolve().parent.parent / "tests" / "test_intent_classifier.py"
     raise SystemExit(subprocess.call([sys.executable, str(tests_file)]))
