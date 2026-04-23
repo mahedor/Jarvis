@@ -45,6 +45,37 @@ DEFAULT_COMMAND = (
     "What should I have for dinner tonight? Something quick and healthy."
 )
 
+# Synthetic prior turns used by --with-history to push the prefix above the
+# 1024-token cache minimum (mirrors a typical mid-session conversation).
+HISTORY_FIXTURE = [
+    {"role": "user",      "content": "Hey Jarvis, turn on the bedroom light."},
+    {"role": "assistant", "content": "Done, bedroom main light is on.\n[ACTION: {\"service\": \"light.turn_on\", \"entity_id\": \"light.bedroom\", \"data\": {}}]"},
+    {"role": "user",      "content": "Actually dim it to 40%."},
+    {"role": "assistant", "content": "Setting the bedroom main light to 40%.\n[ACTION: {\"service\": \"light.turn_on\", \"entity_id\": \"light.bedroom\", \"data\": {\"brightness\": 102}}]"},
+    {"role": "user",      "content": "What's the weather like outside today?"},
+    {"role": "assistant", "content": "Sorry, I don't have access to live weather data yet — that's on the roadmap! You could check your phone real quick."},
+    {"role": "user",      "content": "Fair enough. Can you close the blinds?"},
+    {"role": "assistant", "content": "Closing the bedroom blinds.\n[ACTION: {\"service\": \"cover.close_cover\", \"entity_id\": \"cover.bedroom_blinds\", \"data\": {}}]"},
+    {"role": "user",      "content": "Turn on the fan as well please."},
+    {"role": "assistant", "content": "Done, bedroom fan is on.\n[ACTION: {\"service\": \"switch.turn_on\", \"entity_id\": \"switch.bedroom_fan\", \"data\": {}}]"},
+    {"role": "user",      "content": "Actually never mind on the fan, turn it back off."},
+    {"role": "assistant", "content": "Bedroom fan is off.\n[ACTION: {\"service\": \"switch.turn_off\", \"entity_id\": \"switch.bedroom_fan\", \"data\": {}}]"},
+    {"role": "user",      "content": "Can you remind me what I asked you to do tonight?"},
+    {"role": "assistant", "content": "Sure! So far tonight you've had me turn on the bedroom light, dim it to 40%, close the blinds, and briefly toggle the fan on and off. That's everything so far."},
+    {"role": "user",      "content": "Nice. Also turn on the lamp."},
+    {"role": "assistant", "content": "Done, bedroom lamp is on.\n[ACTION: {\"service\": \"light.turn_on\", \"entity_id\": \"light.bedroom_lamp\", \"data\": {}}]"},
+    {"role": "user",      "content": "Set the lamp to 60% brightness."},
+    {"role": "assistant", "content": "Setting the bedroom lamp to 60%.\n[ACTION: {\"service\": \"light.turn_on\", \"entity_id\": \"light.bedroom_lamp\", \"data\": {\"brightness\": 153}}]"},
+    {"role": "user",      "content": "What's everything set to right now?"},
+    {"role": "assistant", "content": "Here's the current state: bedroom main light is on at 40%, bedroom lamp is on at 60%, the fan is off, and the blinds are closed."},
+    {"role": "user",      "content": "Perfect, thanks. Open the blinds again actually."},
+    {"role": "assistant", "content": "Opening the bedroom blinds.\n[ACTION: {\"service\": \"cover.open_cover\", \"entity_id\": \"cover.bedroom_blinds\", \"data\": {}}]"},
+    {"role": "user",      "content": "Awesome, you're the best Jarvis."},
+    {"role": "assistant", "content": "Just doing my job, sir. Let me know if you need anything else."},
+    {"role": "user",      "content": "What time is it?"},
+    {"role": "assistant", "content": "It's 8:42 PM."},
+]
+
 # ── Device states — mirrors jarvis_web.py ────────────────────────
 DEVICE_STATES = {
     "light.bedroom":        {"state": "off",    "friendly_name": "Bedroom main light", "brightness": 0},
@@ -123,14 +154,32 @@ def build_system_uncached():
 
 # ── API call ─────────────────────────────────────────────────────
 
-def call_once(client, system, command):
-    """Make one API call; return (latency_ms, usage_dict, response_text)."""
+def call_once(client, system, command, history=None, cache_on_history=False):
+    """Make one API call; return (latency_ms, usage_dict, response_text).
+
+    When cache_on_history=True the last history message is tagged with
+    cache_control so the cached prefix = system + full history (not just
+    the system block, which is too small to hit the 1024-token minimum).
+    """
+    messages = []
+    if history:
+        for i, msg in enumerate(history):
+            if cache_on_history and i == len(history) - 1:
+                # Mark the last history turn as the cache breakpoint
+                content = msg["content"]
+                messages.append({
+                    "role": msg["role"],
+                    "content": [{"type": "text", "text": content, "cache_control": {"type": "ephemeral"}}],
+                })
+            else:
+                messages.append(msg)
+    messages.append({"role": "user", "content": command})
     t0 = time.perf_counter()
     resp = client.messages.create(
         model=MODEL,
         max_tokens=MAX_TOKENS,
         system=system,
-        messages=[{"role": "user", "content": command}],
+        messages=messages,
     )
     latency_ms = (time.perf_counter() - t0) * 1000
 
@@ -146,13 +195,13 @@ def call_once(client, system, command):
 
 # ── Benchmark runner ─────────────────────────────────────────────
 
-def run_mode(client, label, system, command, runs):
+def run_mode(client, label, system, command, runs, history=None, cache_on_history=False):
     print(f"\n  [{label}]  {runs} calls ...")
     samples = []
     usages  = []
 
     for i in range(runs):
-        ms, usage, _ = call_once(client, system, command)
+        ms, usage, _ = call_once(client, system, command, history, cache_on_history)
         samples.append(ms)
         usages.append(usage)
 
@@ -182,7 +231,7 @@ def stats(samples):
 
 # ── Output ───────────────────────────────────────────────────────
 
-def print_table(command, runs, on_samples, on_usages, off_samples, off_usages):
+def print_table(command, runs, on_samples, on_usages, off_samples, off_usages, with_history=False):
     on_avg,  on_min,  on_max,  on_p95  = stats(on_samples)
     off_avg, off_min, off_max, off_p95 = stats(off_samples)
 
@@ -199,6 +248,7 @@ def print_table(command, runs, on_samples, on_usages, off_samples, off_usages):
     print("  JARVIS Claude API Latency Benchmark")
     print(f"  Model  : {MODEL}")
     print(f"  Command: \"{command[:50]}{'...' if len(command) > 50 else ''}\"")
+    print(f"  History: {'ON (' + str(len(HISTORY_FIXTURE)) + ' prior turns)' if with_history else 'OFF (fresh call)'}")
     print(f"  Runs per mode: {runs}")
     print("=" * W)
     print()
@@ -241,7 +291,7 @@ def print_table(command, runs, on_samples, on_usages, off_samples, off_usages):
 
 # ── Persistence ──────────────────────────────────────────────────
 
-def save_results(ts, command, runs, on_samples, on_usages, off_samples, off_usages):
+def save_results(ts, command, runs, on_samples, on_usages, off_samples, off_usages, with_history=False):
     LOGS_DIR.mkdir(exist_ok=True)
 
     data = []
@@ -253,9 +303,10 @@ def save_results(ts, command, runs, on_samples, on_usages, off_samples, off_usag
     off_avg, off_min, off_max, off_p95 = stats(off_samples)
 
     entry = {
-        "timestamp":    ts,
-        "model":        MODEL,
-        "command":      command,
+        "timestamp":     ts,
+        "model":         MODEL,
+        "command":       command,
+        "with_history":  with_history,
         "runs_per_mode": runs,
         "caching_on": {
             "latency_ms": {
@@ -296,6 +347,10 @@ def main():
         "--command", type=str, default=DEFAULT_COMMAND,
         help="Tier 3 (Claude) command to benchmark",
     )
+    parser.add_argument(
+        "--with-history", action="store_true",
+        help="Prepend synthetic prior turns to push prefix above the cache threshold",
+    )
     args = parser.parse_args()
 
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
@@ -305,14 +360,17 @@ def main():
 
     client = Anthropic(api_key=api_key)
 
+    history = HISTORY_FIXTURE if args.with_history else None
+
     print()
     print(f"  Command : \"{args.command}\"")
+    print(f"  History : {'ON (' + str(len(HISTORY_FIXTURE)) + ' prior turns)' if history else 'OFF (fresh call)'}")
     print(f"  Runs    : {args.runs} x 2 modes = {args.runs * 2} total API calls")
 
     t_wall = time.perf_counter()
 
-    on_samples,  on_usages  = run_mode(client, "Caching ON",  build_system_cached(),   args.command, args.runs)
-    off_samples, off_usages = run_mode(client, "Caching OFF", build_system_uncached(), args.command, args.runs)
+    on_samples,  on_usages  = run_mode(client, "Caching ON",  build_system_cached(),   args.command, args.runs, history, cache_on_history=bool(history))
+    off_samples, off_usages = run_mode(client, "Caching OFF", build_system_uncached(), args.command, args.runs, history)
 
     elapsed = time.perf_counter() - t_wall
 
@@ -320,11 +378,12 @@ def main():
         args.command, args.runs,
         on_samples, on_usages,
         off_samples, off_usages,
+        with_history=args.with_history,
     )
     print(f"  Total wall time: {elapsed:.1f}s\n")
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    save_results(ts, args.command, args.runs, on_samples, on_usages, off_samples, off_usages)
+    save_results(ts, args.command, args.runs, on_samples, on_usages, off_samples, off_usages, with_history=args.with_history)
     print(f"  Saved -> {BENCH_FILE.relative_to(REPO_ROOT)}\n")
 
 
