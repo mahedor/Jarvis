@@ -14,6 +14,7 @@ Notes:
     - Screenshots are written to tests/screenshots/ after each state transition.
 """
 import os
+import re
 import subprocess
 import sys
 import time
@@ -53,13 +54,15 @@ def flask_server():
             (
                 "import sys; sys.path.insert(0, '.');"
                 " from jarvis_web import app;"
-                f" app.run(port={PORT}, debug=False, use_reloader=False)"
+                f" app.run(port={PORT}, debug=False, use_reloader=False, threaded=True)"
             ),
         ],
         cwd=str(DEMO_DIR),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        # DEVNULL prevents the pipe buffer from filling up and blocking Flask's
+        # access-log writes, which would stall request processing under load.
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     deadline = time.monotonic() + 20
@@ -86,7 +89,7 @@ def flask_server():
 def reset_between_tests(flask_server):
     """Reset conversation history and device states before each test."""
     urllib.request.urlopen(
-        urllib.request.Request(f"{BASE_URL}/reset", method="POST"), timeout=3
+        urllib.request.Request(f"{BASE_URL}/reset", method="POST"), timeout=8
     )
 
 
@@ -99,6 +102,11 @@ def dismiss_screensaver(page: Page) -> None:
     # after a 600 ms CSS transition.  Playwright's to_be_hidden() treats opacity-0 as
     # hidden, so this assertion passes as soon as the fade begins.
     expect(page.locator("#screensaver")).to_be_hidden(timeout=3000)
+    # Wait for the element to be fully removed from the DOM.  screensaver.remove() fires
+    # inside the same 600 ms setTimeout that also dispatches POST /greeting.  Waiting
+    # for detach ensures that greeting request has been dispatched (and processed by the
+    # server) before the test sends its own requests.
+    page.locator("#screensaver").wait_for(state="detached", timeout=3000)
 
 
 # ── Tests ─────────────────────────────────────────────────────
@@ -156,3 +164,142 @@ def test_chat_response(flask_server, page: Page):
     expect(latest).to_be_visible()
     expect(latest).not_to_be_empty()
     page.screenshot(path=str(SCREENSHOTS_DIR / "06_response_received.png"))
+
+
+def test_device_chip_turns_on(flask_server, page: Page):
+    """#dev-light-bedroom gains class 'on' after 'turn on the bedroom lights'."""
+    page.goto(BASE_URL)
+    dismiss_screensaver(page)
+
+    chip = page.locator("#dev-light-bedroom")
+    # Chip starts off — class attribute must not contain the word 'on'
+    expect(chip).not_to_have_attribute("class", re.compile(r"\bon\b"))
+    page.screenshot(path=str(SCREENSHOTS_DIR / "07_chip_before.png"))
+
+    initial_count = page.locator(".message.jarvis").count()
+    page.fill("#input", TIER2_COMMAND)
+    page.keyboard.press("Enter")
+    # Wait for Jarvis reply (guarantees the /chat round-trip completed)
+    expect(page.locator(".message.jarvis")).to_have_count(
+        initial_count + 1, timeout=8000
+    )
+
+    # syncDeviceChips() runs after addMessage(), so allow a short retry window
+    expect(chip).to_have_attribute("class", re.compile(r"\bon\b"), timeout=3000)
+    expect(chip).to_contain_text("on")
+    page.screenshot(path=str(SCREENSHOTS_DIR / "08_chip_on.png"))
+
+
+def test_voice_mode_canvas_renders(flask_server, page: Page):
+    """Switching to voice mode shows the canvas with non-zero pixel dimensions."""
+    page.goto(BASE_URL)
+    dismiss_screensaver(page)
+
+    page.locator("#mode-voice").click()
+    expect(page.locator("#voice-mode")).to_have_attribute(
+        "class", re.compile(r"\bactive\b"), timeout=3000
+    )
+    expect(page.locator("#chat-mode")).to_have_attribute(
+        "class", re.compile(r"\bhidden\b"), timeout=3000
+    )
+    expect(page.locator("#voice-canvas")).to_be_visible()
+
+    # resizeVoiceCanvas() sets canvas.width/height from clientWidth * devicePixelRatio
+    w = page.evaluate("document.getElementById('voice-canvas').width")
+    h = page.evaluate("document.getElementById('voice-canvas').height")
+    assert w > 0, f"canvas width unexpectedly {w}"
+    assert h > 0, f"canvas height unexpectedly {h}"
+
+    page.screenshot(path=str(SCREENSHOTS_DIR / "09_voice_canvas.png"))
+
+
+# All six waveform style names, matching the onclick= values in the HTML
+_VOICE_STYLES = ["waveform", "bars", "orb", "ring", "pulse", "spiral"]
+
+
+def test_voice_style_chips_cycle(flask_server, page: Page):
+    """Clicking each voice-style chip activates it and deactivates the rest."""
+    page.goto(BASE_URL)
+    dismiss_screensaver(page)
+    page.locator("#mode-voice").click()
+    expect(page.locator("#voice-mode")).to_have_attribute(
+        "class", re.compile(r"\bactive\b"), timeout=3000
+    )
+
+    chips = page.locator(".voice-style-chip")
+    for idx, style in enumerate(_VOICE_STYLES):
+        chips.nth(idx).click()
+        # Clicked chip must be active
+        expect(chips.nth(idx)).to_have_attribute(
+            "class", re.compile(r"\bactive\b"), timeout=2000
+        )
+        # All other chips must not be active
+        for other in range(len(_VOICE_STYLES)):
+            if other != idx:
+                expect(chips.nth(other)).not_to_have_attribute(
+                    "class", re.compile(r"\bactive\b")
+                )
+        page.screenshot(
+            path=str(SCREENSHOTS_DIR / f"1{idx}_voice_style_{style}.png")
+        )
+
+
+# (hex, rgb-string) pairs matching the six theme-dot onclick= calls in the HTML
+_THEMES = [
+    ("#4a9eff", "74,158,255"),
+    ("#00e5c8", "0,229,200"),
+    ("#7c3aed", "124,58,237"),
+    ("#f59e0b", "245,158,11"),
+    ("#ef4444", "239,68,68"),
+    ("#22c55e", "34,197,94"),
+]
+
+
+def test_themes_cycle_css_variables(flask_server, page: Page):
+    """Clicking each theme dot updates --accent and --accent-rgb on :root."""
+    page.goto(BASE_URL)
+    dismiss_screensaver(page)
+
+    dots = page.locator(".theme-dot")
+    for idx, (hex_color, rgb) in enumerate(_THEMES):
+        # Hover the picker to expose the tray, then click the dot
+        page.hover(".theme-picker")
+        dots.nth(idx).click()
+
+        accent = page.evaluate(
+            "document.documentElement.style.getPropertyValue('--accent').trim()"
+        )
+        assert accent == hex_color, f"theme {idx}: expected --accent={hex_color!r}, got {accent!r}"
+
+        accent_rgb = page.evaluate(
+            "document.documentElement.style.getPropertyValue('--accent-rgb').trim()"
+        )
+        assert accent_rgb == rgb, (
+            f"theme {idx}: expected --accent-rgb={rgb!r}, got {accent_rgb!r}"
+        )
+
+        page.screenshot(
+            path=str(SCREENSHOTS_DIR / f"{16 + idx:02d}_theme_{hex_color[1:]}.png")
+        )
+
+
+def test_tts_toggle(flask_server, page: Page):
+    """TTS button cycles on→off→on, updating text and 'off' class accordingly."""
+    page.goto(BASE_URL)
+    dismiss_screensaver(page)
+
+    btn = page.locator("#tts-toggle")
+    # Initial state: TTS on, no 'off' class
+    expect(btn).to_have_text("TTS: on")
+    expect(btn).not_to_have_attribute("class", re.compile(r"\boff\b"))
+    page.screenshot(path=str(SCREENSHOTS_DIR / "22_tts_initially_on.png"))
+
+    btn.click()
+    expect(btn).to_have_text("TTS: off")
+    expect(btn).to_have_attribute("class", re.compile(r"\boff\b"), timeout=2000)
+    page.screenshot(path=str(SCREENSHOTS_DIR / "23_tts_off.png"))
+
+    btn.click()
+    expect(btn).to_have_text("TTS: on")
+    expect(btn).not_to_have_attribute("class", re.compile(r"\boff\b"))
+    page.screenshot(path=str(SCREENSHOTS_DIR / "24_tts_on_again.png"))
