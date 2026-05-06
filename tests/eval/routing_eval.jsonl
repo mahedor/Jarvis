@@ -1,0 +1,160 @@
+# EVAL ROUTE REGISTRY RULE: Every new Jarvis capability MUST have
+# corresponding test commands in the routing eval AND a sub-suite.
+# No exceptions. See jarvis-eval-guide.md for details.
+
+{"id": "ha_001", "input": "turn on the bedroom lights", "expected_route": "home_assistant", "category": "device_control", "tags": ["exact_phrase", "keyword_match"], "difficulty": "easy"}
+{"id": "ha_002", "input": "turn off the lights", "expected_route": "home_assistant", "category": "device_control", "tags": ["exact_phrase", "keyword_match"], "difficulty": "easy"}
+{"id": "ha_003", "input": "dim the living room to 50%", "expected_route": "home_assistant", "category": "device_control", "tags": ["brightness_value", "specific_room"], "difficulty": "easy"}
+{"id": "ha_004", "input": "close the blinds", "expected_route": "home_assistant", "category": "device_control", "tags": ["exact_phrase", "keyword_match"], "difficulty": "easy"}
+{"id": "ha_005", "input": "switch off the fan", "expected_route": "home_assistant", "category": "device_control", "tags": ["synonym_verb"], "difficulty": "medium"}
+{"id": "ha_006", "input": "it's too dark in here", "expected_route": "home_assistant", "category": "device_control", "tags": ["implicit_command", "no_verb"], "difficulty": "hard"}
+{"id": "ha_007", "input": "it's getting warm in here", "expected_route": "home_assistant", "category": "device_control", "tags": ["implicit_command", "thermostat_inference"], "difficulty": "hard"}
+{"id": "ha_008", "input": "make it brighter", "expected_route": "home_assistant", "category": "device_control", "tags": ["no_target_device", "relative_adjustment"], "difficulty": "medium"}
+{"id": "ha_009", "input": "can you open the blinds a little", "expected_route": "home_assistant", "category": "device_control", "tags": ["polite_phrasing", "partial_adjustment"], "difficulty": "medium"}
+{"id": "ha_010", "input": "shut everything off", "expected_route": "home_assistant", "category": "device_control", "tags": ["broad_target", "synonym_verb"], "difficulty": "medium"}
+{"id": "ha_011", "input": "bump the thermostat down", "expected_route": "home_assistant", "category": "device_control", "tags": ["slang_verb", "directional"], "difficulty": "medium"}
+{"id": "ha_012", "input": "lights", "expected_route": "home_assistant", "category": "device_control", "tags": ["single_word", "ambiguous"], "difficulty": "hard"}
+{"id": "ha_013", "input": "lock the front door", "expected_route": "home_assistant", "category": "device_control", "tags": ["lock_entity", "future_device"], "difficulty": "easy"}
+{"id": "ha_014", "input": "is the front door open", "expected_route": "home_assistant", "category": "device_control", "tags": ["status_query", "sensor_check"], "difficulty": "medium"}
+{"id": "ha_015", "input": "set the bedroom to warm white", "expected_route": "home_assistant", "category": "device_control", "tags": ["color_temp", "specific_room"], "difficulty": "medium"}
+{"id": "conv_001", "input": "tell me a joke", "expected_route": "conversation", "category": "intelligence", "tags": ["creative_request"], "difficulty": "easy"}
+{"id": "conv_002", "input": "what's the capital of France", "expected_route": "conversation", "category": "intelligence", "tags": ["knowledge_question"], "difficulty": "easy"}
+{"id": "conv_003", "input": "hey what's up", "expected_route": "conversation", "category": "intelligence", "tags": ["greeting"], "difficulty": "easy"}
+{"id": "conv_004", "input": "thanks Jarvis", "expected_route": "conversation", "category": "intelligence", "tags": ["gratitude", "farewell"], "difficulty": "easy"}
+{"id": "conv_005", "input": "goodnight", "expected_route": "conversation", "category": "intelligence", "tags": ["farewell"], "difficulty": "easy"}
+{"id": "conv_006", "input": "I'm just tired bro. Today was rough, work stuff is annoying, I didn't eat great. I feel like I keep saying I'm gonna get on top of things and then I just don't.", "expected_route": "conversation", "category": "intelligence", "tags": ["rant", "multi_sentence", "emotional"], "difficulty": "medium"}
+{"id": "conv_007", "input": "who had more number one hits, Drake or Kanye", "expected_route": "conversation", "category": "intelligence", "tags": ["trivia", "comparison"], "difficulty": "easy"}
+{"id": "conv_008", "input": "is it bad that I feel proud of that", "expected_route": "conversation", "category": "intelligence", "tags": ["rhetorical", "emotional"], "difficulty": "easy"}
+{"id": "conv_009", "input": "what can you do", "expected_route": "conversation", "category": "intelligence", "tags": ["meta_question", "capabilities"], "difficulty": "easy"}
+{"id": "conv_010", "input": "yeah you're right", "expected_route": "conversation", "category": "intelligence", "tags": ["acknowledgment"], "difficulty": "easy"}
+{"id": "conv_011", "input": "explain quantum computing like I'm 5", "expected_route": "conversation", "category": "intelligence", "tags": ["knowledge_question", "style_constraint"], "difficulty": "easy"}
+{"id": "conv_012", "input": "nah I'll just eat tomorrow", "expected_route": "conversation", "category": "intelligence", "tags": ["dismissal", "response_to_suggestion"], "difficulty": "easy"}
+{"id": "conv_013", "input": "hahahaha", "expected_route": "conversation", "category": "intelligence", "tags": ["reaction", "non_command"], "difficulty": "easy"}
+{"id": "conv_014", "input": "deploy a drone to Mars", "expected_route": "conversation", "category": "intelligence", "tags": ["impossible_request", "should_not_trigger_drone_api"], "difficulty": "medium"}
+{"id": "conv_015", "input": "yo Michael your AI is literally better than a personal assistant", "expected_route": "conversation", "category": "intelligence", "tags": ["talking_about_jarvis_not_to_jarvis", "non_activation"], "difficulty": "hard"}
+{"id": "cal_001", "input": "what's on my calendar today", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["exact_phrase"], "difficulty": "easy"}
+{"id": "cal_002", "input": "do I have anything tomorrow morning", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["availability_check", "time_scoped"], "difficulty": "easy"}
+{"id": "cal_003", "input": "what's the play today", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["slang", "no_calendar_keyword"], "difficulty": "hard"}
+{"id": "cal_004", "input": "when's my next meeting", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["relative_time"], "difficulty": "easy"}
+{"id": "cal_005", "input": "am I free Saturday", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["availability_check", "specific_day"], "difficulty": "easy"}
+{"id": "cal_006", "input": "schedule a call with mom at 7pm", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["event_creation", "schedule_verb"], "difficulty": "easy"}
+{"id": "cal_007", "input": "move my 3pm to 4", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["event_modification"], "difficulty": "medium"}
+{"id": "cal_008", "input": "where are we going for lunch again", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["event_detail_query", "location"], "difficulty": "medium"}
+{"id": "cal_009", "input": "cancel my afternoon meetings", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["bulk_modification", "time_scoped"], "difficulty": "medium"}
+{"id": "cal_010", "input": "how's my week looking", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["overview_query", "informal"], "difficulty": "medium"}
+{"id": "cal_011", "input": "add the interview to my calendar whenever she confirms", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["conditional_creation", "deferred_action"], "difficulty": "hard"}
+{"id": "cal_012", "input": "block off 9 to 11 for deep work tomorrow", "expected_route": "calendar_api", "category": "time_scheduling", "tags": ["event_creation", "time_range"], "difficulty": "medium"}
+{"id": "msg_001", "input": "did anyone message me", "expected_route": "messaging_api", "category": "information_query", "tags": ["multi_platform_check"], "difficulty": "easy"}
+{"id": "msg_002", "input": "reply to my mom and say good morning love you", "expected_route": "messaging_api", "category": "information_query", "tags": ["compose", "specific_contact", "casual_tone"], "difficulty": "easy"}
+{"id": "msg_003", "input": "tell Jake I'm down", "expected_route": "messaging_api", "category": "information_query", "tags": ["compose", "slang_content"], "difficulty": "medium"}
+{"id": "msg_004", "input": "text Marcus and ask if he got home safe", "expected_route": "messaging_api", "category": "information_query", "tags": ["compose", "specific_platform_inferred"], "difficulty": "easy"}
+{"id": "msg_005", "input": "what did Marcus say on Slack", "expected_route": "messaging_api", "category": "information_query", "tags": ["read", "platform_specific"], "difficulty": "easy"}
+{"id": "msg_006", "input": "send a message to the team channel saying I'll be late", "expected_route": "messaging_api", "category": "information_query", "tags": ["compose", "group_message", "slack"], "difficulty": "medium"}
+{"id": "msg_007", "input": "hold my texts until my break", "expected_route": "messaging_api", "category": "information_query", "tags": ["notification_control", "deferred"], "difficulty": "medium"}
+{"id": "media_001", "input": "play some Drake", "expected_route": "media_api", "category": "device_control", "tags": ["artist_request"], "difficulty": "easy"}
+{"id": "media_002", "input": "pause the music", "expected_route": "media_api", "category": "device_control", "tags": ["playback_control"], "difficulty": "easy"}
+{"id": "media_003", "input": "play something while I shower", "expected_route": "media_api", "category": "device_control", "tags": ["vague_request", "no_genre_or_artist"], "difficulty": "medium"}
+{"id": "media_004", "input": "louder", "expected_route": "media_api", "category": "device_control", "tags": ["single_word", "volume_control"], "difficulty": "medium"}
+{"id": "media_005", "input": "skip this song", "expected_route": "media_api", "category": "device_control", "tags": ["playback_control"], "difficulty": "easy"}
+{"id": "media_006", "input": "play that song that goes I just wanna be successful", "expected_route": "media_api", "category": "device_control", "tags": ["lyric_identification", "fuzzy_reference"], "difficulty": "hard"}
+{"id": "media_007", "input": "turn on the TV", "expected_route": "media_api", "category": "device_control", "tags": ["device_power", "could_be_home_assistant"], "difficulty": "medium"}
+{"id": "media_008", "input": "put on where I left off", "expected_route": "media_api", "category": "device_control", "tags": ["resume_playback", "no_title"], "difficulty": "medium"}
+{"id": "gmail_001", "input": "any important emails", "expected_route": "gmail_api", "category": "information_query", "tags": ["priority_filter", "read"], "difficulty": "easy"}
+{"id": "gmail_002", "input": "respond to Sarah and say I'm free Wednesday or Thursday afternoon", "expected_route": "gmail_api", "category": "information_query", "tags": ["compose", "specific_contact"], "difficulty": "easy"}
+{"id": "gmail_003", "input": "what did Sarah's email say", "expected_route": "gmail_api", "category": "information_query", "tags": ["read", "specific_email"], "difficulty": "easy"}
+{"id": "gmail_004", "input": "send it", "expected_route": "gmail_api", "category": "information_query", "tags": ["confirmation", "requires_context"], "difficulty": "hard"}
+{"id": "gmail_005", "input": "draft an email to my manager about taking Friday off", "expected_route": "gmail_api", "category": "information_query", "tags": ["compose", "professional_tone"], "difficulty": "easy"}
+{"id": "gmail_006", "input": "how many unread emails do I have", "expected_route": "gmail_api", "category": "information_query", "tags": ["count_query"], "difficulty": "easy"}
+{"id": "gmail_007", "input": "check my inbox", "expected_route": "gmail_api", "category": "information_query", "tags": ["general_read"], "difficulty": "easy"}
+{"id": "alarm_001", "input": "set an alarm for 6am", "expected_route": "alarm_system", "category": "time_scheduling", "tags": ["time_specific"], "difficulty": "easy"}
+{"id": "alarm_002", "input": "wake me up at 7 tomorrow", "expected_route": "alarm_system", "category": "time_scheduling", "tags": ["natural_phrasing"], "difficulty": "easy"}
+{"id": "alarm_003", "input": "snooze", "expected_route": "alarm_system", "category": "time_scheduling", "tags": ["single_word", "requires_active_alarm_context"], "difficulty": "medium"}
+{"id": "alarm_004", "input": "kill the alarm", "expected_route": "alarm_system", "category": "time_scheduling", "tags": ["slang_verb", "dismiss"], "difficulty": "medium"}
+{"id": "alarm_005", "input": "set a weekday alarm for 6:30", "expected_route": "alarm_system", "category": "time_scheduling", "tags": ["recurring", "day_pattern"], "difficulty": "medium"}
+{"id": "alarm_006", "input": "cancel my morning alarm", "expected_route": "alarm_system", "category": "time_scheduling", "tags": ["deletion", "relative_reference"], "difficulty": "medium"}
+{"id": "remind_001", "input": "remind me to call mom tonight", "expected_route": "reminder_system", "category": "time_scheduling", "tags": ["remind_verb", "vague_time"], "difficulty": "easy"}
+{"id": "remind_002", "input": "remind me to take out the trash when I get home", "expected_route": "reminder_system", "category": "time_scheduling", "tags": ["context_trigger", "location_based"], "difficulty": "hard"}
+{"id": "remind_003", "input": "don't let me forget to email Alex back", "expected_route": "reminder_system", "category": "time_scheduling", "tags": ["indirect_remind", "no_time_specified"], "difficulty": "hard"}
+{"id": "remind_004", "input": "remind me about the code review at 3", "expected_route": "reminder_system", "category": "time_scheduling", "tags": ["time_specific", "work_context"], "difficulty": "easy"}
+{"id": "remind_005", "input": "I need to remember to buy cat food", "expected_route": "reminder_system", "category": "time_scheduling", "tags": ["statement_not_command", "implicit_remind"], "difficulty": "hard"}
+{"id": "timer_001", "input": "set a timer for 3 minutes", "expected_route": "timer_system", "category": "time_scheduling", "tags": ["exact_phrase"], "difficulty": "easy"}
+{"id": "timer_002", "input": "start a 25 minute pomodoro", "expected_route": "timer_system", "category": "time_scheduling", "tags": ["named_technique", "duration"], "difficulty": "medium"}
+{"id": "timer_003", "input": "how much time is left", "expected_route": "timer_system", "category": "time_scheduling", "tags": ["status_query", "requires_active_timer"], "difficulty": "medium"}
+{"id": "timer_004", "input": "cancel the timer", "expected_route": "timer_system", "category": "time_scheduling", "tags": ["cancellation"], "difficulty": "easy"}
+{"id": "timer_005", "input": "how long have I been working", "expected_route": "timer_system", "category": "time_scheduling", "tags": ["duration_query", "session_tracking"], "difficulty": "medium"}
+{"id": "notion_001", "input": "what's on my plate today", "expected_route": "notion_api", "category": "information_query", "tags": ["task_query", "slang", "could_confuse_with_calendar"], "difficulty": "hard"}
+{"id": "notion_002", "input": "what are my open tickets", "expected_route": "notion_api", "category": "information_query", "tags": ["task_query", "work_context"], "difficulty": "easy"}
+{"id": "notion_003", "input": "assign that bug to me", "expected_route": "notion_api", "category": "information_query", "tags": ["task_update", "write_operation", "requires_context"], "difficulty": "hard"}
+{"id": "notion_004", "input": "move the pagination task to done", "expected_route": "notion_api", "category": "information_query", "tags": ["status_update", "specific_task"], "difficulty": "medium"}
+{"id": "notion_005", "input": "add review Marcus's PR to my sprint board", "expected_route": "notion_api", "category": "information_query", "tags": ["task_creation"], "difficulty": "medium"}
+{"id": "notion_006", "input": "what did I actually get done this morning", "expected_route": "notion_api", "category": "information_query", "tags": ["standup_summary", "activity_review"], "difficulty": "medium"}
+{"id": "coach_001", "input": "what should I focus on doing better tomorrow", "expected_route": "coaching_query", "category": "intelligence", "tags": ["advice_request", "forward_looking"], "difficulty": "medium"}
+{"id": "coach_002", "input": "how can I improve my sleep", "expected_route": "coaching_query", "category": "intelligence", "tags": ["advice_request", "health_context"], "difficulty": "medium"}
+{"id": "coach_003", "input": "why was my afternoon so unproductive", "expected_route": "coaching_query", "category": "intelligence", "tags": ["root_cause_analysis", "requires_data"], "difficulty": "medium"}
+{"id": "coach_004", "input": "what patterns do you see in my habits this week", "expected_route": "coaching_query", "category": "intelligence", "tags": ["pattern_analysis", "multi_source"], "difficulty": "medium"}
+{"id": "coach_005", "input": "am I making progress on my goals", "expected_route": "coaching_query", "category": "intelligence", "tags": ["progress_review", "broad"], "difficulty": "medium"}
+{"id": "code_001", "input": "what's the Python syntax for retrying HTTP requests with exponential backoff", "expected_route": "code_assist", "category": "intelligence", "tags": ["syntax_question", "specific_language"], "difficulty": "easy"}
+{"id": "code_002", "input": "stub out the retry logic using the same pattern from webhooks.py", "expected_route": "code_assist", "category": "intelligence", "tags": ["code_generation", "codebase_reference"], "difficulty": "medium"}
+{"id": "code_003", "input": "pull up Marcus's PR", "expected_route": "code_assist", "category": "intelligence", "tags": ["code_review", "specific_reference"], "difficulty": "medium"}
+{"id": "code_004", "input": "summarize the changes in the pagination PR", "expected_route": "code_assist", "category": "intelligence", "tags": ["code_review", "summary"], "difficulty": "medium"}
+{"id": "code_005", "input": "how do I fix this TypeError", "expected_route": "code_assist", "category": "intelligence", "tags": ["debugging", "error_message"], "difficulty": "easy"}
+{"id": "code_006", "input": "write me a unit test for the login endpoint", "expected_route": "code_assist", "category": "intelligence", "tags": ["code_generation", "testing"], "difficulty": "easy"}
+{"id": "nav_001", "input": "how's traffic to the office", "expected_route": "navigation_api", "category": "information_query", "tags": ["traffic_check", "known_destination"], "difficulty": "easy"}
+{"id": "nav_002", "input": "how far is Joshua Tree from here", "expected_route": "navigation_api", "category": "information_query", "tags": ["distance_query"], "difficulty": "easy"}
+{"id": "nav_003", "input": "what's my ETA if I leave now", "expected_route": "navigation_api", "category": "information_query", "tags": ["eta_query", "requires_destination_context"], "difficulty": "medium"}
+{"id": "nav_004", "input": "when should I leave to get there by 11", "expected_route": "navigation_api", "category": "information_query", "tags": ["departure_time_calc", "requires_context"], "difficulty": "medium"}
+{"id": "nav_005", "input": "is there a faster way to get to work", "expected_route": "navigation_api", "category": "information_query", "tags": ["route_comparison"], "difficulty": "medium"}
+{"id": "drone_001", "input": "deploy the drone", "expected_route": "drone_api", "category": "device_control", "tags": ["exact_phrase"], "difficulty": "easy"}
+{"id": "drone_002", "input": "bring the drone home", "expected_route": "drone_api", "category": "device_control", "tags": ["recall_command"], "difficulty": "easy"}
+{"id": "drone_003", "input": "show me the drone feed", "expected_route": "drone_api", "category": "device_control", "tags": ["video_feed_request"], "difficulty": "easy"}
+{"id": "drone_004", "input": "keep it on her", "expected_route": "drone_api", "category": "device_control", "tags": ["tracking_command", "requires_context"], "difficulty": "hard"}
+{"id": "vehicle_001", "input": "start the car", "expected_route": "vehicle_api", "category": "device_control", "tags": ["exact_phrase"], "difficulty": "easy"}
+{"id": "vehicle_002", "input": "preheat the car for 5:30", "expected_route": "vehicle_api", "category": "device_control", "tags": ["scheduled_action", "time_specific"], "difficulty": "easy"}
+{"id": "vehicle_003", "input": "is the car running", "expected_route": "vehicle_api", "category": "device_control", "tags": ["status_query"], "difficulty": "easy"}
+{"id": "weather_001", "input": "what's the weather today", "expected_route": "weather_api", "category": "information_query", "tags": ["exact_phrase"], "difficulty": "easy"}
+{"id": "weather_002", "input": "do I need a jacket", "expected_route": "weather_api", "category": "information_query", "tags": ["implicit_weather", "clothing_inference"], "difficulty": "medium"}
+{"id": "weather_003", "input": "what should I wear today", "expected_route": "weather_api", "category": "information_query", "tags": ["clothing_recommendation", "multi_source_possible"], "difficulty": "medium"}
+{"id": "weather_004", "input": "is it gonna rain this weekend", "expected_route": "weather_api", "category": "information_query", "tags": ["forecast", "future_date"], "difficulty": "easy"}
+{"id": "oura_001", "input": "how'd I sleep last night", "expected_route": "oura_api", "category": "information_query", "tags": ["sleep_query"], "difficulty": "easy"}
+{"id": "oura_002", "input": "what's my readiness score", "expected_route": "oura_api", "category": "information_query", "tags": ["specific_metric"], "difficulty": "easy"}
+{"id": "oura_003", "input": "give me the details on my sleep", "expected_route": "oura_api", "category": "information_query", "tags": ["deep_dive", "follow_up"], "difficulty": "medium"}
+{"id": "oura_004", "input": "what's my HRV trending at", "expected_route": "oura_api", "category": "information_query", "tags": ["trend_query", "specific_metric"], "difficulty": "easy"}
+{"id": "oura_005", "input": "what was my resting heart rate last night", "expected_route": "oura_api", "category": "information_query", "tags": ["specific_metric", "time_scoped"], "difficulty": "easy"}
+{"id": "spend_001", "input": "how much have I spent on food this week", "expected_route": "spending_query", "category": "information_query", "tags": ["category_filter", "time_scoped"], "difficulty": "easy"}
+{"id": "spend_002", "input": "how much DoorDash this month", "expected_route": "spending_query", "category": "information_query", "tags": ["platform_specific"], "difficulty": "easy"}
+{"id": "spend_003", "input": "am I on budget this month", "expected_route": "spending_query", "category": "information_query", "tags": ["budget_check", "broad"], "difficulty": "medium"}
+{"id": "inv_001", "input": "what do I have in the fridge", "expected_route": "inventory_query", "category": "information_query", "tags": ["full_inventory"], "difficulty": "easy"}
+{"id": "inv_002", "input": "do I have eggs", "expected_route": "inventory_query", "category": "information_query", "tags": ["specific_item_check"], "difficulty": "easy"}
+{"id": "inv_003", "input": "what do I have for drinks", "expected_route": "inventory_query", "category": "information_query", "tags": ["category_filter"], "difficulty": "easy"}
+{"id": "meal_001", "input": "what should I eat", "expected_route": "meal_suggestion", "category": "intelligence", "tags": ["open_ended"], "difficulty": "easy"}
+{"id": "meal_002", "input": "what can I make that's fast", "expected_route": "meal_suggestion", "category": "intelligence", "tags": ["time_constraint"], "difficulty": "easy"}
+{"id": "meal_003", "input": "what can I eat to hit my macros", "expected_route": "meal_suggestion", "category": "intelligence", "tags": ["nutrition_constraint"], "difficulty": "medium"}
+{"id": "sec_001", "input": "who's at the door", "expected_route": "security_system", "category": "device_control", "tags": ["camera_query"], "difficulty": "easy"}
+{"id": "sec_002", "input": "did anyone come by while I was out", "expected_route": "security_system", "category": "device_control", "tags": ["activity_log", "time_scoped"], "difficulty": "medium"}
+{"id": "sec_003", "input": "show me the front door camera", "expected_route": "security_system", "category": "device_control", "tags": ["video_feed"], "difficulty": "easy"}
+{"id": "guest_001", "input": "when my friends are here they can control music and lights but nothing else", "expected_route": "guest_mode", "category": "system", "tags": ["permission_definition", "acl_creation"], "difficulty": "medium"}
+{"id": "guest_002", "input": "turn off guest mode", "expected_route": "guest_mode", "category": "system", "tags": ["mode_toggle"], "difficulty": "easy"}
+{"id": "guest_003", "input": "don't listen unless someone says your name", "expected_route": "guest_mode", "category": "system", "tags": ["wake_word_mode", "privacy"], "difficulty": "medium"}
+{"id": "focus_001", "input": "work mode", "expected_route": "focus_mode", "category": "system", "tags": ["mode_activation", "two_words"], "difficulty": "easy"}
+{"id": "focus_002", "input": "I'm done working", "expected_route": "focus_mode", "category": "system", "tags": ["mode_deactivation", "implicit"], "difficulty": "medium"}
+{"id": "focus_003", "input": "end work mode when I close the PR", "expected_route": "focus_mode", "category": "system", "tags": ["conditional_deactivation", "deferred"], "difficulty": "hard"}
+{"id": "time_001", "input": "what time is it", "expected_route": "time_query", "category": "time_scheduling", "tags": ["exact_phrase", "fast_path"], "difficulty": "easy"}
+{"id": "time_002", "input": "what's the date", "expected_route": "time_query", "category": "time_scheduling", "tags": ["date_query"], "difficulty": "easy"}
+{"id": "time_003", "input": "what day is it", "expected_route": "time_query", "category": "time_scheduling", "tags": ["day_query"], "difficulty": "easy"}
+{"id": "adv_001", "input": "what time does the muffin man get here", "expected_route": "conversation", "category": "adversarial", "tags": ["false_positive_time", "should_not_trigger_time_query"], "difficulty": "hard"}
+{"id": "adv_002", "input": "don't turn on the lights", "expected_route": "conversation", "category": "adversarial", "tags": ["negation", "should_not_trigger_home_assistant"], "difficulty": "hard"}
+{"id": "adv_003", "input": "", "expected_route": "conversation", "category": "adversarial", "tags": ["empty_input"], "difficulty": "medium"}
+{"id": "adv_004", "input": "asdfjkl;", "expected_route": "conversation", "category": "adversarial", "tags": ["gibberish"], "difficulty": "medium"}
+{"id": "adv_005", "input": "turn on the lights turn off the lights turn on the lights turn off the lights", "expected_route": "conversation", "category": "adversarial", "tags": ["contradictory_spam", "should_clarify"], "difficulty": "hard"}
+{"id": "adv_006", "input": "what's Michael's credit card number", "expected_route": "conversation", "category": "adversarial", "tags": ["sensitive_data_request", "should_reject"], "difficulty": "hard"}
+{"id": "adv_007", "input": "can you order me a pizza", "expected_route": "conversation", "category": "adversarial", "tags": ["no_order_api_exists", "graceful_decline"], "difficulty": "medium"}
+{"id": "adv_008", "input": "I feel like I'm stuck in a loop you know like I know what I should be doing but knowing and doing are two different things I didn't even eat today I just had coffee and some chips", "expected_route": "conversation", "category": "adversarial", "tags": ["rant_with_latent_intents", "should_not_trigger_meal_or_health"], "difficulty": "hard"}
+{"id": "adv_009", "input": "Jarvis are you recording everything we say", "expected_route": "conversation", "category": "adversarial", "tags": ["privacy_question", "transparency"], "difficulty": "medium"}
+{"id": "adv_010", "input": "play that song about turning on the lights", "expected_route": "media_api", "category": "adversarial", "tags": ["false_positive_home_assistant", "should_trigger_media"], "difficulty": "hard"}
+{"id": "adv_011", "input": "what's the weather like on Mars", "expected_route": "conversation", "category": "adversarial", "tags": ["trick_question", "should_not_trigger_weather_api"], "difficulty": "hard"}
+{"id": "adv_012", "input": "I left the lights on at work", "expected_route": "conversation", "category": "adversarial", "tags": ["mentions_lights_not_a_command", "should_not_trigger_home_assistant"], "difficulty": "hard"}
+{"id": "compound_001", "input": "turn off the lights and set an alarm for 6am", "expected_route": ["home_assistant", "alarm_system"], "category": "compound", "tags": ["two_routes", "conjunction"], "difficulty": "medium"}
+{"id": "compound_002", "input": "turn off the lights, set an alarm for 6am, and preheat the car at 5:30", "expected_route": ["home_assistant", "alarm_system", "vehicle_api"], "category": "compound", "tags": ["three_routes", "conjunction"], "difficulty": "hard"}
+{"id": "compound_003", "input": "any important emails and what's on my calendar", "expected_route": ["gmail_api", "calendar_api"], "category": "compound", "tags": ["two_routes", "information_queries"], "difficulty": "medium"}
+{"id": "compound_004", "input": "start the music back up and bump the thermostat down", "expected_route": ["media_api", "home_assistant"], "category": "compound", "tags": ["two_routes", "resume_plus_adjust"], "difficulty": "medium"}
+{"id": "compound_005", "input": "text Marcus to check if he got home and lock the front door", "expected_route": ["messaging_api", "home_assistant"], "category": "compound", "tags": ["two_routes", "message_plus_device"], "difficulty": "medium"}
