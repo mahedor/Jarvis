@@ -9,6 +9,15 @@ __pycache__/
 # Logs
 logs/
 
+# Face-detection test images & sanity-check outputs
+tools/images/*
+!tools/images/.gitkeep
+tools/output/
+
+# Model weights (large binaries — download separately, never commit)
+tools/weights/
+*.pt
+
 # OS
 .DS_Store
 Thumbs.db
