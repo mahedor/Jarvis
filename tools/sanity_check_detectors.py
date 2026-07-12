@@ -19,6 +19,7 @@ CPU-only environment. min_confidence=0.0 so every detection is shown.
 
 import argparse
 import os
+from datetime import datetime
 
 import cv2
 
@@ -66,7 +67,12 @@ def main():
     )
     args = parser.parse_args()
 
-    os.makedirs(args.outdir, exist_ok=True)
+    # Each invocation writes into its own timestamped subfolder of --outdir so
+    # you can tell a fresh run from an old one at a glance instead of having all
+    # runs' images pile up flat. Local time; colons dropped (Windows-safe).
+    run_dir = os.path.join(args.outdir, f"run_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
+    os.makedirs(run_dir, exist_ok=True)
+    print(f"Output folder for this run: {run_dir}")
 
     # Load each detector ONCE and reuse it across every image — model weights
     # are expensive to load, so we never want to rebuild them per image.
@@ -114,7 +120,11 @@ def main():
             counts[name] = len(detections)
             print(f"  -> {len(detections)} face(s)")
 
-            out_path = os.path.join(args.outdir, f"sanity_{stem}_{name}.jpg")
+            # One subfolder per detector inside the run folder, so all of a
+            # given model's images live together (run_<stamp>/<detector>/...).
+            detector_dir = os.path.join(run_dir, name)
+            os.makedirs(detector_dir, exist_ok=True)
+            out_path = os.path.join(detector_dir, f"sanity_{stem}.jpg")
             cv2.imwrite(out_path, face_utils.draw_detections(image, detections))
             print(f"  saved {out_path}")
 
