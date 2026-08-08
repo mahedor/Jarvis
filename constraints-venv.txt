@@ -1,0 +1,7 @@
+numpy==2.5.1
+tensorflow==2.21.0
+keras==3.14.1
+mediapipe==0.10.35
+protobuf==7.35.0
+insightface==1.0.1
+opencv-python==4.13.0.92
