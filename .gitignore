@@ -6,10 +6,9 @@ __pycache__/
 *.pyc
 .venv/
 
-# Logs (ignore everything except the committed detection-benchmark results).
+# Logs (runtime only — benchmark artifacts now live in results/).
 # The /logs/* form is anchored to the repo root, so demo/logs/ needs its own rule.
 /logs/*
-!/logs/benchmarks_detection.json
 demo/logs/
 
 # Datasets (WIDER FACE / FDDB / MAFA — download separately, never commit)

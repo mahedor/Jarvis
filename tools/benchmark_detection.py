@@ -62,8 +62,8 @@ from detection_metrics import (
     roc_auc,
 )
 
-LOGS_DIR = REPO_ROOT / "logs"
-BENCH_FILE = LOGS_DIR / "benchmarks_detection.json"
+RESULTS_DIR = REPO_ROOT / "results"
+BENCH_FILE = RESULTS_DIR / "benchmarks_detection.json"
 WEIGHTS_DIR = TOOLS_DIR / "weights"
 
 DEFAULT_DETECTORS = ["mediapipe", "mtcnn", "retinaface", "yolo"]
@@ -571,8 +571,8 @@ def print_table(results, dataset, num_images, iou_threshold):
 # ════════════════════════════════════════════════════════════════════
 
 def save_results(ts, dataset, iou_threshold, limit, num_images, results):
-    """Append this run to logs/benchmarks_detection.json."""
-    LOGS_DIR.mkdir(exist_ok=True)
+    """Append this run to results/benchmarks_detection.json."""
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = []
     if BENCH_FILE.exists():
         with open(BENCH_FILE) as f:
@@ -589,13 +589,21 @@ def save_results(ts, dataset, iou_threshold, limit, num_images, results):
         json.dump(data, f, indent=2)
 
 
-def load_previous_run(current_ts):
-    """Most recent saved run that isn't the current one, or None."""
+def load_previous_run(current_ts, dataset):
+    """Most recent saved run of the SAME dataset that isn't the current one.
+
+    Deltas are only meaningful within one dataset — AP on WIDER FACE and AP on
+    MAFA measure different things — so runs from other datasets are never
+    candidates. Legacy entries written before ``dataset`` was recorded have no
+    dataset to match and are skipped. Returns None if there is nothing to
+    compare against.
+    """
     if not BENCH_FILE.exists():
         return None
     with open(BENCH_FILE) as f:
         data = json.load(f)
-    runs = [e for e in data if e["timestamp"] != current_ts]
+    runs = [e for e in data
+            if e["timestamp"] != current_ts and e.get("dataset") == dataset]
     if not runs:
         return None
     return max(runs, key=lambda e: e["timestamp"])
@@ -693,11 +701,13 @@ def main():
     print(f"  Total wall time: {elapsed:.1f}s\n")
 
     if args.compare:
-        prev = load_previous_run(ts)
+        prev = load_previous_run(ts, args.dataset)
         if prev:
             print_comparison(prev, results)
         else:
-            print("  --compare: no previous run found to compare against.\n")
+            print(f"  --compare: no previous '{args.dataset}' run to compare "
+                  f"against — skipping (runs on other datasets are not "
+                  f"comparable).\n")
 
     save_results(ts, args.dataset, args.iou_threshold, args.limit,
                  len(samples), results)
