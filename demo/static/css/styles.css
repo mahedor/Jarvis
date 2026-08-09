@@ -384,6 +384,24 @@
     color: #555;
   }
 
+  /* Link out to the engineering log. Kept visually quieter than every other
+     control in the status bar — it leaves the assistant, so it should never
+     compete with the things that operate it. */
+  .eng-log-link {
+    align-self: center;
+    color: #3a3a44;
+    text-decoration: none;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    border-bottom: 1px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .eng-log-link:hover {
+    color: var(--accent);
+    border-bottom-color: rgba(var(--accent-rgb), 0.4);
+  }
+
   /* ─── Voice Mode ──────────────────────────── */
   .voice-mode {
     display: none;

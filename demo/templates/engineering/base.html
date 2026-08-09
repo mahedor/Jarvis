@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}Engineering Log{% endblock %} — J.A.R.V.I.S.</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/engineering.css') }}">
+</head>
+<body>
+
+<!-- Same palette and type as the assistant UI, but a scrolling document
+     rather than a fixed-viewport app shell — you are meant to know you have
+     left the thing that talks back to you. -->
+<header class="eng-header">
+  <div class="eng-header-inner">
+    <div>
+      <div class="eng-eyebrow">J.A.R.V.I.S. — Engineering Log</div>
+      <h1>{% block heading %}How this was built{% endblock %}</h1>
+    </div>
+    <nav class="eng-nav">
+      <a href="{{ url_for('engineering.index') }}"
+         class="{% if request.endpoint == 'engineering.index' %}active{% endif %}">overview</a>
+      <a href="{{ url_for('engineering.detection') }}"
+         class="{% if request.endpoint == 'engineering.detection' %}active{% endif %}">detection</a>
+      <a href="{{ url_for('engineering.recognition') }}"
+         class="{% if request.endpoint == 'engineering.recognition' %}active{% endif %}">recognition</a>
+      <a href="{{ url_for('index') }}" class="eng-exit">&larr; assistant</a>
+    </nav>
+  </div>
+</header>
+
+<main class="eng-main">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="eng-footer">
+  <p>
+    Generated from <code>results/*.json</code> at request time — rerun a
+    benchmark and refresh to see it here. Nothing on these pages is
+    hand-transcribed.
+  </p>
+</footer>
+
+</body>
+</html>

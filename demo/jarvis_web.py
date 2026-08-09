@@ -49,6 +49,20 @@ app = Flask(__name__)
 client = Anthropic(api_key=API_KEY)
 conversation_history = []
 
+# ─── Engineering log ───────────────────────────────────────────
+# /engineering — a "how this was built" record of how the face pipeline was
+# measured and tuned. Kept in its own blueprint because it shares nothing with
+# the assistant: no Claude calls, no device state, no API key. If it ever
+# fails to import (e.g. results/ missing), the assistant must still start, so
+# registration is not allowed to be fatal.
+try:
+    from engineering import engineering as engineering_blueprint
+    app.register_blueprint(engineering_blueprint)
+    ENGINEERING_ENABLED = True
+except Exception as exc:  # noqa: BLE001 - the assistant matters more
+    print(f"  (engineering log unavailable: {exc})")
+    ENGINEERING_ENABLED = False
+
 # ─── Device State Tracking ─────────────────────────────────────
 device_states = {
     "light.bedroom": {"state": "off", "friendly_name": "Bedroom main light", "brightness": 0},
@@ -175,7 +189,8 @@ def log_interaction(command, response, actions, tier=3, latency_ms=0):
 
 @app.route("/")
 def index():
-    return render_template("index.html", tts_enabled=TTS_ENABLED)
+    return render_template("index.html", tts_enabled=TTS_ENABLED,
+                           engineering_enabled=ENGINEERING_ENABLED)
 
 
 GREETING = "Good evening, Michael. Systems are online. What can I do for you?"

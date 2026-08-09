@@ -1,0 +1,101 @@
+{% extends "engineering/base.html" %}
+{% block title %}Detection{% endblock %}
+{% block heading %}Face detection{% endblock %}
+
+{% block content %}
+
+<section class="eng-intro">
+  <p>
+    Four detectors — YOLOv8n-face, RetinaFace (InsightFace), MTCNN and
+    MediaPipe BlazeFace — measured on three datasets chosen to fail in
+    different ways: <strong>WIDER FACE</strong> (crowds, scale extremes, blur),
+    <strong>MAFA</strong> (occlusion and masks) and <strong>FDDB</strong>
+    (large frontal faces, the easy control). A detector that only wins on FDDB
+    has not been shown to work.
+  </p>
+  <p class="eng-note">
+    Ranked by average precision at IoU 0.5. Only full-dataset runs are shown —
+    <code>--limit</code> smoke tests are excluded, since their AP is not
+    comparable. Read from <code>{{ source }}</code> ({{ total_runs }} runs on
+    file).
+  </p>
+</section>
+
+{% if not datasets %}
+  <p class="eng-empty">
+    No full-dataset detection runs recorded yet. Run
+    <code>python tools/benchmark_detection.py --dataset widerface</code>.
+  </p>
+{% endif %}
+
+{% for block in datasets %}
+<section>
+  <h2>{{ block.dataset }}</h2>
+  <p class="eng-note">
+    {{ '{:,}'.format(block.run.num_images) }} images ·
+    IoU {{ block.run.iou_threshold }} ·
+    {% if block.min_box_size_known %}
+      min box {{ block.run.min_box_size }} px
+    {% else %}
+      <span class="eng-caveat">min box size not recorded for this run</span>
+    {% endif %}
+    · {{ block.run.timestamp }}
+  </p>
+
+  <table class="eng-table">
+    <thead>
+      <tr>
+        <th>detector</th>
+        <th class="num">AP</th>
+        <th class="num">ROC AUC</th>
+        <th class="num">F1</th>
+        <th class="num">F1-max conf</th>
+        <th class="num">mean ms</th>
+        <th class="num">p95 ms</th>
+        <th class="num">fps</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in block.rows %}
+      <tr class="{% if loop.first %}winner{% endif %}">
+        <td class="mono">{{ row.detector }}{% if loop.first %} <span class="eng-tag">best AP</span>{% endif %}</td>
+        <td class="num strong">{{ '%.4f'|format(row.ap) if row.ap is not none else '—' }}</td>
+        <td class="num">{{ '%.4f'|format(row.roc_auc) if row.roc_auc is not none else '—' }}</td>
+        <td class="num">{{ '%.3f'|format(row.f1) if row.f1 is not none else '—' }}</td>
+        <td class="num">{{ '%.4f'|format(row.f1_threshold) if row.f1_threshold is not none else '—' }}</td>
+        <td class="num">{{ '%.1f'|format(row.mean_ms) if row.mean_ms is not none else '—' }}</td>
+        <td class="num">{{ '%.1f'|format(row.p95_ms) if row.p95_ms is not none else '—' }}</td>
+        <td class="num">{{ '%.1f'|format(row.fps) if row.fps is not none else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if block.errors %}
+  <p class="eng-note">
+    skipped:
+    {% for e in block.errors %}<code>{{ e.detector }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+</section>
+{% endfor %}
+
+{% if detection_threshold is not none %}
+<section>
+  <h2>What was locked in</h2>
+  <p>
+    <strong>{{ '%.2f'|format(detection_threshold) }}</strong> confidence, from
+    where F1 peaks on the two hard datasets. FDDB's optimum sits much higher
+    because nearly everything in it is easy to be confident about; folding that
+    in would bias the threshold upward and start dropping exactly the distant,
+    profile and backlit faces a household camera actually produces.
+  </p>
+  <p class="eng-note">
+    Erring low is the right direction here: a missed face is a person JARVIS
+    fails to greet, while a false detection costs one wasted embedding that the
+    recognition stage rejects at its own threshold anyway.
+  </p>
+</section>
+{% endif %}
+
+{% endblock %}

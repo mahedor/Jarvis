@@ -1,0 +1,113 @@
+{% extends "engineering/base.html" %}
+{% block title %}Overview{% endblock %}
+{% block heading %}How this was built{% endblock %}
+
+{% block content %}
+
+<section class="eng-intro">
+  <p>
+    This section documents how each stage of the face pipeline was designed and
+    measured — what was compared, on what data, and which number was locked in
+    as a result. It exists so that no value in the running system is a magic
+    number: every operating point below links back to the benchmark run that
+    produced it.
+  </p>
+</section>
+
+<section>
+  <h2>Pipeline stages</h2>
+  <div class="eng-stages">
+    {% for stage in stages %}
+    <article class="eng-stage {% if stage.status == 'pending' %}pending{% endif %}">
+      <div class="eng-stage-head">
+        <h3>{{ stage.title }}</h3>
+        <span class="eng-badge {{ stage.status }}">{{ stage.status }}</span>
+      </div>
+      <p class="eng-question">{{ stage.question }}</p>
+      <p>{{ stage.summary }}</p>
+      {% if stage.endpoint %}
+      <a class="eng-link" href="{{ url_for(stage.endpoint) }}">read the measurements &rarr;</a>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2>Locked operating points</h2>
+  <p class="eng-note">
+    Values the live pipeline reads. Each is pinned to the run that justifies it
+    and re-checked by the test suite, so changing one without re-measuring
+    fails the build.
+  </p>
+
+  {% if detection_threshold is not none %}
+  <div class="eng-lock">
+    <div class="eng-lock-value">
+      <span class="eng-lock-number">{{ '%.2f'|format(detection_threshold) }}</span>
+      <span class="eng-lock-label">detection confidence<br>({{ detection_detector }})</span>
+    </div>
+    <div class="eng-lock-body">
+      <p>
+        Accept a detection at or above this confidence. Chosen from where F1
+        peaks on the two <strong>hard</strong> datasets, which agree to within
+        {{ '%.3f'|format(
+             (provenance.measurements | selectattr('dataset', 'in', provenance.supported_by)
+              | map(attribute='f1_threshold') | max)
+           - (provenance.measurements | selectattr('dataset', 'in', provenance.supported_by)
+              | map(attribute='f1_threshold') | min)) }}
+        of each other despite testing different failure modes.
+      </p>
+      <table class="eng-table compact">
+        <thead>
+          <tr><th>dataset</th><th class="num">images</th><th class="num">F1-max conf</th>
+              <th class="num">F1</th><th class="num">AP</th><th>role</th></tr>
+        </thead>
+        <tbody>
+        {% for m in provenance.measurements %}
+          <tr class="{% if m.dataset not in provenance.supported_by %}excluded{% endif %}">
+            <td class="mono">{{ m.dataset }}</td>
+            <td class="num">{{ '{:,}'.format(m.num_images) }}</td>
+            <td class="num strong">{{ '%.4f'|format(m.f1_threshold) }}</td>
+            <td class="num">{{ '%.3f'|format(m.f1) }}</td>
+            <td class="num">{{ '%.3f'|format(m.ap) }}</td>
+            <td class="role">{{ m.role }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="eng-note">
+        Decided {{ provenance.decided_on }} · IoU {{ provenance.iou_threshold }} ·
+        source <code>tools/pipeline_config.py</code>
+        {% if not provenance.min_box_size_recorded_in_artifact %}
+        <br><span class="eng-caveat">Caveat: these runs pre-date
+        <code>min_box_size</code> being recorded in the artifact, so the
+        minimum face size they used cannot be verified from the stored run.</span>
+        {% endif %}
+      </p>
+    </div>
+  </div>
+  {% else %}
+  <p class="eng-empty">tools/pipeline_config.py could not be imported.</p>
+  {% endif %}
+
+  <div class="eng-lock">
+    <div class="eng-lock-value">
+      <span class="eng-lock-number">0.342</span>
+      <span class="eng-lock-label">recognition accept<br>(cosine)</span>
+    </div>
+    <div class="eng-lock-body">
+      <p>
+        Deliberately <em>not</em> stored in <code>pipeline_config.py</code>. A
+        similarity threshold is only meaningful next to the encoder that
+        produced the vectors being compared, so it travels inside the gallery
+        file itself — ship a gallery, ship its threshold. See
+        <a class="eng-link" href="{{ url_for('engineering.recognition') }}">recognition</a>
+        for how it was chosen and why it is the max-F1 point rather than the
+        TAR@FAR one.
+      </p>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
