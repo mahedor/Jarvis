@@ -73,12 +73,6 @@
   <div class="status-item"><div class="status-dot"></div> Whisper (not connected)</div>
   <div class="status-item"><div class="status-dot active"></div> Claude API</div>
   <button class="tts-toggle" id="tts-toggle" onclick="toggleTTS()">TTS: on</button>
-  {% if engineering_enabled %}
-  <!-- Deliberately low-key: the engineering log is documentation, not part of
-       the assistant. Reachable at /engineering with or without this link. -->
-  <a class="eng-log-link" href="{{ url_for('engineering.index') }}"
-     title="How this was built — benchmarks, thresholds and design decisions">engineering log</a>
-  {% endif %}
 </div>
 
 <!-- ─── Chat Mode ──────────────────────────────── -->
@@ -153,6 +147,19 @@
     <div class="voice-mic-hint">click to speak</div>
   </div>
 </div>
+
+<!-- ─── Footer ─────────────────────────────────────
+     The engineering log lives here rather than in the status bar: it is not a
+     control, it is a way out of the app. Quiet by design, but permanent — the
+     audience for this project is people evaluating the work, and /engineering
+     is also directly shareable on its own. -->
+{% if engineering_enabled %}
+<footer class="app-footer">
+  <a href="{{ url_for('engineering.index') }}"
+     title="How this was built — the decisions behind the face pipeline">engineering log</a>
+  <span class="app-footer-hint">how this was built</span>
+</footer>
+{% endif %}
 
 <!-- Scripts loaded in order — later files use globals from earlier ones -->
 <script src="{{ url_for('static', filename='js/state.js') }}"></script>

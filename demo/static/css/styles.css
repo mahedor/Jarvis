@@ -384,23 +384,34 @@
     color: #555;
   }
 
-  /* Link out to the engineering log. Kept visually quieter than every other
-     control in the status bar — it leaves the assistant, so it should never
-     compete with the things that operate it. */
-  .eng-log-link {
-    align-self: center;
-    color: #3a3a44;
-    text-decoration: none;
-    font-size: 11px;
+  /* ─── Footer ──────────────────────────────
+     Holds the way out to the engineering log. Sits below the mode panels as
+     the last flex child of body, so it never overlaps the chat scroll area.
+     Quiet, but permanently present. */
+  .app-footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 32px;
+    border-top: 1px solid rgba(255,255,255,0.04);
     font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+
+  .app-footer a {
+    color: #4a4a56;
+    text-decoration: none;
     border-bottom: 1px solid transparent;
     transition: color 0.15s, border-color 0.15s;
   }
 
-  .eng-log-link:hover {
+  .app-footer a:hover {
     color: var(--accent);
     border-bottom-color: rgba(var(--accent-rgb), 0.4);
   }
+
+  .app-footer-hint { color: #2e2e38; }
 
   /* ─── Voice Mode ──────────────────────────── */
   .voice-mode {

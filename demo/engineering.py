@@ -93,6 +93,7 @@ def index():
         detection_threshold=DETECTION_CONFIDENCE_THRESHOLD,
         detection_detector=DETECTION_DETECTOR,
         provenance=DETECTION_THRESHOLD_PROVENANCE,
+        **data.overview_page_data(),
     )
 
 

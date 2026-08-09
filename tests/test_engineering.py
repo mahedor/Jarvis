@@ -149,6 +149,76 @@ def test_explorer_payload_is_json_serializable():
 
 
 # ══════════════════════════════════════════════════════════════════
+# Sampling-bias evidence (the overview page's opening argument).
+# ══════════════════════════════════════════════════════════════════
+
+def _ap_run(dataset, timestamp, limit, images, aps):
+    return {"timestamp": timestamp, "dataset": dataset, "limit": limit,
+            "iou_threshold": 0.5, "num_images": images,
+            "results": [{"detector": d, "ap": ap} for d, ap in aps.items()]}
+
+
+def test_sampling_comparison_pairs_dev_against_full():
+    runs = [_ap_run("widerface", "T1", 100, 100, {"yolo": 0.75, "mtcnn": 0.51}),
+            _ap_run("widerface", "T2", None, 3226, {"yolo": 0.86, "mtcnn": 0.62})]
+    block = data.sampling_comparison(runs)[0]
+    assert block["dev_images"] == 100 and block["full_images"] == 3226
+    deltas = {r["detector"]: r["delta"] for r in block["rows"]}
+    assert deltas["yolo"] == pytest.approx(0.11)
+    assert deltas["mtcnn"] == pytest.approx(0.11)
+
+
+def test_uniform_movement_is_flagged_as_same_direction():
+    """All detectors moving together is the signature of a biased sample."""
+    runs = [_ap_run("widerface", "T1", 100, 100, {"a": 0.5, "b": 0.6}),
+            _ap_run("widerface", "T2", None, 3000, {"a": 0.6, "b": 0.7})]
+    assert data.sampling_comparison(runs)[0]["same_direction"] is True
+
+
+def test_mixed_movement_is_not_flagged():
+    runs = [_ap_run("mafa", "T1", 100, 100, {"a": 0.5, "b": 0.6}),
+            _ap_run("mafa", "T2", None, 3000, {"a": 0.6, "b": 0.5})]
+    assert data.sampling_comparison(runs)[0]["same_direction"] is False
+
+
+def test_strongest_evidence_is_ordered_first():
+    """Alphabetical order would open the argument with the control dataset."""
+    runs = [
+        _ap_run("fddb", "T1", 100, 100, {"a": 0.90, "b": 0.95}),
+        _ap_run("fddb", "T2", None, 2845, {"a": 0.89, "b": 0.96}),   # mixed, tiny
+        _ap_run("widerface", "T3", 100, 100, {"a": 0.50, "b": 0.60}),
+        _ap_run("widerface", "T4", None, 3226, {"a": 0.62, "b": 0.72}),  # uniform
+    ]
+    assert [b["dataset"] for b in data.sampling_comparison(runs)] == ["widerface", "fddb"]
+
+
+def test_tiny_smoke_runs_are_not_treated_as_dev_samples():
+    runs = [_ap_run("widerface", "T1", 5, 5, {"a": 0.3}),
+            _ap_run("widerface", "T2", None, 3226, {"a": 0.86})]
+    assert data.sampling_comparison(runs) == []
+
+
+def test_dataset_without_a_full_run_is_omitted():
+    runs = [_ap_run("widerface", "T1", 100, 100, {"a": 0.5})]
+    assert data.sampling_comparison(runs) == []
+
+
+def test_candidate_box_rates_are_per_image_and_sorted():
+    run = {"num_images": 100, "results": [
+        {"detector": "retinaface", "num_detections": 650, "total_fp": 200},
+        {"detector": "yolo", "num_detections": 29370, "total_fp": 28000},
+    ]}
+    rates = data.candidate_box_rates(run)
+    assert [r["detector"] for r in rates] == ["yolo", "retinaface"]
+    assert rates[0]["per_image"] == pytest.approx(293.7)
+
+
+def test_box_rates_of_an_empty_run_are_empty():
+    assert data.candidate_box_rates(None) == []
+    assert data.candidate_box_rates({"num_images": 0, "results": []}) == []
+
+
+# ══════════════════════════════════════════════════════════════════
 # Loading degrades instead of raising.
 # ══════════════════════════════════════════════════════════════════
 
@@ -220,9 +290,26 @@ def test_recognition_page_embeds_explorer_data(client):
     assert "data-distributions" in html
 
 
-def test_assistant_page_links_to_the_log(client):
+def test_assistant_page_links_to_the_log_from_the_footer(client):
+    """Permanent and quiet: in the footer, not among the status-bar controls."""
     html = client.get("/").get_data(as_text=True)
     assert "/engineering/" in html
+    assert "app-footer" in html
+    footer = html[html.index("app-footer"):]
+    assert "/engineering/" in footer[:400]
+
+
+def test_overview_leads_with_reasoning(client):
+    """The decisions must come before the tables, not after them."""
+    html = client.get("/engineering/").get_data(as_text=True)
+    assert "eng-decision" in html
+    assert html.index("Decisions") < html.index("What got locked in")
+
+
+def test_overview_states_its_limits(client):
+    html = client.get("/engineering/").get_data(as_text=True)
+    assert "don&#39;t tell you" in html or "don't tell you" in html
+    assert "like-for-like" in html   # the AP-vs-F1 honesty note
 
 
 def test_engineering_pages_do_not_touch_the_assistant(client):

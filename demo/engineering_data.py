@@ -229,6 +229,95 @@ def explorer_payload(run):
     return payload
 
 
+def sampling_comparison(runs, min_dev_images=30):
+    """Dev-sample AP against full-dataset AP, per dataset.
+
+    Evidence for the sampling-bias story on the overview page. Random noise
+    moves detectors independently; a biased SAMPLE moves them together, because
+    they are all being asked an easier or harder question than the full set
+    asks. Computing it here rather than writing the numbers into the page keeps
+    the claim falsifiable — rerun the benchmarks and the argument updates or
+    stops being made.
+
+    Inputs:
+        runs (list[dict]): detection run payloads.
+        min_dev_images (int): ignore tiny smoke runs below this size; they are
+            not development samples anyone reasoned from.
+    Returns:
+        list[dict]: per dataset, {"dataset", "dev_images", "full_images",
+        "rows": [{"detector", "dev_ap", "full_ap", "delta"}], "same_direction",
+        "max_shift"}, only for datasets having both a dev and a full run.
+    """
+    dev, full = {}, {}
+    for run in runs or []:
+        dataset = run.get("dataset")
+        if not dataset:
+            continue
+        if run.get("limit") is None:
+            full[dataset] = run
+        elif run.get("num_images", 0) >= min_dev_images:
+            # Keep the LARGEST dev sample — the most defensible one available.
+            best = dev.get(dataset)
+            if best is None or run["num_images"] >= best["num_images"]:
+                dev[dataset] = run
+
+    comparisons = []
+    for dataset in sorted(set(dev) & set(full)):
+        dev_ap = {r["detector"]: r["ap"] for r in dev[dataset]["results"]
+                  if "error" not in r and r.get("ap") is not None}
+        full_ap = {r["detector"]: r["ap"] for r in full[dataset]["results"]
+                   if "error" not in r and r.get("ap") is not None}
+        rows = [{"detector": d, "dev_ap": dev_ap[d], "full_ap": full_ap[d],
+                 "delta": full_ap[d] - dev_ap[d]}
+                for d in sorted(set(dev_ap) & set(full_ap))]
+        if not rows:
+            continue
+        deltas = [r["delta"] for r in rows]
+        comparisons.append({
+            "dataset": dataset,
+            "dev_images": dev[dataset]["num_images"],
+            "full_images": full[dataset]["num_images"],
+            "rows": rows,
+            "same_direction": all(d > 0 for d in deltas) or all(d < 0 for d in deltas),
+            "max_shift": max(abs(d) for d in deltas),
+        })
+    # Strongest evidence first: datasets where every detector moved together,
+    # then by how far anything moved. Alphabetical order would open with FDDB,
+    # the control, which is the one dataset that barely shifted.
+    comparisons.sort(key=lambda c: (not c["same_direction"], -c["max_shift"]))
+    return comparisons
+
+
+def candidate_box_rates(run):
+    """Candidate boxes emitted per image, per detector.
+
+    The number behind the honesty note about YOLO's confidence floor: a
+    detector that proposes hundreds of boxes per image and one that proposes a
+    handful are not being scored on the same kind of output, even though AP
+    handles it correctly.
+
+    Returns:
+        list[dict]: {"detector", "per_image", "total", "false_positives"},
+        busiest first. Empty if the run has no usable results.
+    """
+    run = run or {}
+    images = run.get("num_images") or 0
+    if not images:
+        return []
+    rates = []
+    for result in run.get("results", []):
+        if "error" in result or result.get("num_detections") is None:
+            continue
+        rates.append({
+            "detector": result["detector"],
+            "per_image": result["num_detections"] / images,
+            "total": result["num_detections"],
+            "false_positives": result.get("total_fp"),
+        })
+    rates.sort(key=lambda r: -r["per_image"])
+    return rates
+
+
 def _tar(metrics, far):
     return ((metrics.get("tar_at_far") or {}).get(far) or {}).get("tar")
 
@@ -259,6 +348,24 @@ def detection_page_data():
         })
     return {"datasets": datasets, "total_runs": len(runs),
             "source": _relative(DETECTION_FILE)}
+
+
+def overview_page_data():
+    """Evidence the narrative on the overview page cites.
+
+    The prose makes claims; these are the numbers backing them, read from the
+    artifacts so a rerun either keeps the argument true or exposes it.
+    """
+    runs = load_runs(DETECTION_FILE)
+    full = latest_full_run_per_dataset(runs)
+    # WIDER FACE is the crowded set, so it is where per-image box counts say
+    # the most; fall back to whatever full run exists.
+    busiest = full.get("widerface") or (next(iter(full.values()), None))
+    return {
+        "sampling": sampling_comparison(runs),
+        "box_rates": candidate_box_rates(busiest),
+        "box_rate_run": busiest,
+    }
 
 
 def recognition_page_data():

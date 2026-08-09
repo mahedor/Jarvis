@@ -142,6 +142,112 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
   margin-top: 14px;
 }
 
+/* ─── Decisions (the narrative that leads the page) ──────── */
+
+.eng-lede {
+  font-size: 18px;
+  line-height: 1.6;
+  color: #eaeaf2;
+  max-width: 70ch;
+}
+
+.eng-decision {
+  display: flex;
+  gap: 22px;
+  padding: 26px 0;
+  border-top: 1px solid var(--border);
+}
+.eng-decision:first-of-type { border-top: none; padding-top: 8px; }
+
+.eng-decision-index {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--accent);
+  opacity: 0.6;
+  min-width: 28px;
+  padding-top: 5px;
+}
+
+.eng-decision-body { flex: 1; min-width: 0; }
+
+.eng-decision h3 {
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+/* The one-sentence version, for someone reading only the bold lines. */
+.eng-claim {
+  font-size: 15.5px;
+  color: #d6d6e2;
+  border-left: 2px solid rgba(var(--accent-rgb), 0.5);
+  padding-left: 14px;
+  margin-bottom: 14px !important;
+}
+
+.eng-decision p { color: #a8a8b8; font-size: 14.5px; }
+
+.eng-takeaway {
+  color: #d6d6e2 !important;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 14px !important;
+  margin-top: 16px !important;
+}
+.eng-takeaway::before {
+  content: "takeaway";
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 5px;
+}
+
+.eng-subblock { margin: 16px 0; }
+.eng-subhead {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #c5c5d4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.eng-subhead .eng-note { font-size: 11px; }
+
+.eng-tag.warn {
+  color: var(--yardstick);
+  border-color: rgba(209, 154, 58, 0.35);
+}
+
+.eng-table .up { color: var(--deployment); }
+.eng-table .down { color: #e06c75; }
+
+/* ─── Caveats ────────────────────────────────────────────── */
+
+.eng-caveat-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--yardstick);
+  border-radius: 6px;
+  padding: 18px 22px;
+  margin-bottom: 14px;
+}
+.eng-caveat-block h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #e4e4ee;
+}
+.eng-caveat-block p { font-size: 14px; color: #a8a8b8; }
+
 /* ─── Stage cards ────────────────────────────────────────── */
 
 .eng-stages { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
