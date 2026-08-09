@@ -290,13 +290,27 @@ def test_recognition_page_embeds_explorer_data(client):
     assert "data-distributions" in html
 
 
-def test_assistant_page_links_to_the_log_from_the_footer(client):
-    """Permanent and quiet: in the footer, not among the status-bar controls."""
+def test_assistant_page_links_to_the_log_from_the_header_tagline(client):
+    """Permanent and quiet, and NOT among the controls.
+
+    The link hangs off the descriptive tagline rather than sitting in the
+    status bar (a row of live state and toggles) or in a footer bar (which
+    would permanently shorten the chat transcript in a 100vh shell).
+    """
     html = client.get("/").get_data(as_text=True)
     assert "/engineering/" in html
-    assert "app-footer" in html
-    footer = html[html.index("app-footer"):]
-    assert "/engineering/" in footer[:400]
+    assert "header-doc-link" in html
+
+    header = html[html.index("<h1>J.A.R.V.I.S."):html.index('class="status-bar"')]
+    assert "/engineering/" in header, "the link is not in the header block"
+
+
+def test_the_log_link_is_not_a_control(client):
+    """It must not live in the status bar beside the TTS toggle."""
+    html = client.get("/").get_data(as_text=True)
+    status_bar = html[html.index('class="status-bar"'):]
+    status_bar = status_bar[:status_bar.index("</div>", status_bar.index("tts-toggle"))]
+    assert "/engineering/" not in status_bar
 
 
 def test_overview_leads_with_reasoning(client):

@@ -384,34 +384,24 @@
     color: #555;
   }
 
-  /* ─── Footer ──────────────────────────────
-     Holds the way out to the engineering log. Sits below the mode panels as
-     the last flex child of body, so it never overlaps the chat scroll area.
-     Quiet, but permanently present. */
-  .app-footer {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 32px;
-    border-top: 1px solid rgba(255,255,255,0.04);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-  }
+  /* ─── Engineering log link ────────────────
+     Lives inline on the header tagline. Deliberately not a control and not a
+     bar: it inherits the tagline's size and sits a shade dimmer than it, so it
+     reads as more metadata about the project rather than something to press.
+     Inline means it costs the fixed-viewport layout no height. */
+  .header-sep { color: #333; margin: 0 2px; }
 
-  .app-footer a {
+  .header-doc-link {
     color: #4a4a56;
     text-decoration: none;
     border-bottom: 1px solid transparent;
     transition: color 0.15s, border-color 0.15s;
   }
 
-  .app-footer a:hover {
+  .header-doc-link:hover {
     color: var(--accent);
     border-bottom-color: rgba(var(--accent-rgb), 0.4);
   }
-
-  .app-footer-hint { color: #2e2e38; }
 
   /* ─── Voice Mode ──────────────────────────── */
   .voice-mode {

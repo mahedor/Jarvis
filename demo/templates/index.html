@@ -47,7 +47,15 @@
 <div class="header">
   <div>
     <h1>J.A.R.V.I.S.</h1>
-    <p>Just A Rather Very Intelligent System — Phase 1 Demo</p>
+    <!-- The engineering log hangs off the tagline, not off a control. This
+         line is already descriptive metadata about the project, so "how this
+         was built" reads as a continuation of it — and inline costs the
+         fixed-viewport layout no height at all, unlike a footer bar. -->
+    <p>Just A Rather Very Intelligent System — Phase 1 Demo{% if engineering_enabled %}
+      <span class="header-sep">·</span>
+      <a class="header-doc-link" href="{{ url_for('engineering.index') }}"
+         title="The decisions behind the face pipeline, and how they were measured">how this was built</a>
+    {% endif %}</p>
   </div>
   <div class="header-right">
     <div class="mode-toggle">
@@ -147,19 +155,6 @@
     <div class="voice-mic-hint">click to speak</div>
   </div>
 </div>
-
-<!-- ─── Footer ─────────────────────────────────────
-     The engineering log lives here rather than in the status bar: it is not a
-     control, it is a way out of the app. Quiet by design, but permanent — the
-     audience for this project is people evaluating the work, and /engineering
-     is also directly shareable on its own. -->
-{% if engineering_enabled %}
-<footer class="app-footer">
-  <a href="{{ url_for('engineering.index') }}"
-     title="How this was built — the decisions behind the face pipeline">engineering log</a>
-  <span class="app-footer-hint">how this was built</span>
-</footer>
-{% endif %}
 
 <!-- Scripts loaded in order — later files use globals from earlier ones -->
 <script src="{{ url_for('static', filename='js/state.js') }}"></script>
