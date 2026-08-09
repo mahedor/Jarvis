@@ -343,12 +343,22 @@ if __name__ == "__main__":
         print("   Option 2: Set environment variable ANTHROPIC_API_KEY\n")
         exit(1)
 
+    # Debug mode is ON by default (auto-reload + tracebacks in the browser),
+    # which is what you want locally. Set JARVIS_DEBUG=0 to turn it off — the
+    # reloader runs the module twice, which is confusing when you are timing
+    # startup or attaching a debugger.
+    debug = os.getenv("JARVIS_DEBUG", "1").strip().lower() not in ("0", "false", "no")
+    port = int(os.getenv("JARVIS_PORT", "5000"))
+
     print()
     print("=" * 56)
     print("  J.A.R.V.I.S. — Streaming + Browser TTS + Voice Mode")
     print("  Intent Classifier: ACTIVE (Tier 1-2 handled locally)")
-    print("  Open http://localhost:5000 in Microsoft Edge")
-    print("  (Edge has the best neural voices)")
+    print(f"  Assistant:    http://localhost:{port}/")
+    if ENGINEERING_ENABLED:
+        print(f"  Engineering:  http://localhost:{port}/engineering")
+    print("  (Open in Microsoft Edge — best neural voices)")
+    print(f"  debug={'on' if debug else 'off'}")
     print("=" * 56)
     print()
-    app.run(debug=True, port=5000)
+    app.run(debug=debug, port=port)

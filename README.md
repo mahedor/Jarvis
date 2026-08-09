@@ -8,36 +8,115 @@ A personal AI assistant that controls my smart home, tracks my routines, and coa
 
 ---
 
-## Demo
+## Running it locally
 
-Run the Jarvis web interface locally — no hardware needed:
+No hardware needed. From the **repo root**:
 
 ```bash
+# 1. Install dependencies
 pip install anthropic flask python-dotenv notion-client requests
-```
 
-```powershell
-# Set your API key (PowerShell)
-$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
-$env:NOTION_API_KEY = "ntn_your-key-here"  # Optional — for Notion integration
+# 2. Configure your keys (see "Environment" below)
+cp .env.example .env     # then edit .env and paste your key in
 
-# Run it
+# 3. Start the server
 python demo/jarvis_web.py
 ```
 
-Open http://localhost:5000 in **Microsoft Edge** (best voice quality) and start talking to Jarvis. Try:
-- "Turn on the bedroom lights"
-- "Dim the lamp to 50%"
-- "What's the status of everything?"
-- "How productive was I today?" *(requires Notion integration)*
+That's it — the server prints both URLs on startup.
 
-Or click the **mic button** and speak — Jarvis listens, processes, and speaks back.
+| | URL | What it is |
+|---|---|---|
+| **Assistant** | http://localhost:5000/ | The Jarvis UI — chat, voice, device control |
+| **Engineering log** | http://localhost:5000/engineering | How the face pipeline was designed and measured |
 
-### Debug Endpoints
+Open in **Microsoft Edge** for the best neural voices. Try "Turn on the bedroom
+lights", "Dim the lamp to 50%", "What's the status of everything?", or click the
+mic button and speak.
+
+> Run it from the repo root, not from inside `demo/`. The engineering log reads
+> `results/*.json` relative to the repo root, and the terminal demo
+> (`python demo/jarvis_demo.py`) is the simpler no-Flask alternative.
+
+### Environment
+
+Values are read from a `.env` file in the repo root (loaded automatically via
+`python-dotenv`), or from real environment variables — either works, and env
+vars win.
+
+| Variable | Required | Default | What it does |
+|----------|----------|---------|--------------|
+| `ANTHROPIC_API_KEY` | **yes** | — | Claude API key. The server refuses to start without it. |
+| `NOTION_API_KEY` | no | — | Enables the Notion time-tracking queries. Everything else works without it. |
+| `JARVIS_DEBUG` | no | `1` (on) | Flask debug mode. Set to `0` to disable. |
+| `JARVIS_PORT` | no | `5000` | Port to serve on. |
+
+Copy `.env.example` to `.env` and fill it in:
+
+```ini
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+NOTION_API_KEY=ntn_your-key-here   # optional
+```
+
+Or set them per-shell instead:
+
+```powershell
+# PowerShell
+$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+python demo/jarvis_web.py
+```
+
+```bash
+# bash / Git Bash
+export ANTHROPIC_API_KEY="sk-ant-your-key-here"
+python demo/jarvis_web.py
+```
+
+### Debug mode
+
+**Debug mode is already ON by default** — you don't have to enable it. That
+gives you auto-reload on save and full tracebacks in the browser.
+
+```bash
+python demo/jarvis_web.py                 # debug on (default)
+JARVIS_DEBUG=0 python demo/jarvis_web.py  # debug off
+```
+
+```powershell
+$env:JARVIS_DEBUG = "0"; python demo/jarvis_web.py   # debug off, PowerShell
+```
+
+Turn it **off** when timing startup or attaching a debugger — the reloader
+executes the module twice, which doubles the model-loading output and is
+confusing to read. The startup banner prints `debug=on` / `debug=off` so you
+always know which you're in.
+
+### Debug endpoints
+
 - `/health` — service status
-- `/devices` — current device states
+- `/devices` — current in-memory device states
+- `POST /reset` — clear conversation history and reset device states
 - `/notion` — Notion connection status and data preview
 - `/notion/raw` — raw API response for debugging
+
+---
+
+## Engineering log
+
+`/engineering` is a "how this was built" record of the face pipeline — the
+decisions and the reasoning first, the benchmark tables underneath. It is not
+part of the assistant: no Claude calls, no device state, no API key needed to
+render it.
+
+| Route | Contents |
+|-------|----------|
+| `/engineering` | The decisions — why the dev samples were rejected, why max-F1 ships and TAR@FAR only ranks, why MediaPipe was eliminated, plus the known limits |
+| `/engineering/detection` | Detector AP / ROC AUC / F1 / latency across WIDER FACE, MAFA and FDDB |
+| `/engineering/recognition` | Encoder comparison and an interactive threshold explorer |
+
+Every number is read from `results/*.json` when the page loads, so rerunning a
+benchmark updates the pages on the next refresh — nothing is hand-transcribed
+and there is no build step.
 
 ---
 
@@ -134,17 +213,34 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan.
 ```
 jarvis/
 ├── demo/
-│   ├── jarvis_demo.py    # Terminal interface (v1)
-│   └── jarvis_web.py     # Web UI (v2 — browser TTS, mic, screensaver, Notion)
+│   ├── jarvis_demo.py         # Terminal interface (v1)
+│   ├── jarvis_web.py          # Web UI (v2 — browser TTS, mic, screensaver, Notion)
+│   ├── engineering.py         # /engineering blueprint (the build log)
+│   ├── engineering_data.py    # Reshapes results/*.json for those pages
+│   ├── intent_classifier.py   # Local Tier 1-2 intent routing
+│   ├── static/                # css/, js/ — no bundler, no build step
+│   └── templates/             # index.html + engineering/
+├── tools/                     # Face pipeline (not needed to run the demo)
+│   ├── face_utils.py          # Detector + encoder backends, one interface each
+│   ├── collect_faces.py       # Photos -> clustered, unnamed reference crops
+│   ├── benchmark_detection.py # Detector benchmark (WIDER FACE / MAFA / FDDB)
+│   ├── benchmark_recognition.py # Encoder benchmark (open-set identification)
+│   ├── build_gallery.py       # Reference crops -> data/gallery.npz
+│   ├── pipeline_config.py     # Locked operating points + their provenance
+│   └── *_metrics.py           # Pure, unit-tested scoring logic
+├── results/                   # Benchmark artifacts (committed — the engineering log reads these)
+├── tests/
 ├── docs/
 │   ├── ROADMAP.md
 │   └── adr/
-│       ├── 001-mini-pc-over-raspberry-pi.md
-│       └── 002-browser-tts-over-server-tts.md
 ├── .env.example
 ├── .gitignore
 └── README.md
 ```
+
+The face pipeline in `tools/` has heavier dependencies (OpenCV, InsightFace,
+PyTorch, TensorFlow) and is **not** needed to run the web demo — that stays on
+`anthropic`, `flask` and `python-dotenv`.
 
 ### Branches
 - `main` — stable demo
