@@ -1,0 +1,1038 @@
+[
+  {
+    "timestamp": "2026-04-21T05:02:57Z",
+    "model": "claude-sonnet-4-20250514",
+    "command": "What should I have for dinner tonight? Something quick and healthy.",
+    "runs_per_mode": 10,
+    "caching_on": {
+      "latency_ms": {
+        "avg": 3510.6,
+        "min": 2772.7,
+        "max": 6202.3,
+        "p95": 6202.3
+      },
+      "samples_ms": [
+        2961.4,
+        3460.5,
+        6202.3,
+        3645.1,
+        3361.3,
+        2798.1,
+        3096.2,
+        3698.9,
+        2772.7,
+        3109.4
+      ],
+      "usage": [
+        {
+          "input_tokens": 411,
+          "output_tokens": 74,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 70,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 69,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 72,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 72,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 69,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 72,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 104,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 70,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "caching_off": {
+      "latency_ms": {
+        "avg": 3064.3,
+        "min": 2673.3,
+        "max": 4225.9,
+        "p95": 4225.9
+      },
+      "samples_ms": [
+        2673.3,
+        2690.2,
+        2975.5,
+        2977.4,
+        2986.6,
+        4225.9,
+        3510.3,
+        2775.7,
+        2917.9,
+        2910.3
+      ],
+      "usage": [
+        {
+          "input_tokens": 412,
+          "output_tokens": 68,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 65,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 70,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 73,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 81,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 92,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 72,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 72,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 68,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "speedup_avg_x": 0.873,
+    "speedup_p95_x": 0.681
+  },
+  {
+    "timestamp": "2026-04-21T05:04:17Z",
+    "model": "claude-sonnet-4-20250514",
+    "command": "What should I have for dinner tonight? Something quick and healthy.",
+    "runs_per_mode": 10,
+    "caching_on": {
+      "latency_ms": {
+        "avg": 2856.3,
+        "min": 2723.7,
+        "max": 3091.5,
+        "p95": 3091.5
+      },
+      "samples_ms": [
+        2972.3,
+        2848.8,
+        2934.1,
+        2878.7,
+        2765.9,
+        2723.7,
+        2740.6,
+        3091.5,
+        2851.8,
+        2755.4
+      ],
+      "usage": [
+        {
+          "input_tokens": 411,
+          "output_tokens": 68,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 67,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 85,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 75,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 71,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 70,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 58,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 77,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 73,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 411,
+          "output_tokens": 69,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "caching_off": {
+      "latency_ms": {
+        "avg": 3151.7,
+        "min": 2597.5,
+        "max": 4416.7,
+        "p95": 4416.7
+      },
+      "samples_ms": [
+        2999.0,
+        2767.5,
+        4416.7,
+        2837.0,
+        2910.5,
+        4202.8,
+        2607.2,
+        2810.8,
+        2597.5,
+        3367.9
+      ],
+      "usage": [
+        {
+          "input_tokens": 412,
+          "output_tokens": 73,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 67,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 70,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 74,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 68,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 67,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 72,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 70,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 71,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 412,
+          "output_tokens": 68,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "speedup_avg_x": 1.103,
+    "speedup_p95_x": 1.429
+  },
+  {
+    "timestamp": "2026-04-22T08:05:14Z",
+    "model": "claude-sonnet-4-20250514",
+    "command": "What should I have for dinner tonight? Something quick and healthy.",
+    "with_history": true,
+    "runs_per_mode": 10,
+    "caching_on": {
+      "latency_ms": {
+        "avg": 2866.9,
+        "min": 2247.7,
+        "max": 4121.7,
+        "p95": 4121.7
+      },
+      "samples_ms": [
+        4121.7,
+        3185.9,
+        2266.5,
+        2292.2,
+        2503.0,
+        2507.5,
+        3030.3,
+        2890.1,
+        3624.7,
+        2247.7
+      ],
+      "usage": [
+        {
+          "input_tokens": 620,
+          "output_tokens": 69,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 65,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 46,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 46,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 53,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 59,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 620,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "caching_off": {
+      "latency_ms": {
+        "avg": 2944.3,
+        "min": 2437.6,
+        "max": 3907.1,
+        "p95": 3907.1
+      },
+      "samples_ms": [
+        2496.8,
+        2497.6,
+        2932.7,
+        3907.1,
+        3109.9,
+        3078.2,
+        3528.3,
+        2437.6,
+        2749.3,
+        2705.2
+      ],
+      "usage": [
+        {
+          "input_tokens": 621,
+          "output_tokens": 49,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 52,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 59,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 68,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 69,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 64,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 621,
+          "output_tokens": 64,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "speedup_avg_x": 1.027,
+    "speedup_p95_x": 0.948
+  },
+  {
+    "timestamp": "2026-04-22T08:09:41Z",
+    "model": "claude-sonnet-4-20250514",
+    "command": "What should I have for dinner tonight? Something quick and healthy.",
+    "with_history": true,
+    "runs_per_mode": 10,
+    "caching_on": {
+      "latency_ms": {
+        "avg": 2558.6,
+        "min": 2077.3,
+        "max": 2835.8,
+        "p95": 2835.8
+      },
+      "samples_ms": [
+        2603.7,
+        2766.4,
+        2086.7,
+        2835.8,
+        2702.1,
+        2824.9,
+        2077.3,
+        2310.3,
+        2776.5,
+        2601.8
+      ],
+      "usage": [
+        {
+          "input_tokens": 1038,
+          "output_tokens": 65,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 48,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 65,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 40,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 54,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "caching_off": {
+      "latency_ms": {
+        "avg": 2590.4,
+        "min": 2343.3,
+        "max": 2947.1,
+        "p95": 2947.1
+      },
+      "samples_ms": [
+        2343.3,
+        2441.0,
+        2657.6,
+        2699.0,
+        2947.1,
+        2769.4,
+        2720.2,
+        2360.6,
+        2363.4,
+        2602.0
+      ],
+      "usage": [
+        {
+          "input_tokens": 1039,
+          "output_tokens": 49,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 60,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 54,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 64,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 58,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 62,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 61,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 49,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 48,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 52,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "speedup_avg_x": 1.012,
+    "speedup_p95_x": 1.039
+  },
+  {
+    "timestamp": "2026-04-22T08:13:23Z",
+    "model": "claude-sonnet-4-20250514",
+    "command": "What should I have for dinner tonight? Something quick and healthy.",
+    "with_history": true,
+    "runs_per_mode": 10,
+    "caching_on": {
+      "latency_ms": {
+        "avg": 2799.5,
+        "min": 2001.7,
+        "max": 4523.6,
+        "p95": 4523.6
+      },
+      "samples_ms": [
+        2754.5,
+        2787.9,
+        3165.2,
+        3208.3,
+        2316.4,
+        4523.6,
+        2001.7,
+        2285.8,
+        2631.1,
+        2320.9
+      ],
+      "usage": [
+        {
+          "input_tokens": 1038,
+          "output_tokens": 49,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 62,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 60,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 52,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 46,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 45,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 46,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1038,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "caching_off": {
+      "latency_ms": {
+        "avg": 2866.4,
+        "min": 2273.0,
+        "max": 3872.1,
+        "p95": 3872.1
+      },
+      "samples_ms": [
+        2797.3,
+        2901.0,
+        3093.1,
+        2656.7,
+        2731.0,
+        2273.0,
+        2369.6,
+        2407.9,
+        3562.1,
+        3872.1
+      ],
+      "usage": [
+        {
+          "input_tokens": 1039,
+          "output_tokens": 45,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 64,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 66,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 48,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 52,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 46,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 59,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1039,
+          "output_tokens": 62,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "speedup_avg_x": 1.024,
+    "speedup_p95_x": 0.856
+  },
+  {
+    "timestamp": "2026-04-22T08:32:12Z",
+    "model": "claude-sonnet-4-20250514",
+    "command": "What should I have for dinner tonight? Something quick and healthy.",
+    "with_history": true,
+    "runs_per_mode": 10,
+    "caching_on": {
+      "latency_ms": {
+        "avg": 2622.1,
+        "min": 1997.0,
+        "max": 3156.3,
+        "p95": 3156.3
+      },
+      "samples_ms": [
+        3038.4,
+        2301.9,
+        3156.3,
+        2593.1,
+        2392.0,
+        1997.0,
+        2927.8,
+        2933.4,
+        2307.3,
+        2573.5
+      ],
+      "usage": [
+        {
+          "input_tokens": 19,
+          "output_tokens": 58,
+          "cache_creation_input_tokens": 1039,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 56,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 67,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 46,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 51,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 47,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 57,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        },
+        {
+          "input_tokens": 19,
+          "output_tokens": 50,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 1039
+        }
+      ]
+    },
+    "caching_off": {
+      "latency_ms": {
+        "avg": 2621.8,
+        "min": 1822.2,
+        "max": 3710.7,
+        "p95": 3710.7
+      },
+      "samples_ms": [
+        2465.7,
+        3071.9,
+        2837.7,
+        2320.1,
+        1822.2,
+        2463.0,
+        2691.3,
+        2463.0,
+        2372.0,
+        3710.7
+      ],
+      "usage": [
+        {
+          "input_tokens": 1059,
+          "output_tokens": 56,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 61,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 63,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 59,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 46,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 45,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 55,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 45,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 61,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        },
+        {
+          "input_tokens": 1059,
+          "output_tokens": 49,
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0
+        }
+      ]
+    },
+    "speedup_avg_x": 1.0,
+    "speedup_p95_x": 1.176
+  }
+]

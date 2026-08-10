@@ -3,7 +3,7 @@ JARVIS — Claude API Latency Benchmark
 ======================================
 Measures end-to-end API latency with prompt caching ON vs OFF.
 Sends the same Tier 3 command N times in each mode, prints a
-comparison table (avg/min/max/p95), and saves to logs/benchmarks_claude.json.
+comparison table (avg/min/max/p95), and saves to results/benchmarks_caching.json.
 
 Uses the exact same system prompt as demo/jarvis_web.py.
 
@@ -35,8 +35,8 @@ except ImportError:
     sys.exit(1)
 
 # ── Config ───────────────────────────────────────────────────────
-LOGS_DIR  = REPO_ROOT / "logs"
-BENCH_FILE = LOGS_DIR / "benchmarks_claude.json"
+RESULTS_DIR = REPO_ROOT / "results"
+BENCH_FILE = RESULTS_DIR / "benchmarks_caching.json"
 
 MODEL         = "claude-sonnet-4-20250514"   # matches jarvis_web.py
 MAX_TOKENS    = 300
@@ -292,7 +292,7 @@ def print_table(command, runs, on_samples, on_usages, off_samples, off_usages, w
 # ── Persistence ──────────────────────────────────────────────────
 
 def save_results(ts, command, runs, on_samples, on_usages, off_samples, off_usages, with_history=False):
-    LOGS_DIR.mkdir(exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     data = []
     if BENCH_FILE.exists():
