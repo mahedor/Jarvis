@@ -19,6 +19,13 @@ tools/images/*
 !tools/images/.gitkeep
 tools/output/
 
+# QA screenshots — WRITE-ONLY. test_qa.py saves one per state transition for
+# eyeballing after a run; nothing reads them back, and they are not visual
+# regression baselines (the tests assert on the DOM). Tracking them meant ~1.1 MB
+# of new blobs per run, all of it animation-frame noise — a clock digit, a voice
+# canvas caught mid-frame.
+tests/screenshots/
+
 # Model weights (large binaries — download separately, never commit)
 tools/weights/
 *.pt

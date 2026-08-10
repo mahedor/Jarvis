@@ -73,6 +73,16 @@ STAGES = [
                    "three gallery aggregation strategies.",
     },
     {
+        "id": "routing",
+        "title": "Intent routing & latency",
+        "question": "Which commands can be answered without calling an LLM at all?",
+        "status": "provisional",
+        "endpoint": "engineering.routing",
+        "summary": "The local/cloud split and the architecture-agnostic eval "
+                   "are settled; the hand-written cascade doing the routing "
+                   "today is measured, flagged and up for replacement.",
+    },
+    {
         "id": "presence",
         "title": "Presence service",
         "question": "How does a recognized face become 'Michael is home'?",
@@ -106,6 +116,16 @@ def detection():
         detection_threshold=DETECTION_CONFIDENCE_THRESHOLD,
         provenance=DETECTION_THRESHOLD_PROVENANCE,
         **data.detection_page_data(),
+    )
+
+
+@engineering.route("/routing")
+def routing():
+    """Intent routing: the tiered cascade and the prompt-caching experiment."""
+    return render_template(
+        "engineering/routing.html",
+        stages=STAGES,
+        **data.routing_page_data(),
     )
 
 

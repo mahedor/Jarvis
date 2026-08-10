@@ -21,6 +21,108 @@
   </p>
 </section>
 
+{% if mixed_filters %}
+<div class="eng-caveat-block">
+  <h3>These datasets were not measured at the same minimum face size</h3>
+  <p>
+    <code>min_box_size</code> sets how small a ground-truth face still counts
+    as one the detector was supposed to find, so it changes what the numbers
+    <em>mean</em>, not just their value. On WIDER FACE, dropping it from 20 to
+    0 takes the ground-truth count from 16,072 to 39,697 and YOLO's AP from
+    0.864 to 0.642 — same images, same detector.
+  </p>
+  <table class="eng-table compact">
+    <thead><tr><th>dataset</th><th>min_box_size</th></tr></thead>
+    <tbody>
+      {% for dataset, value in filter_regimes %}
+      <tr>
+        <td class="mono">{{ dataset }}</td>
+        <td class="mono {% if value is none %}eng-caveat{% endif %}">
+          {% if value is none %}not recorded (recovered as 20){% else %}{{ value }} px{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p>
+    Comparisons <strong>within</strong> a dataset are still sound — every
+    detector in a given run faced the same filter. Comparisons
+    <strong>across</strong> the tables below, including any average of AP, are
+    not like-for-like until all three are re-run at one setting.
+  </p>
+</div>
+{% endif %}
+
+{% if winner %}
+<section class="eng-winner">
+  <h2>Winner</h2>
+  <p class="eng-winner-line">
+    <span class="eng-winner-name">{{ winner.detector }}</span>
+    {% if winner.swept %}
+      <span class="eng-winner-agg">best AP on all {{ winner.contested }} datasets</span>
+    {% else %}
+      <span class="eng-winner-agg">best AP on {{ winner.wins }} of {{ winner.contested }}</span>
+    {% endif %}
+  </p>
+  <div class="eng-winner-grid">
+    <div>
+      <div class="eng-split-label yardstick">ranked by</div>
+      <div class="eng-metric">
+        {% if mixed_filters %}
+          {{ winner.wins }}/{{ winner.contested }} datasets
+        {% else %}
+          mean AP = <strong>{{ '%.3f'|format(winner.mean_ap) }}</strong>
+        {% endif %}
+      </div>
+      <div class="eng-note">
+        {% if mixed_filters %}
+          Dataset wins are per-dataset and sound. Mean AP is
+          <strong>withheld</strong> — it would average across different
+          min_box_size settings (see above), which is not a like-for-like
+          number.
+        {% else %}
+          worst case {{ '%.3f'|format(winner.worst) }} — dataset wins counted
+          first, AP only as the tie-break
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="eng-split-label deployment">deployed</div>
+      <div class="eng-metric">confidence threshold =
+        <strong>{{ '%.2f'|format(detection_threshold) if detection_threshold is not none else '—' }}</strong></div>
+      <div class="eng-note">from where F1 peaks on the two hard datasets, in
+        <code>tools/pipeline_config.py</code></div>
+    </div>
+  </div>
+
+  <table class="eng-table compact">
+    <thead>
+      <tr><th>dataset</th><th class="num">AP</th><th class="num">F1</th>
+          <th class="num">F1-max conf</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for row in winner.per_dataset %}
+      <tr>
+        <td class="mono">{{ row.dataset }}</td>
+        <td class="num strong">{{ '%.4f'|format(row.ap) }}</td>
+        <td class="num">{{ '%.3f'|format(row.f1) }}</td>
+        <td class="num">{{ '%.4f'|format(row.f1_threshold) }}</td>
+        <td>{% if row.won %}<span class="eng-tag">best</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="eng-note">
+    Winning every dataset is the part that matters. Three sets were chosen to
+    fail in different ways precisely so a detector could not buy a headline
+    number on the easy one — see
+    <a class="eng-link" href="{{ url_for('engineering.index') }}">why MediaPipe was
+    eliminated</a> for the case that makes.
+  </p>
+</section>
+{% endif %}
+
 {% if not datasets %}
   <p class="eng-empty">
     No full-dataset detection runs recorded yet. Run
@@ -80,6 +182,58 @@
 </section>
 {% endfor %}
 
+{% if explorer %}
+<section>
+  <h2>Threshold explorer</h2>
+  <p>
+    Drag the confidence and watch precision trade against recall. Every
+    detection at or above the line is accepted: correct ones are true
+    positives, the rest are false positives that a downstream stage has to
+    throw away.
+  </p>
+  <p class="eng-note">
+    Resampled from the precision-recall curve at 200 fixed confidences, so all
+    detectors are sampled at the same points and are directly comparable.
+    Unlike the recognition explorer this is not a binned approximation of
+    something else — the underlying curve is exactly what AP is computed from.
+    {% if detection_threshold is not none %}
+    The marker shows the shipped threshold of
+    <strong>{{ '%.2f'|format(detection_threshold) }}</strong>.
+    {% endif %}
+  </p>
+
+  <div class="eng-explorer" id="det-explorer"
+       data-sweeps='{{ explorer | tojson }}'
+       data-shipped='{{ detection_threshold if detection_threshold is not none else "" }}'>
+    <div class="eng-explorer-controls">
+      <label>dataset <select id="det-dataset"></select></label>
+      <label>detector <select id="det-detector"></select></label>
+      <label class="eng-slider-label">
+        confidence <output id="det-value">0.57</output>
+        <input type="range" id="det-threshold" min="0" max="1" step="0.005" value="0.57">
+      </label>
+    </div>
+    <div class="eng-explorer-stats" id="det-stats"></div>
+    <canvas id="det-canvas" class="eng-canvas" height="240"></canvas>
+    <div class="eng-legend">
+      <span><i class="swatch genuine"></i>precision</span>
+      <span><i class="swatch impostor"></i>recall</span>
+      <span><i class="swatch f1"></i>F1</span>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if datasets_without_sweep %}
+<p class="eng-note">
+  No confidence sweep recorded for
+  {% for d in datasets_without_sweep %}<code>{{ d }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  — those runs pre-date the sweep being stored. Re-run
+  <code>benchmark_detection.py</code> for them and the explorer appears here
+  automatically.
+</p>
+{% endif %}
+
 {% if detection_threshold is not none %}
 <section>
   <h2>What was locked in</h2>
@@ -96,6 +250,10 @@
     recognition stage rejects at its own threshold anyway.
   </p>
 </section>
+{% endif %}
+
+{% if explorer %}
+<script src="{{ url_for('static', filename='js/detection-explorer.js') }}"></script>
 {% endif %}
 
 {% endblock %}

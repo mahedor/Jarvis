@@ -111,8 +111,9 @@ render it.
 | Route | Contents |
 |-------|----------|
 | `/engineering` | The decisions — why the dev samples were rejected, why max-F1 ships and TAR@FAR only ranks, why MediaPipe was eliminated, plus the known limits |
-| `/engineering/detection` | Detector AP / ROC AUC / F1 / latency across WIDER FACE, MAFA and FDDB |
-| `/engineering/recognition` | Encoder comparison and an interactive threshold explorer |
+| `/engineering/routing` | The intent cascade, the prompt-caching experiment that was measured and rejected, and what the eval corpus defines as correct |
+| `/engineering/detection` | Detector AP / ROC AUC / F1 / latency across WIDER FACE, MAFA and FDDB, with a confidence threshold explorer |
+| `/engineering/recognition` | Encoder comparison and a score-distribution threshold explorer |
 
 Every number is read from `results/*.json` when the page loads, so rerunning a
 benchmark updates the pages on the next refresh — nothing is hand-transcribed

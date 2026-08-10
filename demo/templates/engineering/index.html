@@ -264,15 +264,26 @@
   </div>
 
   <div class="eng-caveat-block">
-    <h3>Two settings behind the detection numbers can't be verified</h3>
+    <h3>An unrecorded setting nearly invalidated the detection threshold</h3>
     <p>
-      The runs the shipped detection threshold rests on pre-date
-      <code>min_box_size</code> being recorded in the artifact, so the minimum
-      ground-truth face size they used cannot be confirmed from the stored run.
-      It defaults to 0 and there is no reason to think otherwise, but it is not
-      provable, and it moves the numbers — filtering out small faces removes
-      the hardest cases and lifts both AP and the peak-F1 threshold. Recorded
-      going forward.
+      The runs the shipped threshold rests on pre-date
+      <code>min_box_size</code> being stored in the artifact. Re-running with
+      it explicitly set to 0 produced a ground-truth count of 39,697 boxes on
+      the same 3,226 images, against the 16,072 the original runs recorded —
+      and AP fell for all four detectors at once, by up to 0.32.
+    </p>
+    <p>
+      The value was recovered by re-parsing the annotations at a range of
+      filter sizes: only <strong>min_box_size = 20</strong> reproduces exactly
+      16,072. So the original runs discarded faces under 20 px and never said
+      so. That single unrecorded integer is the difference between an F1-max of
+      0.5727 and one of 0.2363 for the same detector on the same images.
+    </p>
+    <p>
+      Filtering at 20 px is the right call here — a face that small carries too
+      few pixels for the recognition stage to encode, so detecting it would not
+      help — but it has to be <em>stated</em>, because the threshold means
+      nothing without it. It is recorded in every run from now on.
     </p>
   </div>
 </section>

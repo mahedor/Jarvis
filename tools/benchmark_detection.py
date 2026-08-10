@@ -58,6 +58,7 @@ from detection_metrics import (
     accumulate_pr,
     average_precision,
     best_f1_threshold,
+    confidence_sweep,
     roc_points,
     roc_auc,
 )
@@ -445,6 +446,15 @@ def score_run(run):
         "num_detections": run["num_detections"],
         "total_gt": run["total_gt"],
         "total_fp": run["total_fp"],
+        # A fixed-confidence resampling of the PR curve, so the operating point
+        # can be explored after the fact instead of only at F1-max. Stored at
+        # ~200 points rather than one per detection: the raw curve is hundreds
+        # of thousands of points per detector, and a fixed grid is directly
+        # comparable across detectors because they share the confidences.
+        # Runs recorded before this existed have no "confidence_sweep" key.
+        "confidence_sweep": confidence_sweep(
+            precisions, recalls, thresholds, run["total_gt"]
+        ),
         **stats,
     }
 

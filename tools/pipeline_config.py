@@ -104,14 +104,23 @@ DETECTION_THRESHOLD_PROVENANCE = {
     # The datasets whose F1-max thresholds bracket the shipped value. The test
     # asserts DETECTION_CONFIDENCE_THRESHOLD lies within their span.
     "supported_by": ["mafa", "widerface"],
-    # UNVERIFIABLE FROM THE ARTIFACT. These three runs pre-date min_box_size
-    # being recorded in the run metadata (added in this repo's history just
-    # before this file), so their stored entries carry no min_box_size field.
-    # The flag defaults to 0 (keep every ground-truth box) and there is no
-    # reason to think it was passed, but that cannot be confirmed from the
-    # stored run — and min_box_size moves these numbers, since filtering out
-    # small faces removes the hardest cases and lifts both AP and the F1-max
-    # threshold. Treat as unknown-but-probably-0 until a re-measure records it.
-    "min_box_size": None,
+    # RECOVERED, NOT RECORDED. These three runs pre-date min_box_size being
+    # stored in the run metadata, so the value is absent from their entries. It
+    # was recovered by re-parsing the WIDER FACE annotations at a range of
+    # filter sizes and matching the stored ground-truth count: min_box_size=20
+    # yields exactly 16,072 boxes, the number those runs recorded. 0 yields
+    # 39,697 — so the runs were NOT unfiltered.
+    #
+    # This matters enormously and was nearly missed. At min_box_size=0 the same
+    # WIDER FACE images give YOLO an F1-max of 0.2363 rather than 0.5727, and
+    # AP drops for all four detectors. Faces under 20 px are counted as misses
+    # nobody can hit. The threshold below is only meaningful for the FILTERED
+    # task, which is also the task this system performs: a sub-20px face
+    # carries too few pixels for the recognition stage to encode, so finding it
+    # would not help.
+    "min_box_size": 20,
     "min_box_size_recorded_in_artifact": False,
+    "min_box_size_recovery": "matched stored total_gt=16072 against a re-parse "
+                             "of the WIDER FACE annotations; only min_box_size=20 "
+                             "reproduces it (0 gives 39697)",
 }

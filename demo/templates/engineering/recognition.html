@@ -88,6 +88,7 @@
         <th class="num">F1</th>
         <th class="num">d′ vs stranger</th>
         <th class="num">mean ms</th>
+        <th class="num">fps</th>
       </tr>
     </thead>
     <tbody>
@@ -104,6 +105,7 @@
           <td class="num">{{ '%.3f'|format(cell.f1) }}</td>
           <td class="num">{{ '%.2f'|format(cell.dprime) }}</td>
           <td class="num">{{ '%.1f'|format(matrix.latency.get(encoder, {}).get('mean_ms', 0)) }}</td>
+          <td class="num">{{ '%.1f'|format(matrix.latency.get(encoder, {}).get('fps') or 0) }}</td>
         </tr>
         {% endif %}
       {% endfor %}

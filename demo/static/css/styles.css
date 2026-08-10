@@ -385,23 +385,39 @@
   }
 
   /* ─── Engineering log link ────────────────
-     Lives inline on the header tagline. Deliberately not a control and not a
-     bar: it inherits the tagline's size and sits a shade dimmer than it, so it
-     reads as more metadata about the project rather than something to press.
-     Inline means it costs the fixed-viewport layout no height. */
-  .header-sep { color: #333; margin: 0 2px; }
-
+     Own line under the header tagline. Deliberately NOT a pill: every pill in
+     this UI (mode toggle, TTS, chips) is a control, and this one leaves the
+     app. The accent arrow is the single spot of colour — enough to catch the
+     eye — while the label stays grey and a faint underline does the work of
+     saying "link". Hover promotes the whole thing to accent. */
   .header-doc-link {
-    color: #4a4a56;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 7px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    color: #8a8a99;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2px;
     text-decoration: none;
-    border-bottom: 1px solid transparent;
     transition: color 0.15s, border-color 0.15s;
+  }
+
+  .header-doc-link::before {
+    content: "→";
+    color: var(--accent);
+    font-size: 12px;
+    transition: transform 0.15s;
   }
 
   .header-doc-link:hover {
     color: var(--accent);
-    border-bottom-color: rgba(var(--accent-rgb), 0.4);
+    border-bottom-color: rgba(var(--accent-rgb), 0.5);
   }
+
+  .header-doc-link:hover::before { transform: translateX(2px); }
 
   /* ─── Voice Mode ──────────────────────────── */
   .voice-mode {

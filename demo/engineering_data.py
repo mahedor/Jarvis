@@ -26,6 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = REPO_ROOT / "results"
 DETECTION_FILE = RESULTS_DIR / "benchmarks_detection.json"
 RECOGNITION_FILE = RESULTS_DIR / "benchmarks_recognition.json"
+INTENT_FILE = RESULTS_DIR / "benchmarks_intent.json"
+CACHING_FILE = RESULTS_DIR / "benchmarks_caching.json"
+EVAL_DIR = REPO_ROOT / "tests" / "eval"
 
 # The FAR the recognition benchmark ranks encoders at. Mirrors PRIMARY_FAR in
 # benchmark_recognition.py; kept as a literal to avoid importing it (see above).
@@ -126,6 +129,67 @@ def detection_rows(run):
     return rows, errors
 
 
+def pick_detection_winner(datasets):
+    """The detector that wins across datasets, not just on one.
+
+    Deliberately counts DATASET WINS before comparing AP. A detector that takes
+    the easy set by a mile and loses both hard ones has not earned anything —
+    the whole reason three datasets are run is that a single headline number
+    hides exactly that. AP is the tie-break, averaged across datasets.
+
+    Inputs:
+        datasets (list[dict]): per-dataset blocks from detection_page_data,
+            each {"dataset", "rows": [...best AP first...]}.
+    Returns:
+        dict | None: {"detector", "wins", "contested", "swept", "per_dataset",
+        "mean_ap", "worst"} where per_dataset is [{"dataset", "ap", "f1",
+        "f1_threshold", "won"}], or None if there is nothing to compare.
+    """
+    if not datasets:
+        return None
+
+    wins, appearances = {}, {}
+    for block in datasets:
+        rows = block.get("rows") or []
+        if not rows:
+            continue
+        for row in rows:
+            appearances.setdefault(row["detector"], []).append((block["dataset"], row))
+        wins[rows[0]["detector"]] = wins.get(rows[0]["detector"], 0) + 1
+
+    if not appearances:
+        return None
+
+    contested = len([b for b in datasets if b.get("rows")])
+
+    def rank(detector):
+        entries = appearances[detector]
+        mean_ap = sum(r["ap"] or 0.0 for _, r in entries) / len(entries)
+        return (-wins.get(detector, 0), -mean_ap)
+
+    detector = min(appearances, key=rank)
+    entries = appearances[detector]
+    per_dataset = [{
+        "dataset": name,
+        "ap": row["ap"],
+        "f1": row["f1"],
+        "f1_threshold": row["f1_threshold"],
+        "won": any(b["dataset"] == name and b["rows"] and b["rows"][0]["detector"] == detector
+                   for b in datasets),
+    } for name, row in entries]
+    aps = [r["ap"] for r in per_dataset if r["ap"] is not None]
+
+    return {
+        "detector": detector,
+        "wins": wins.get(detector, 0),
+        "contested": contested,
+        "swept": wins.get(detector, 0) == contested and contested > 1,
+        "per_dataset": sorted(per_dataset, key=lambda r: -(r["ap"] or 0)),
+        "mean_ap": (sum(aps) / len(aps)) if aps else None,
+        "worst": min(aps) if aps else None,
+    }
+
+
 def recognition_matrix(run):
     """The encoder x aggregation grid for one recognition run.
 
@@ -168,8 +232,17 @@ def recognition_matrix(run):
         return -best
 
     encoders.sort(key=rank)
-    latency = {r.get("encoder"): r.get("latency", {})
-               for r in run.get("results", []) if "error" not in r}
+    # Carry fps alongside the milliseconds. The detection side already reports
+    # it, and real-time work gets discussed in frames per second — 190 ms/face
+    # and "about 5 faces a second" land very differently.
+    latency = {}
+    for result in run.get("results", []):
+        if "error" in result:
+            continue
+        stats = dict(result.get("latency") or {})
+        mean_ms = stats.get("mean_ms") or 0.0
+        stats["fps"] = (1000.0 / mean_ms) if mean_ms > 0 else None
+        latency[result.get("encoder")] = stats
 
     return {"aggregations": aggregations, "cells": cells, "encoders": encoders,
             "errors": errors, "latency": latency}
@@ -330,13 +403,37 @@ def _tar_threshold(metrics, far):
 # Page-level assembly.
 # ══════════════════════════════════════════════════════════════════
 
+def detection_sweeps(run):
+    """Confidence sweeps for one run, keyed by detector.
+
+    Only runs recorded after confidence_sweep was added to benchmark_detection
+    carry these. Older runs are not broken, they simply cannot drive the
+    threshold explorer — the page shows it for the datasets that have data and
+    says nothing for the rest, rather than blocking on a full re-run.
+
+    Returns:
+        dict[str, list[dict]]: detector -> sweep points. Empty when absent.
+    """
+    sweeps = {}
+    for result in (run or {}).get("results", []):
+        if "error" in result:
+            continue
+        sweep = result.get("confidence_sweep")
+        if sweep:
+            sweeps[result["detector"]] = sweep
+    return sweeps
+
+
 def detection_page_data():
     """Everything the detection page renders."""
     runs = load_runs(DETECTION_FILE)
     latest = latest_full_run_per_dataset(runs)
-    datasets = []
+    datasets, explorer = [], {}
     for dataset, run in latest.items():
         rows, errors = detection_rows(run)
+        sweeps = detection_sweeps(run)
+        if sweeps:
+            explorer[dataset] = sweeps
         datasets.append({
             "dataset": dataset,
             "run": run,
@@ -345,9 +442,227 @@ def detection_page_data():
             # min_box_size only started being recorded on 2026-08-08; older
             # entries legitimately have no value and must not read as 0.
             "min_box_size_known": "min_box_size" in run,
+            "has_sweep": bool(sweeps),
         })
+    # min_box_size changes what the numbers MEAN, not just their value: it sets
+    # how small a ground-truth face still counts as one to find. Runs at
+    # different settings are not comparable to each other, so the page has to
+    # say so rather than tabling them side by side. None = the run pre-dates
+    # the field being recorded.
+    regimes = [(b["dataset"], b["run"].get("min_box_size")) for b in datasets]
+    distinct = {value for _, value in regimes}
     return {"datasets": datasets, "total_runs": len(runs),
+            "winner": pick_detection_winner(datasets),
+            "explorer": explorer,
+            "datasets_without_sweep": [b["dataset"] for b in datasets if not b["has_sweep"]],
+            "filter_regimes": regimes,
+            "mixed_filters": len(distinct) > 1,
             "source": _relative(DETECTION_FILE)}
+
+
+# ══════════════════════════════════════════════════════════════════
+# Intent routing + prompt caching (the non-vision half of the log).
+# ══════════════════════════════════════════════════════════════════
+
+def intent_layers(run):
+    """Per-layer routing latency, aggregated across the commands measured.
+
+    The classifier is a cascade: cheap layers run first and only escalate when
+    they cannot decide. Grouping the per-command results by LAYER is what shows
+    the cost of each rung — the individual commands are noise around it.
+
+    Inputs:
+        run (dict): an intent benchmark payload with a "results" list of
+            {label, command, tier, layer, avg_ms, p95_ms, p99_ms}.
+    Returns:
+        list[dict]: {"layer", "tier", "commands", "avg_ms", "p95_ms"}, cheapest
+        first. Empty for a missing or malformed run.
+    """
+    grouped = {}
+    for row in (run or {}).get("results", []):
+        layer = row.get("layer")
+        if not layer or row.get("avg_ms") is None:
+            continue
+        entry = grouped.setdefault(layer, {"layer": layer, "tier": row.get("tier"),
+                                           "avg": [], "p95": []})
+        entry["avg"].append(row["avg_ms"])
+        entry["p95"].append(row.get("p95_ms") or row["avg_ms"])
+
+    layers = [{
+        "layer": e["layer"],
+        "tier": e["tier"],
+        "commands": len(e["avg"]),
+        "avg_ms": sum(e["avg"]) / len(e["avg"]),
+        "p95_ms": max(e["p95"]),
+    } for e in grouped.values()]
+    layers.sort(key=lambda e: e["avg_ms"])
+    return layers
+
+
+def caching_runs(runs):
+    """Prompt-caching attempts, with whether the cache ACTUALLY engaged.
+
+    The headline speedup is meaningless on its own: a 1.0x result means
+    "caching did not help" only if caching actually ran. Reading
+    cache_creation_input_tokens / cache_read_input_tokens tells you which of
+    the two happened, so the page can distinguish a null result from a
+    misconfigured experiment.
+
+    Returns:
+        list[dict]: oldest first, each {"timestamp", "input_tokens",
+        "cache_created", "cache_read", "engaged", "speedup", "on_ms", "off_ms",
+        "with_history"}.
+    """
+    rows = []
+    for run in runs or []:
+        on = run.get("caching_on") or {}
+        off = run.get("caching_off") or {}
+        usage = on.get("usage") or []
+        created = sum(u.get("cache_creation_input_tokens", 0) or 0 for u in usage)
+        read = sum(u.get("cache_read_input_tokens", 0) or 0 for u in usage)
+        rows.append({
+            "timestamp": run.get("timestamp"),
+            "input_tokens": usage[0].get("input_tokens") if usage else None,
+            "cache_created": created,
+            "cache_read": read,
+            "engaged": bool(created or read),
+            "speedup": run.get("speedup_avg_x"),
+            "on_ms": (on.get("latency_ms") or {}).get("avg"),
+            "off_ms": (off.get("latency_ms") or {}).get("avg"),
+            "with_history": bool(run.get("with_history")),
+            "model": run.get("model"),
+            "runs_per_mode": run.get("runs_per_mode"),
+        })
+    return rows
+
+
+def claude_call_ms(caching):
+    """Mean uncached Claude round-trip, in ms, across the caching runs.
+
+    This is the number that makes the routing cascade worth building: it is
+    what a tier-3 escalation actually costs, against the sub-millisecond to
+    tens-of-milliseconds cost of deciding locally. Neither artifact states it —
+    it only exists by reading the caching runs while looking at the routing
+    ones.
+    """
+    values = [r["off_ms"] for r in caching if r.get("off_ms")]
+    return (sum(values) / len(values)) if values else None
+
+
+def load_eval_cases(path):
+    """Read one eval .jsonl, skipping the '#' registry-rule header lines."""
+    path = Path(path)
+    if not path.is_file():
+        return []
+    cases = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                try:
+                    cases.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        return []
+    return cases
+
+
+def eval_corpus():
+    """What the routing eval DEFINES as correct — not how well it scores.
+
+    Deliberately reports composition only. tests/eval/results/ is empty: the
+    corpus is a specification that nothing has been scored against yet, and
+    the page says so rather than implying an accuracy figure exists.
+    """
+    routing = load_eval_cases(EVAL_DIR / "routing_eval.jsonl")
+    conversation = load_eval_cases(EVAL_DIR / "conversation_eval.jsonl")
+
+    def tally(cases, key):
+        counts = {}
+        for case in cases:
+            counts[str(case.get(key))] = counts.get(str(case.get(key)), 0) + 1
+        return sorted(counts.items(), key=lambda kv: -kv[1])
+
+    # Look for actual result files, not just "the directory is non-empty" —
+    # tests/eval/results/ holds a .gitkeep, and counting that as evidence would
+    # make the page claim an accuracy figure exists when none does.
+    results_dir = EVAL_DIR / "results"
+    scored = bool(results_dir.is_dir() and
+                  (list(results_dir.glob("*.json")) + list(results_dir.glob("*.jsonl"))))
+
+    return {
+        "routing_cases": len(routing),
+        "conversation_cases": len(conversation),
+        "categories": tally(routing, "category"),
+        "difficulties": tally(routing, "difficulty"),
+        "scenarios": sorted(p.stem for p in (EVAL_DIR / "scenarios").glob("*.jsonl"))
+                     if (EVAL_DIR / "scenarios").is_dir() else [],
+        "has_scored_results": scored,
+        "sample": next((c for c in conversation if c.get("conversation_history")), None),
+    }
+
+
+def routing_tables():
+    """Size of the hand-maintained lookup tables in the current classifier.
+
+    The concrete form of "this does not scale": every one of these entries is a
+    phrase someone typed out, and adding a capability means adding more of them
+    in several places at once. Counted live rather than written into the page,
+    so the number cannot quietly go stale while the argument stays.
+
+    intent_classifier is imported lazily and failure is tolerated: this module
+    is otherwise stdlib-only, and a documentation page must not be the reason
+    the app cannot start.
+
+    Returns:
+        dict | None: {"tables": [(name, count)], "total": int}, or None if the
+        classifier cannot be imported.
+    """
+    try:
+        import intent_classifier
+    except Exception:  # noqa: BLE001 - optional, never fatal
+        return None
+
+    names = ["ACTION_MAP", "CANONICAL_INTENTS", "DEVICE_ALIASES", "EVERYTHING_WORDS",
+             "FILLER_PREFIXES", "GOODNIGHT_PHRASES", "GOODMORNING_PHRASES"]
+    tables = []
+    for name in names:
+        value = getattr(intent_classifier, name, None)
+        if value is not None:
+            try:
+                tables.append((name, len(value)))
+            except TypeError:
+                continue
+    if not tables:
+        return None
+    return {"tables": sorted(tables, key=lambda t: -t[1]),
+            "total": sum(count for _, count in tables)}
+
+
+def routing_page_data():
+    """Everything the intent-routing page renders."""
+    intent_runs = load_runs(INTENT_FILE)
+    caching = caching_runs(load_runs(CACHING_FILE))
+    latest_intent = intent_runs[-1] if intent_runs else None
+    layers = intent_layers(latest_intent)
+
+    return {
+        "intent_run": latest_intent,
+        "intent_runs": len(intent_runs),
+        "layers": layers,
+        "cheapest": layers[0] if layers else None,
+        "dearest": layers[-1] if layers else None,
+        "caching": caching,
+        "caching_engaged": [r for r in caching if r["engaged"]],
+        "claude_ms": claude_call_ms(caching),
+        "corpus": eval_corpus(),
+        "tables": routing_tables(),
+        "intent_source": _relative(INTENT_FILE),
+        "caching_source": _relative(CACHING_FILE),
+    }
 
 
 def overview_page_data():

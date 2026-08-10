@@ -21,6 +21,8 @@
     <nav class="eng-nav">
       <a href="{{ url_for('engineering.index') }}"
          class="{% if request.endpoint == 'engineering.index' %}active{% endif %}">overview</a>
+      <a href="{{ url_for('engineering.routing') }}"
+         class="{% if request.endpoint == 'engineering.routing' %}active{% endif %}">routing</a>
       <a href="{{ url_for('engineering.detection') }}"
          class="{% if request.endpoint == 'engineering.detection' %}active{% endif %}">detection</a>
       <a href="{{ url_for('engineering.recognition') }}"
