@@ -283,7 +283,15 @@
       Filtering at 20 px is the right call here — a face that small carries too
       few pixels for the recognition stage to encode, so detecting it would not
       help — but it has to be <em>stated</em>, because the threshold means
-      nothing without it. It is recorded in every run from now on.
+      nothing without it.
+    </p>
+    <p>
+      <strong>Resolved.</strong> All three datasets were re-run with the flag
+      passed explicitly and recorded, and every AP and F1-max value reproduced
+      to four decimal places across all four detectors — which confirms the
+      recovered value was right and that the benchmark is deterministic. The
+      shipped threshold is unchanged, and it now rests on runs that state their
+      own filter instead of ones whose filter had to be inferred.
     </p>
   </div>
 </section>

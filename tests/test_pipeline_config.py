@@ -97,6 +97,42 @@ def test_cited_runs_share_one_iou_threshold(runs, measurement):
     assert run["iou_threshold"] == DETECTION_THRESHOLD_PROVENANCE["iou_threshold"]
 
 
+@pytest.mark.parametrize("measurement", DETECTION_THRESHOLD_PROVENANCE["measurements"],
+                         ids=lambda m: m["dataset"])
+def test_cited_runs_record_the_min_box_size_the_config_claims(runs, measurement):
+    """The setting that silently changed what these numbers meant.
+
+    The original runs carried no min_box_size and it had to be reverse
+    engineered from their ground-truth counts. The cited runs must record it,
+    and it must be the value pipeline_config says the threshold was measured
+    at — otherwise the threshold describes a different task than the one
+    documented.
+    """
+    run = _find_run(runs, measurement["run_timestamp"])
+    assert "min_box_size" in run, (
+        f"{measurement['dataset']} run does not record min_box_size; the "
+        f"threshold's meaning cannot be verified from the artifact"
+    )
+    assert run["min_box_size"] == DETECTION_THRESHOLD_PROVENANCE["min_box_size"]
+
+
+@pytest.mark.parametrize("measurement", DETECTION_THRESHOLD_PROVENANCE["measurements"],
+                         ids=lambda m: m["dataset"])
+def test_cited_runs_agree_with_the_superseded_ones(runs, measurement):
+    """The re-measurement reproduced the originals exactly; if a future re-run
+    stops matching, the provenance is describing a changed pipeline."""
+    superseded = DETECTION_THRESHOLD_PROVENANCE.get("superseded_runs", {})
+    timestamp = superseded.get(measurement["dataset"])
+    if not timestamp:
+        pytest.skip("no superseded run recorded for this dataset")
+    old = _find_run(runs, timestamp)
+    if old is None:
+        pytest.skip("superseded run no longer on file")
+    old_yolo = _yolo_result(old)
+    assert old_yolo["f1_threshold"] == pytest.approx(measurement["f1_threshold"], abs=1e-4)
+    assert old_yolo["ap"] == pytest.approx(measurement["ap"], abs=1e-4)
+
+
 # ─── the shipped value follows from that evidence ────────────────
 
 def test_shipped_value_matches_the_provenance_block():

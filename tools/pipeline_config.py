@@ -69,13 +69,19 @@ DETECTION_CONFIDENCE_THRESHOLD = 0.57
 DETECTION_THRESHOLD_PROVENANCE = {
     "value": 0.57,
     "decided_on": "2026-08-08",
+    "reconfirmed_on": "2026-08-10",
     "decided_from": "F1-max confidence, full-dataset YOLOv8n-face runs",
     "detector": "yolo",
     "iou_threshold": 0.5,
+    # Re-measured 2026-08-10 with min_box_size passed explicitly and RECORDED,
+    # replacing the 2026-08-08 runs that had to have the setting reverse
+    # engineered. Every AP and F1-max value reproduced to four decimals across
+    # all four detectors and all three datasets — which both confirms 20 was
+    # the right recovery and shows the benchmark is deterministic.
     "measurements": [
         {
             "dataset": "mafa",
-            "run_timestamp": "2026-08-08T19:08:59Z",
+            "run_timestamp": "2026-08-10T08:34:30Z",
             "num_images": 4935,
             "f1_threshold": 0.5812,
             "f1": 0.8094,
@@ -84,7 +90,7 @@ DETECTION_THRESHOLD_PROVENANCE = {
         },
         {
             "dataset": "widerface",
-            "run_timestamp": "2026-08-08T20:10:27Z",
+            "run_timestamp": "2026-08-10T07:49:14Z",
             "num_images": 3226,
             "f1_threshold": 0.5727,
             "f1": 0.8036,
@@ -93,7 +99,7 @@ DETECTION_THRESHOLD_PROVENANCE = {
         },
         {
             "dataset": "fddb",
-            "run_timestamp": "2026-08-08T19:31:06Z",
+            "run_timestamp": "2026-08-10T08:56:55Z",
             "num_images": 2845,
             "f1_threshold": 0.6940,
             "f1": 0.9372,
@@ -101,26 +107,37 @@ DETECTION_THRESHOLD_PROVENANCE = {
             "role": "easy - reference only, EXCLUDED from the decision",
         },
     ],
+    "superseded_runs": {
+        "note": "the original runs these values were first taken from; kept "
+                "here because they are what the 20 px filter was recovered "
+                "from, and they carry no min_box_size field of their own",
+        "mafa": "2026-08-08T19:08:59Z",
+        "widerface": "2026-08-08T20:10:27Z",
+        "fddb": "2026-08-08T19:31:06Z",
+    },
     # The datasets whose F1-max thresholds bracket the shipped value. The test
     # asserts DETECTION_CONFIDENCE_THRESHOLD lies within their span.
     "supported_by": ["mafa", "widerface"],
-    # RECOVERED, NOT RECORDED. These three runs pre-date min_box_size being
-    # stored in the run metadata, so the value is absent from their entries. It
-    # was recovered by re-parsing the WIDER FACE annotations at a range of
-    # filter sizes and matching the stored ground-truth count: min_box_size=20
-    # yields exactly 16,072 boxes, the number those runs recorded. 0 yields
-    # 39,697 — so the runs were NOT unfiltered.
+    # NOW RECORDED. The runs cited above pass --min-box-size 20 explicitly and
+    # store it, so this no longer has to be inferred.
     #
-    # This matters enormously and was nearly missed. At min_box_size=0 the same
-    # WIDER FACE images give YOLO an F1-max of 0.2363 rather than 0.5727, and
-    # AP drops for all four detectors. Faces under 20 px are counted as misses
-    # nobody can hit. The threshold below is only meaningful for the FILTERED
-    # task, which is also the task this system performs: a sub-20px face
-    # carries too few pixels for the recognition stage to encode, so finding it
-    # would not help.
+    # It was inferred once, and the episode is worth keeping: the original runs
+    # carried no min_box_size field, and a re-run at 0 produced 39,697
+    # ground-truth boxes on WIDER FACE against their 16,072, dropping AP for
+    # all four detectors at once (YOLO 0.8644 -> 0.6420) and moving YOLO's
+    # F1-max from 0.5727 to 0.2363. Re-parsing the annotations at a range of
+    # filter sizes identified the setting exactly: only 20 reproduces 16,072.
+    #
+    # Faces under 20 px are excluded deliberately, not for convenience. One
+    # that small carries too few pixels for the recognition stage to encode, so
+    # detecting it would not help — but the threshold below is only meaningful
+    # for that filtered task, which is why the setting has to travel with it.
     "min_box_size": 20,
-    "min_box_size_recorded_in_artifact": False,
-    "min_box_size_recovery": "matched stored total_gt=16072 against a re-parse "
-                             "of the WIDER FACE annotations; only min_box_size=20 "
-                             "reproduces it (0 gives 39697)",
+    "min_box_size_recorded_in_artifact": True,
+    "min_box_size_recovery": "originally inferred by matching stored "
+                             "total_gt=16072 against a re-parse of the WIDER "
+                             "FACE annotations (only 20 reproduces it; 0 gives "
+                             "39697); confirmed 2026-08-10 by re-running with "
+                             "the flag set explicitly, which reproduced every "
+                             "AP and F1-max value to four decimals",
 }
