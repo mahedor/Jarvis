@@ -565,7 +565,7 @@ def main():
             # benchmark's two thresholds this number is. "max-F1" exactly when
             # it matches the benchmarked deployment threshold for this pair.
             "threshold_kind": ("max-F1" if warning is None
-                               else "custom (does not match the benchmarked max-F1)"),
+                               else "custom - does not match the benchmarked max-F1"),
             "benchmarked_f1_threshold": measured_f1,
             "embed_failures": failures,
             "alignment_fallbacks": getattr(encoder, "fallback_count", None),

@@ -47,7 +47,20 @@
 <div class="header">
   <div>
     <h1>J.A.R.V.I.S.</h1>
+    <!-- Sits on the tagline line rather than in a footer bar (which would
+         permanently shorten the chat area in this 100vh shell) or the status
+         bar (which is live state and toggles). Styled as a pill so it is
+         obviously clickable — the people who will actually open this are the
+         ones evaluating the project, so it should be easy to find. -->
     <p>Just A Rather Very Intelligent System — Phase 1 Demo</p>
+    {% if engineering_enabled %}
+    <!-- Its own line under the tagline. Not a pill — pills in this UI are
+         controls, and this navigates away. The accent arrow is the only bit of
+         colour, enough to catch the eye without turning into a button; the
+         label stays grey and the underline carries the "this is a link" signal. -->
+    <a class="header-doc-link" href="{{ url_for('engineering.index') }}"
+       title="The decisions behind the face pipeline, and how they were measured">How this was built</a>
+    {% endif %}
   </div>
   <div class="header-right">
     <div class="mode-toggle">

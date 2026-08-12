@@ -1,0 +1,378 @@
+[
+  {
+    "timestamp": "2026-04-15T02:40:42Z",
+    "runs_per_command": 1000,
+    "spacy": true,
+    "embeddings": true,
+    "results": [
+      {
+        "label": "T1 keyword: time",
+        "command": "What time is it?",
+        "tier": 1,
+        "layer": "tier1_keyword",
+        "avg_ms": 0.007,
+        "p95_ms": 0.007,
+        "p99_ms": 0.011
+      },
+      {
+        "label": "T1 keyword: date",
+        "command": "What's the date today?",
+        "tier": 1,
+        "layer": "tier1_keyword",
+        "avg_ms": 0.007,
+        "p95_ms": 0.012,
+        "p99_ms": 0.013
+      },
+      {
+        "label": "T1 embed: hour",
+        "command": "What hour is it?",
+        "tier": 1,
+        "layer": "tier1_embedding",
+        "avg_ms": 8.468,
+        "p95_ms": 11.274,
+        "p99_ms": 14.697
+      },
+      {
+        "label": "T1 embed: current time",
+        "command": "Tell me the current time",
+        "tier": 1,
+        "layer": "tier1_keyword",
+        "avg_ms": 0.007,
+        "p95_ms": 0.007,
+        "p99_ms": 0.008
+      },
+      {
+        "label": "T2 kw: turn on lights",
+        "command": "Turn on the bedroom lights",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 8.593,
+        "p95_ms": 10.526,
+        "p99_ms": 11.42
+      },
+      {
+        "label": "T2 kw: turn off lamp",
+        "command": "Turn off the lamp",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 8.42,
+        "p95_ms": 10.514,
+        "p99_ms": 11.942
+      },
+      {
+        "label": "T2 kw: dim lamp",
+        "command": "Dim the lamp to 50%",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.426,
+        "p95_ms": 11.957,
+        "p99_ms": 13.423
+      },
+      {
+        "label": "T2 kw: open blinds",
+        "command": "Open the blinds",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.924,
+        "p95_ms": 12.474,
+        "p99_ms": 13.581
+      },
+      {
+        "label": "T2 kw: status",
+        "command": "What's the status of everything?",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 8.972,
+        "p95_ms": 11.472,
+        "p99_ms": 12.776
+      },
+      {
+        "label": "T2 kw+prefix: hey+please",
+        "command": "Hey Jarvis, please turn on the lights",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.207,
+        "p95_ms": 11.152,
+        "p99_ms": 14.403
+      },
+      {
+        "label": "T2 kw+prefix: deep stack",
+        "command": "Hey Jarvis, can you please go ahead and turn on the lights",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.225,
+        "p95_ms": 11.022,
+        "p99_ms": 12.037
+      },
+      {
+        "label": "T2 spacy: passive",
+        "command": "The lamp should be switched off",
+        "tier": 2,
+        "layer": "tier2_spacy",
+        "avg_ms": 18.456,
+        "p95_ms": 22.777,
+        "p99_ms": 25.76
+      },
+      {
+        "label": "T2 spacy: need raised",
+        "command": "I need the blinds raised",
+        "tier": 2,
+        "layer": "tier2_embedding",
+        "avg_ms": 27.868,
+        "p95_ms": 36.096,
+        "p99_ms": 40.399
+      },
+      {
+        "label": "T2 embed: cut the power",
+        "command": "Cut the power to the lights",
+        "tier": 2,
+        "layer": "tier2_embedding",
+        "avg_ms": 25.172,
+        "p95_ms": 30.707,
+        "p99_ms": 34.046
+      },
+      {
+        "label": "T2 embed: let light in",
+        "command": "Let some light in through the blinds",
+        "tier": 2,
+        "layer": "tier2_embedding",
+        "avg_ms": 26.274,
+        "p95_ms": 33.126,
+        "p99_ms": 36.029
+      },
+      {
+        "label": "T2 goodnight",
+        "command": "Goodnight",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 7.991,
+        "p95_ms": 9.742,
+        "p99_ms": 10.514
+      },
+      {
+        "label": "T2 negation->T3",
+        "command": "Don't turn on the lights",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 9.365,
+        "p95_ms": 11.899,
+        "p99_ms": 13.491
+      },
+      {
+        "label": "T3: joke",
+        "command": "Tell me a joke",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 23.302,
+        "p95_ms": 28.144,
+        "p99_ms": 31.795
+      },
+      {
+        "label": "T3: dinner",
+        "command": "What should I eat for dinner?",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 25.595,
+        "p95_ms": 30.679,
+        "p99_ms": 36.428
+      },
+      {
+        "label": "T3: unknown device",
+        "command": "Turn on the TV",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 9.916,
+        "p95_ms": 13.295,
+        "p99_ms": 18.818
+      }
+    ]
+  },
+  {
+    "timestamp": "2026-04-15T02:50:26Z",
+    "runs_per_command": 1000,
+    "spacy": true,
+    "embeddings": true,
+    "results": [
+      {
+        "label": "T1 keyword: time",
+        "command": "What time is it?",
+        "tier": 1,
+        "layer": "tier1_keyword",
+        "avg_ms": 0.007,
+        "p95_ms": 0.008,
+        "p99_ms": 0.009
+      },
+      {
+        "label": "T1 keyword: date",
+        "command": "What's the date today?",
+        "tier": 1,
+        "layer": "tier1_keyword",
+        "avg_ms": 0.009,
+        "p95_ms": 0.013,
+        "p99_ms": 0.017
+      },
+      {
+        "label": "T1 embed: hour",
+        "command": "What hour is it?",
+        "tier": 1,
+        "layer": "tier1_embedding",
+        "avg_ms": 10.212,
+        "p95_ms": 14.576,
+        "p99_ms": 18.357
+      },
+      {
+        "label": "T1 embed: current time",
+        "command": "Tell me the current time",
+        "tier": 1,
+        "layer": "tier1_keyword",
+        "avg_ms": 0.009,
+        "p95_ms": 0.012,
+        "p99_ms": 0.014
+      },
+      {
+        "label": "T2 kw: turn on lights",
+        "command": "Turn on the bedroom lights",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.045,
+        "p95_ms": 10.901,
+        "p99_ms": 11.922
+      },
+      {
+        "label": "T2 kw: turn off lamp",
+        "command": "Turn off the lamp",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 10.456,
+        "p95_ms": 15.143,
+        "p99_ms": 18.739
+      },
+      {
+        "label": "T2 kw: dim lamp",
+        "command": "Dim the lamp to 50%",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 11.564,
+        "p95_ms": 15.254,
+        "p99_ms": 18.717
+      },
+      {
+        "label": "T2 kw: open blinds",
+        "command": "Open the blinds",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.617,
+        "p95_ms": 11.568,
+        "p99_ms": 13.117
+      },
+      {
+        "label": "T2 kw: status",
+        "command": "What's the status of everything?",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.983,
+        "p95_ms": 12.0,
+        "p99_ms": 13.665
+      },
+      {
+        "label": "T2 kw+prefix: hey+please",
+        "command": "Hey Jarvis, please turn on the lights",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.572,
+        "p95_ms": 11.739,
+        "p99_ms": 13.279
+      },
+      {
+        "label": "T2 kw+prefix: deep stack",
+        "command": "Hey Jarvis, can you please go ahead and turn on the lights",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 9.408,
+        "p95_ms": 11.413,
+        "p99_ms": 13.808
+      },
+      {
+        "label": "T2 spacy: passive",
+        "command": "The lamp should be switched off",
+        "tier": 2,
+        "layer": "tier2_spacy",
+        "avg_ms": 18.071,
+        "p95_ms": 23.997,
+        "p99_ms": 30.567
+      },
+      {
+        "label": "T2 spacy: need raised",
+        "command": "I need the blinds raised",
+        "tier": 2,
+        "layer": "tier2_embedding",
+        "avg_ms": 25.548,
+        "p95_ms": 31.784,
+        "p99_ms": 36.47
+      },
+      {
+        "label": "T2 embed: cut the power",
+        "command": "Cut the power to the lights",
+        "tier": 2,
+        "layer": "tier2_embedding",
+        "avg_ms": 42.86,
+        "p95_ms": 70.791,
+        "p99_ms": 81.429
+      },
+      {
+        "label": "T2 embed: let light in",
+        "command": "Let some light in through the blinds",
+        "tier": 2,
+        "layer": "tier2_embedding",
+        "avg_ms": 30.011,
+        "p95_ms": 40.179,
+        "p99_ms": 48.061
+      },
+      {
+        "label": "T2 goodnight",
+        "command": "Goodnight",
+        "tier": 2,
+        "layer": "tier2_keyword",
+        "avg_ms": 8.373,
+        "p95_ms": 10.507,
+        "p99_ms": 11.879
+      },
+      {
+        "label": "T2 negation->T3",
+        "command": "Don't turn on the lights",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 10.009,
+        "p95_ms": 12.672,
+        "p99_ms": 14.642
+      },
+      {
+        "label": "T3: joke",
+        "command": "Tell me a joke",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 25.484,
+        "p95_ms": 32.156,
+        "p99_ms": 36.718
+      },
+      {
+        "label": "T3: dinner",
+        "command": "What should I eat for dinner?",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 28.365,
+        "p95_ms": 34.084,
+        "p99_ms": 36.843
+      },
+      {
+        "label": "T3: unknown device",
+        "command": "Turn on the TV",
+        "tier": 3,
+        "layer": "tier3_claude",
+        "avg_ms": 8.99,
+        "p95_ms": 10.728,
+        "p99_ms": 12.052
+      }
+    ]
+  }
+]

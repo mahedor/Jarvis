@@ -2,7 +2,7 @@
 JARVIS Intent Classifier — Benchmark
 ======================================
 Runs classify() 1000x per command, prints a per-command table and per-tier
-aggregates, then saves results to logs/benchmarks.json.
+aggregates, then saves results to results/benchmarks_intent.json.
 
 Usage:
   python tools/benchmark.py              # run and save
@@ -27,8 +27,8 @@ from intent_classifier import (
     classify,
 )
 
-LOGS_DIR = REPO_ROOT / "logs"
-BENCH_FILE = LOGS_DIR / "benchmarks.json"
+RESULTS_DIR = REPO_ROOT / "results"
+BENCH_FILE = RESULTS_DIR / "benchmarks_intent.json"
 
 # ── Device state fixture ─────────────────────────────────────────
 DEVICE_STATES = {
@@ -223,7 +223,7 @@ def print_comparison(prev, curr_results):
 # ── Persistence ──────────────────────────────────────────────────
 
 def save_results(ts, results):
-    LOGS_DIR.mkdir(exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = []
     if BENCH_FILE.exists():
         with open(BENCH_FILE) as f:

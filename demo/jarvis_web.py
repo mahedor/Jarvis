@@ -49,6 +49,20 @@ app = Flask(__name__)
 client = Anthropic(api_key=API_KEY)
 conversation_history = []
 
+# ─── Engineering log ───────────────────────────────────────────
+# /engineering — a "how this was built" record of how the face pipeline was
+# measured and tuned. Kept in its own blueprint because it shares nothing with
+# the assistant: no Claude calls, no device state, no API key. If it ever
+# fails to import (e.g. results/ missing), the assistant must still start, so
+# registration is not allowed to be fatal.
+try:
+    from engineering import engineering as engineering_blueprint
+    app.register_blueprint(engineering_blueprint)
+    ENGINEERING_ENABLED = True
+except Exception as exc:  # noqa: BLE001 - the assistant matters more
+    print(f"  (engineering log unavailable: {exc})")
+    ENGINEERING_ENABLED = False
+
 # ─── Device State Tracking ─────────────────────────────────────
 device_states = {
     "light.bedroom": {"state": "off", "friendly_name": "Bedroom main light", "brightness": 0},
@@ -175,7 +189,8 @@ def log_interaction(command, response, actions, tier=3, latency_ms=0):
 
 @app.route("/")
 def index():
-    return render_template("index.html", tts_enabled=TTS_ENABLED)
+    return render_template("index.html", tts_enabled=TTS_ENABLED,
+                           engineering_enabled=ENGINEERING_ENABLED)
 
 
 GREETING = "Good evening, Michael. Systems are online. What can I do for you?"
@@ -328,12 +343,22 @@ if __name__ == "__main__":
         print("   Option 2: Set environment variable ANTHROPIC_API_KEY\n")
         exit(1)
 
+    # Debug mode is ON by default (auto-reload + tracebacks in the browser),
+    # which is what you want locally. Set JARVIS_DEBUG=0 to turn it off — the
+    # reloader runs the module twice, which is confusing when you are timing
+    # startup or attaching a debugger.
+    debug = os.getenv("JARVIS_DEBUG", "1").strip().lower() not in ("0", "false", "no")
+    port = int(os.getenv("JARVIS_PORT", "5000"))
+
     print()
     print("=" * 56)
     print("  J.A.R.V.I.S. — Streaming + Browser TTS + Voice Mode")
     print("  Intent Classifier: ACTIVE (Tier 1-2 handled locally)")
-    print("  Open http://localhost:5000 in Microsoft Edge")
-    print("  (Edge has the best neural voices)")
+    print(f"  Assistant:    http://localhost:{port}/")
+    if ENGINEERING_ENABLED:
+        print(f"  Engineering:  http://localhost:{port}/engineering")
+    print("  (Open in Microsoft Edge — best neural voices)")
+    print(f"  debug={'on' if debug else 'off'}")
     print("=" * 56)
     print()
-    app.run(debug=True, port=5000)
+    app.run(debug=debug, port=port)

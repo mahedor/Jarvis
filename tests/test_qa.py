@@ -65,8 +65,19 @@ def flask_server():
         stderr=subprocess.DEVNULL,
     )
 
-    deadline = time.monotonic() + 20
+    # Importing jarvis_web pulls in intent_classifier, which loads a
+    # sentence-transformers model — a cold start measured at ~25 s on this
+    # machine, which quietly blew the old 20 s deadline and made the whole
+    # suite look broken. The wait is for a one-off model load, not for Flask,
+    # so give it room rather than trimming it to whatever passes today.
+    startup_timeout = float(os.environ.get("QA_STARTUP_TIMEOUT", "90"))
+    deadline = time.monotonic() + startup_timeout
     while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(
+                f"Flask server exited with code {proc.returncode} before serving. "
+                f"Run 'python demo/jarvis_web.py' directly to see why."
+            )
         try:
             with urllib.request.urlopen(f"{BASE_URL}/health", timeout=1):
                 break
@@ -74,7 +85,11 @@ def flask_server():
             time.sleep(0.4)
     else:
         proc.kill()
-        raise RuntimeError("Flask server failed to start within 20 s")
+        raise RuntimeError(
+            f"Flask server failed to start within {startup_timeout:.0f} s. "
+            f"Most likely the intent classifier's model load is slow or "
+            f"downloading; raise QA_STARTUP_TIMEOUT if so."
+        )
 
     yield proc
 

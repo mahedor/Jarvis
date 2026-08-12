@@ -38,6 +38,7 @@ __all__ = [
     "accumulate_pr",
     "average_precision",
     "best_f1_threshold",
+    "confidence_sweep",
     "roc_points",
     "roc_auc",
 ]
@@ -274,6 +275,79 @@ def best_f1_threshold(precisions, recalls, thresholds):
         float(recalls[best_idx]),
         float(f1[best_idx]),
     )
+
+
+def confidence_sweep(precisions, recalls, thresholds, total_gt, steps=200):
+    """Resample a PR curve onto a fixed grid of confidence values.
+
+    WHY RESAMPLE. accumulate_pr emits one point per DISTINCT confidence, which
+    for a detector asked to return everything means hundreds of thousands of
+    points (YOLO produces ~950k detections on WIDER FACE). That is the right
+    resolution for computing AP and useless for storing or plotting. A fixed
+    grid of ~200 confidences is a few KB, plots identically at screen
+    resolution, and — unlike the raw curve — is directly comparable BETWEEN
+    detectors, because every detector is sampled at the same confidences.
+
+    At each grid confidence c the reported point is the curve position for
+    "accept every detection with confidence >= c". Grid points above the
+    detector's highest observed confidence accept nothing and are reported as
+    precision 0, recall 0 — precision there is really 0/0, i.e. UNDEFINED, and
+    a consumer that plots the stored 0 verbatim draws a cliff the detector
+    never fell off. Such points are identifiable by tp == 0 and fp == 0; the
+    engineering-log explorer breaks its precision line across them.
+
+    Inputs:
+        precisions, recalls, thresholds (array-like): as returned by
+            accumulate_pr, ordered by DECREASING threshold.
+        total_gt (int): total ground-truth boxes, used to recover TP/FP counts.
+        steps (int): number of INTERVALS spanning [0, 1]; the grid therefore
+            has steps + 1 points, both endpoints included.
+    Returns:
+        list[dict]: one entry per grid confidence, each
+        {"threshold", "precision", "recall", "f1", "tp", "fp"}, ordered by
+        increasing confidence. Empty if the curve is empty.
+    """
+    precisions = np.asarray(precisions, dtype=float)
+    recalls = np.asarray(recalls, dtype=float)
+    thresholds = np.asarray(thresholds, dtype=float)
+    if precisions.size == 0 or thresholds.size == 0:
+        return []
+
+    grid = np.linspace(0.0, 1.0, int(steps) + 1)
+
+    # accumulate_pr returns DECREASING thresholds; searchsorted needs
+    # increasing, so work on the reversed view and map indices back.
+    ascending = thresholds[::-1]
+    # For confidence c, the accepted set is every detection with score >= c.
+    # In the ascending array that is the first index >= c; the matching curve
+    # position is the last original index at or above it.
+    positions = np.searchsorted(ascending, grid, side="left")
+
+    sweep = []
+    for confidence, position in zip(grid, positions):
+        if position >= ascending.size:
+            # Above every observed confidence: nothing is accepted.
+            sweep.append({"threshold": round(float(confidence), 4), "precision": 0.0,
+                          "recall": 0.0, "f1": 0.0, "tp": 0, "fp": 0})
+            continue
+
+        index = ascending.size - 1 - int(position)
+        precision = float(precisions[index])
+        recall = float(recalls[index])
+        denominator = precision + recall
+        f1 = (2.0 * precision * recall / denominator) if denominator > 0 else 0.0
+
+        tp = recall * float(total_gt)
+        fp = (tp / precision - tp) if precision > 0 else 0.0
+        sweep.append({
+            "threshold": round(float(confidence), 4),
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "f1": round(f1, 4),
+            "tp": int(round(tp)),
+            "fp": int(round(fp)),
+        })
+    return sweep
 
 
 def roc_points(all_labeled_detections, total_gt, total_negatives):

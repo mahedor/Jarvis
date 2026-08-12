@@ -58,6 +58,7 @@ from detection_metrics import (
     accumulate_pr,
     average_precision,
     best_f1_threshold,
+    confidence_sweep,
     roc_points,
     roc_auc,
 )
@@ -445,6 +446,15 @@ def score_run(run):
         "num_detections": run["num_detections"],
         "total_gt": run["total_gt"],
         "total_fp": run["total_fp"],
+        # A fixed-confidence resampling of the PR curve, so the operating point
+        # can be explored after the fact instead of only at F1-max. Stored at
+        # ~200 points rather than one per detection: the raw curve is hundreds
+        # of thousands of points per detector, and a fixed grid is directly
+        # comparable across detectors because they share the confidences.
+        # Runs recorded before this existed have no "confidence_sweep" key.
+        "confidence_sweep": confidence_sweep(
+            precisions, recalls, thresholds, run["total_gt"]
+        ),
         **stats,
     }
 
@@ -570,8 +580,19 @@ def print_table(results, dataset, num_images, iou_threshold):
 # Persistence + comparison (mirrors benchmark.py's shape).
 # ════════════════════════════════════════════════════════════════════
 
-def save_results(ts, dataset, iou_threshold, limit, num_images, results):
-    """Append this run to results/benchmarks_detection.json."""
+def save_results(ts, dataset, iou_threshold, limit, num_images, min_box_size, results):
+    """Append this run to results/benchmarks_detection.json.
+
+    Records every setting that changes what the numbers MEAN, so a stored run
+    can be interpreted without the command line that produced it. min_box_size
+    matters as much as iou_threshold here: it drops ground-truth boxes below a
+    pixel size, so raising it quietly removes the hardest faces and lifts AP
+    without any detector improving.
+
+    NOTE: entries written before min_box_size was recorded do not have the
+    field — treat a missing key as "unknown", not as 0. (load_previous_run
+    applies the same rule to legacy entries missing `dataset`.)
+    """
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     data = []
     if BENCH_FILE.exists():
@@ -583,6 +604,7 @@ def save_results(ts, dataset, iou_threshold, limit, num_images, results):
         "iou_threshold": iou_threshold,
         "limit": limit,
         "num_images": num_images,
+        "min_box_size": min_box_size,
         "results": results,
     })
     with open(BENCH_FILE, "w") as f:
@@ -710,7 +732,7 @@ def main():
                   f"comparable).\n")
 
     save_results(ts, args.dataset, args.iou_threshold, args.limit,
-                 len(samples), results)
+                 len(samples), args.min_box_size, results)
     print(f"  Saved -> {BENCH_FILE.relative_to(REPO_ROOT)}\n")
 
 

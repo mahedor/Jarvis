@@ -1,0 +1,395 @@
+{% extends "engineering/base.html" %}
+{% block title %}Overview{% endblock %}
+{% block heading %}How this was built{% endblock %}
+
+{% block content %}
+
+<section class="eng-intro">
+  <p class="eng-lede">
+    A record of the decisions behind the face pipeline — what was chosen, what
+    was rejected, and what turned out to be wrong along the way. The benchmark
+    tables exist and are linked, but the numbers are not the interesting part.
+    The judgment calls are.
+  </p>
+  <p class="eng-note">
+    Every figure below is read from <code>results/*.json</code> when the page
+    loads, so the arguments stand or fall on the current measurements rather
+    than on numbers typed in once and left to rot.
+  </p>
+</section>
+
+<!-- ─── The decisions, first ─────────────────────────────── -->
+
+<section>
+  <h2>Decisions</h2>
+
+  <!-- 1 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">01</div>
+    <div class="eng-decision-body">
+      <h3>The development samples were biased, not noisy</h3>
+      <p class="eng-claim">
+        Everything measured on 100-image slices had to be thrown out and re-run
+        on the full datasets — 11,006 images instead of 300.
+      </p>
+      <p>
+        Sampling the first N images of WIDER FACE looks harmless. It is not:
+        WIDER stores images grouped by <strong>event category</strong>
+        (a parade, a courtroom, a beach), so a sequential slice does not sample
+        the dataset — it samples one or two events. A hundred images of the
+        same scene type is a hundred correlated observations, not a hundred
+        independent ones.
+      </p>
+      <p>
+        The tell was that the error was <em>systematic</em>. Random noise moves
+        detectors independently; a biased sample moves them together, because
+        every detector is being asked the same wrong question. On WIDER FACE,
+        going to the full set moved all four the same way at once — and on
+        MAFA it moved three of the four the other way:
+      </p>
+
+      {% for block in sampling %}
+      <div class="eng-subblock">
+        <div class="eng-subhead">
+          {{ block.dataset }}
+          <span class="eng-note">{{ '{:,}'.format(block.dev_images) }} sampled
+            → {{ '{:,}'.format(block.full_images) }} full</span>
+          {% if block.same_direction %}
+            <span class="eng-tag warn">all {{ block.rows|length }} moved the same way</span>
+          {% else %}
+            <span class="eng-tag">mixed</span>
+          {% endif %}
+        </div>
+        <table class="eng-table compact">
+          <thead>
+            <tr><th>detector</th><th class="num">sampled AP</th>
+                <th class="num">full AP</th><th class="num">shift</th></tr>
+          </thead>
+          <tbody>
+            {% for row in block.rows %}
+            <tr>
+              <td class="mono">{{ row.detector }}</td>
+              <td class="num">{{ '%.4f'|format(row.dev_ap) }}</td>
+              <td class="num">{{ '%.4f'|format(row.full_ap) }}</td>
+              <td class="num strong {{ 'up' if row.delta > 0 else 'down' }}">
+                {{ '%+.3f'|format(row.delta) }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+
+      <p>
+        Note the direction flips between datasets. The WIDER sample was
+        <em>pessimistic</em> and the MAFA sample <em>optimistic</em> — a sample
+        being small does not tell you which way it lies. FDDB is the control:
+        it barely moved, because it is stored as a flat list with no grouping
+        for a sequential slice to land inside. That contrast is what makes this
+        bias rather than bad luck.
+      </p>
+      <p class="eng-takeaway">
+        A development sample is for checking that the code runs. It is not
+        evidence, and it should never be the basis for choosing anything.
+      </p>
+    </div>
+  </article>
+
+  <!-- 2 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">02</div>
+    <div class="eng-decision-body">
+      <h3>Two thresholds, two jobs — only one of them ships</h3>
+      <p class="eng-claim">
+        The threshold used to compare encoders is not the threshold to deploy,
+        and conflating them was a real bug here, twice.
+      </p>
+      <div class="eng-split">
+        <div>
+          <div class="eng-split-label yardstick">TAR@FAR — the yardstick</div>
+          <p>
+            Set by pinning every encoder to the same false-accept budget, then
+            asking how many genuine faces it still admits. That shared budget
+            is exactly what makes the comparison fair. It is a measuring
+            instrument, chosen to hold one variable fixed across models —
+            not a setting anyone should run.
+          </p>
+        </div>
+        <div>
+          <div class="eng-split-label deployment">max-F1 — the ship value</div>
+          <p>
+            The cut-off that best balances precision against recall on the
+            actual score distributions of this household. It answers a
+            different question: not "which model is better" but "where should
+            this model draw the line". This is what goes into the gallery.
+          </p>
+        </div>
+      </div>
+      <p>
+        For the winning encoder they are <strong>0.214</strong> and
+        <strong>0.342</strong> — far enough apart that shipping the wrong one
+        would be a real regression, close enough that nothing would obviously
+        break. The benchmark now prints both, always labelled, and hands over
+        the exact build command carrying the deployment value; a test asserts
+        that command never carries the yardstick.
+      </p>
+      <p class="eng-takeaway">
+        When one number ranks and another operates, name them differently
+        everywhere — in the report, the config, the file format and the tests.
+        Anything that prints a bare "recommended threshold" is a trap.
+      </p>
+      <a class="eng-link" href="{{ url_for('engineering.recognition') }}">the recognition measurements &rarr;</a>
+    </div>
+  </article>
+
+  <!-- 3 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">03</div>
+    <div class="eng-decision-body">
+      <h3>MediaPipe was eliminated for a failure mode, not for a score</h3>
+      <p class="eng-claim">
+        It is the fastest detector measured by a wide margin, and it is fine on
+        portraits. It was still ruled out — because where it fails is precisely
+        where this system operates.
+      </p>
+      <p>
+        MediaPipe's BlazeFace downsamples the frame to 128×128 before
+        detecting. On close, frontal faces that is plenty, and it scores
+        respectably on FDDB. On WIDER FACE, where faces are small and crowded,
+        it collapses to <strong>0.07 AP</strong> — an order of magnitude below
+        the others, not a few points.
+      </p>
+      <p>
+        That would be an acceptable trade for a phone app framing one face at
+        arm's length. It is disqualifying for a doorway camera, because the
+        moment that matters is someone standing back from the door, off to one
+        side, occupying a small part of the frame. The regime MediaPipe is bad
+        at <em>is</em> the deployment regime, so its 40 fps buys nothing.
+      </p>
+      <p class="eng-takeaway">
+        "Worse on average" and "broken in the specific case you need" are
+        different findings. Averages hide the second one, which is why the
+        benchmark runs three datasets chosen to fail differently instead of one
+        headline number.
+      </p>
+    </div>
+  </article>
+
+  <!-- 4 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">04</div>
+    <div class="eng-decision-body">
+      <h3>The benchmark runs sequentially, and that is not an oversight</h3>
+      <p class="eng-claim">
+        Parallelising the suite would cut a ten-minute run to a couple of
+        minutes and make every latency number meaningless.
+      </p>
+      <p>
+        These are CPU-only models on a shared machine. Two detectors running at
+        once contend for the same cores and the same memory bandwidth, so each
+        one's measured per-image time becomes a function of what else happened
+        to be scheduled beside it — unreproducible, and unfair in whichever
+        direction the scheduler happened to lean. Wall-clock time is the cheap
+        resource here; comparable numbers are the expensive one.
+      </p>
+      <p>
+        For the same reason only <code>encoder.embed()</code> and
+        <code>detector.detect()</code> are inside the timed region. Model
+        construction, weight downloads and image loading all sit outside it, so
+        latency reflects inference rather than start-up.
+      </p>
+      <p class="eng-takeaway">
+        A benchmark's job is comparability, not speed. Optimising the harness
+        for throughput optimises away the thing it exists to produce.
+      </p>
+    </div>
+  </article>
+</section>
+
+<!-- ─── Honesty about the limits ─────────────────────────── -->
+
+<section>
+  <h2>What these numbers don't tell you</h2>
+
+  <div class="eng-caveat-block">
+    <h3>The detectors aren't emitting comparable kinds of output</h3>
+    <p>
+      YOLO is scored on a flood of candidates and the others are not. On the
+      full WIDER FACE run:
+    </p>
+    <table class="eng-table compact">
+      <thead>
+        <tr><th>detector</th><th class="num">boxes / image</th>
+            <th class="num">total boxes</th><th class="num">false positives</th></tr>
+      </thead>
+      <tbody>
+        {% for rate in box_rates %}
+        <tr>
+          <td class="mono">{{ rate.detector }}</td>
+          <td class="num strong">{{ '%.1f'|format(rate.per_image) }}</td>
+          <td class="num">{{ '{:,}'.format(rate.total) }}</td>
+          <td class="num">{{ '{:,}'.format(rate.false_positives) if rate.false_positives is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p>
+      YOLO proposes around {{ '%.0f'|format(box_rates[0].per_image) if box_rates else '290' }}
+      boxes per image against RetinaFace's handful, because the harness asks it
+      for everything at <code>conf=0.0</code> so a full precision-recall curve
+      can be swept. Its confidence floor therefore sits near zero, and the vast
+      majority of those boxes are junk that any real threshold discards.
+    </p>
+    <p>
+      <strong>AP handles this correctly</strong> — it sweeps every cut-off, so
+      low-confidence noise is priced in rather than ignored. But it is fair to
+      say AP flatters a detector that is willing to guess. The stricter
+      like-for-like read is F1 at each detector's own best threshold, where
+      everyone is judged at a single operating point they actually have to
+      commit to. <strong>YOLO wins on both</strong>, which is the reason the
+      conclusion survives the caveat.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>The recognition set is small and it is my family</h3>
+    <p>
+      Six people and 133 crops. That is enough to separate the household from
+      3,000 stranger comparisons, and not remotely enough to claim a general
+      result about encoders. The numbers describe <em>this</em> gallery on
+      <em>these</em> faces under <em>this</em> lighting; treat them as a
+      configuration decision, not a finding.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>An unrecorded setting nearly invalidated the detection threshold</h3>
+    <p>
+      The runs the shipped threshold rests on pre-date
+      <code>min_box_size</code> being stored in the artifact. Re-running with
+      it explicitly set to 0 produced a ground-truth count of 39,697 boxes on
+      the same 3,226 images, against the 16,072 the original runs recorded —
+      and AP fell for all four detectors at once, by up to 0.32.
+    </p>
+    <p>
+      The value was recovered by re-parsing the annotations at a range of
+      filter sizes: only <strong>min_box_size = 20</strong> reproduces exactly
+      16,072. So the original runs discarded faces under 20 px and never said
+      so. That single unrecorded integer is the difference between an F1-max of
+      0.5727 and one of 0.2363 for the same detector on the same images.
+    </p>
+    <p>
+      Filtering at 20 px is the right call here — a face that small carries too
+      few pixels for the recognition stage to encode, so detecting it would not
+      help — but it has to be <em>stated</em>, because the threshold means
+      nothing without it.
+    </p>
+    <p>
+      <strong>Resolved.</strong> All three datasets were re-run with the flag
+      passed explicitly and recorded, and every AP and F1-max value reproduced
+      to four decimal places across all four detectors — which confirms the
+      recovered value was right and that the benchmark is deterministic. The
+      shipped threshold is unchanged, and it now rests on runs that state their
+      own filter instead of ones whose filter had to be inferred.
+    </p>
+  </div>
+</section>
+
+<!-- ─── The locked values ────────────────────────────────── -->
+
+<section>
+  <h2>What got locked in</h2>
+  <p class="eng-note">
+    Values the live pipeline reads. Each is pinned to the run that justifies it
+    and re-checked by the test suite, so changing one without re-measuring
+    fails the build.
+  </p>
+
+  {% if detection_threshold is not none %}
+  <div class="eng-lock">
+    <div class="eng-lock-value">
+      <span class="eng-lock-number">{{ '%.2f'|format(detection_threshold) }}</span>
+      <span class="eng-lock-label">detection confidence<br>({{ detection_detector }})</span>
+    </div>
+    <div class="eng-lock-body">
+      <p>
+        Accept a detection at or above this confidence. Taken from where F1
+        peaks on the two <strong>hard</strong> datasets, which agree to within
+        {{ '%.3f'|format(
+             (provenance.measurements | selectattr('dataset', 'in', provenance.supported_by)
+              | map(attribute='f1_threshold') | max)
+           - (provenance.measurements | selectattr('dataset', 'in', provenance.supported_by)
+              | map(attribute='f1_threshold') | min)) }}
+        of each other despite testing different failure modes. FDDB's optimum
+        is far higher and is deliberately excluded — it is the easy set, and
+        averaging it in would drag the threshold up and start discarding the
+        distant, backlit faces this camera exists to catch.
+      </p>
+      <table class="eng-table compact">
+        <thead>
+          <tr><th>dataset</th><th class="num">images</th><th class="num">F1-max conf</th>
+              <th class="num">F1</th><th class="num">AP</th><th>role</th></tr>
+        </thead>
+        <tbody>
+        {% for m in provenance.measurements %}
+          <tr class="{% if m.dataset not in provenance.supported_by %}excluded{% endif %}">
+            <td class="mono">{{ m.dataset }}</td>
+            <td class="num">{{ '{:,}'.format(m.num_images) }}</td>
+            <td class="num strong">{{ '%.4f'|format(m.f1_threshold) }}</td>
+            <td class="num">{{ '%.3f'|format(m.f1) }}</td>
+            <td class="num">{{ '%.3f'|format(m.ap) }}</td>
+            <td class="role">{{ m.role }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <p class="eng-note">
+        Decided {{ provenance.decided_on }} · IoU {{ provenance.iou_threshold }} ·
+        source <code>tools/pipeline_config.py</code>
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="eng-lock">
+    <div class="eng-lock-value">
+      <span class="eng-lock-number">0.342</span>
+      <span class="eng-lock-label">recognition accept<br>(cosine)</span>
+    </div>
+    <div class="eng-lock-body">
+      <p>
+        Deliberately <em>not</em> stored beside the detection threshold. A
+        similarity threshold only means anything next to the encoder that
+        produced the vectors being compared, so it travels inside the gallery
+        file itself — ship a gallery, ship its threshold. Loading a gallery
+        with a mismatched encoder raises rather than returning a well-formed,
+        meaningless number.
+      </p>
+      <a class="eng-link" href="{{ url_for('engineering.recognition') }}">how it was chosen &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Deeper routes ────────────────────────────────────── -->
+
+<section>
+  <h2>The measurements</h2>
+  <div class="eng-stages">
+    {% for stage in stages %}
+    <article class="eng-stage {% if stage.status == 'pending' %}pending{% endif %}">
+      <div class="eng-stage-head">
+        <h3>{{ stage.title }}</h3>
+        <span class="eng-badge {{ stage.status }}">{{ stage.status }}</span>
+      </div>
+      <p class="eng-question">{{ stage.question }}</p>
+      <p>{{ stage.summary }}</p>
+      {% if stage.endpoint %}
+      <a class="eng-link" href="{{ url_for(stage.endpoint) }}">tables and full results &rarr;</a>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}

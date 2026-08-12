@@ -1,0 +1,176 @@
+{% extends "engineering/base.html" %}
+{% block title %}Recognition{% endblock %}
+{% block heading %}Face recognition{% endblock %}
+
+{% block content %}
+
+<section class="eng-intro">
+  <p>
+    Encoders measured on <strong>open-set identification</strong>: not "are
+    these two faces the same person" but "is this one of my household, or a
+    stranger" — which is the question a doorway camera actually asks. Probes
+    are scored against galleries built from an image-disjoint half of each
+    person's photos, so no source photo contributes to both sides, plus
+    {{ '{:,}'.format(run.num_strangers) if run else '—' }} LFW faces as true
+    non-mates.
+  </p>
+</section>
+
+{% if not run %}
+  <p class="eng-empty">
+    No recognition runs recorded yet. Run
+    <code>python tools/benchmark_recognition.py --aggregation all</code>.
+  </p>
+{% else %}
+
+<section class="eng-callout">
+  <h2>Two thresholds, two jobs</h2>
+  <p>
+    Every cell below carries two similarity thresholds, and confusing them
+    ships the wrong one.
+  </p>
+  <div class="eng-split">
+    <div>
+      <div class="eng-split-label yardstick">yardstick</div>
+      <p>
+        The <strong>TAR@FAR</strong> threshold is set by pinning every encoder
+        to the same false-accept budget ({{ '%g'|format(primary_far|float * 100) }}%),
+        so the comparison is fair. It is a measuring instrument for
+        <em>ranking</em> encoders. It is never deployed.
+      </p>
+    </div>
+    <div>
+      <div class="eng-split-label deployment">deployment</div>
+      <p>
+        The <strong>max-F1</strong> threshold is the cut-off that best balances
+        precision and recall on the real score distributions. This is the one
+        stored in the gallery and used live.
+      </p>
+    </div>
+  </div>
+</section>
+
+{% if winner %}
+<section class="eng-winner">
+  <h2>Winner</h2>
+  <p class="eng-winner-line">
+    <span class="eng-winner-name">{{ winner.encoder }}</span>
+    <span class="eng-winner-agg">{{ winner.aggregation }}</span>
+  </p>
+  <div class="eng-winner-grid">
+    <div>
+      <div class="eng-split-label yardstick">ranked by</div>
+      <div class="eng-metric">TAR@FAR {{ '%g'|format(primary_far|float * 100) }}% = <strong>{{ '%.3f'|format(winner.tar1) }}</strong></div>
+      <div class="eng-note">yardstick threshold {{ '%.3f'|format(winner.yardstick_threshold) }} — for comparing, not shipping</div>
+    </div>
+    <div>
+      <div class="eng-split-label deployment">deployed</div>
+      <div class="eng-metric">max-F1 threshold = <strong>{{ '%.3f'|format(winner.deployment_threshold) }}</strong></div>
+      <div class="eng-note">F1 {{ '%.3f'|format(winner.f1) }} — the value stored in the gallery</div>
+    </div>
+  </div>
+  <pre class="eng-code">python tools/build_gallery.py --encoder {{ winner.encoder }} --aggregation {{ winner.aggregation }} --threshold {{ '%.3f'|format(winner.deployment_threshold) }}</pre>
+</section>
+{% endif %}
+
+{% for aggregation in matrix.aggregations %}
+<section>
+  <h2>{{ aggregation }}</h2>
+  <table class="eng-table">
+    <thead>
+      <tr>
+        <th>encoder</th>
+        <th class="num">TAR@1%</th>
+        <th class="num">TAR@.1%</th>
+        <th class="num">rank-1</th>
+        <th class="num yardstick-col">yardstick thr</th>
+        <th class="num deployment-col">deploy thr</th>
+        <th class="num">F1</th>
+        <th class="num">d′ vs stranger</th>
+        <th class="num">mean ms</th>
+        <th class="num">fps</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for encoder in matrix.encoders %}
+        {% set cell = matrix.cells.get(encoder ~ '|' ~ aggregation) %}
+        {% if cell %}
+        <tr class="{% if winner and encoder == winner.encoder and aggregation == winner.aggregation %}winner{% endif %}">
+          <td class="mono">{{ encoder }}</td>
+          <td class="num strong">{{ '%.3f'|format(cell.tar1) }}</td>
+          <td class="num">{{ '%.3f'|format(cell.tar01) }}</td>
+          <td class="num">{{ '%.3f'|format(cell.rank1) }}</td>
+          <td class="num yardstick-col">{{ '%.3f'|format(cell.yardstick_threshold) }}</td>
+          <td class="num deployment-col strong">{{ '%.3f'|format(cell.deployment_threshold) }}</td>
+          <td class="num">{{ '%.3f'|format(cell.f1) }}</td>
+          <td class="num">{{ '%.2f'|format(cell.dprime) }}</td>
+          <td class="num">{{ '%.1f'|format(matrix.latency.get(encoder, {}).get('mean_ms', 0)) }}</td>
+          <td class="num">{{ '%.1f'|format(matrix.latency.get(encoder, {}).get('fps') or 0) }}</td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endfor %}
+
+{% if matrix.errors %}
+<section>
+  <h2>Skipped</h2>
+  <ul class="eng-errors">
+    {% for e in matrix.errors %}
+    <li><code>{{ e.encoder }}</code> — {{ e.error }}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section>
+  <h2>Threshold explorer</h2>
+  <p>
+    Move the threshold and watch the trade. Everything at or above the line is
+    accepted: genuine scores accepted are true accepts, impostor and stranger
+    scores accepted are false accepts.
+  </p>
+  <p class="eng-note">
+    Computed from the stored 40-bin histograms (bin width 0.05 over cosine
+    [−1, 1]), because raw scores are not persisted. Numbers here are therefore
+    a <strong>binned approximation</strong> — good for seeing the shape of the
+    trade-off, not a replacement for the exact figures in the table above.
+  </p>
+
+  <div class="eng-explorer" id="explorer"
+       data-distributions='{{ explorer | tojson }}'
+       data-default='{{ (winner.encoder ~ "|" ~ winner.aggregation) if winner else "" }}'
+       data-default-threshold='{{ winner.deployment_threshold if winner else 0.3 }}'>
+    <div class="eng-explorer-controls">
+      <label>
+        cell
+        <select id="explorer-cell"></select>
+      </label>
+      <label class="eng-slider-label">
+        threshold <output id="explorer-value">0.342</output>
+        <input type="range" id="explorer-threshold" min="-1" max="1" step="0.01" value="0.342">
+      </label>
+    </div>
+
+    <div class="eng-explorer-stats" id="explorer-stats"></div>
+    <canvas id="explorer-canvas" class="eng-canvas" height="220"></canvas>
+    <div class="eng-legend">
+      <span><i class="swatch genuine"></i>genuine (should accept)</span>
+      <span><i class="swatch impostor"></i>impostor (other household member)</span>
+      <span><i class="swatch stranger"></i>stranger (LFW)</span>
+    </div>
+  </div>
+</section>
+
+<p class="eng-note">
+  Read from <code>{{ source }}</code> ({{ total_runs }} runs on file) ·
+  run {{ run.timestamp }} · {{ run.num_persons }} people ·
+  enroll fraction {{ run.enroll_fraction }} · seed {{ run.seed }}
+</p>
+
+<script src="{{ url_for('static', filename='js/threshold-explorer.js') }}"></script>
+{% endif %}
+
+{% endblock %}

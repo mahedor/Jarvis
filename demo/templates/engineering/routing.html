@@ -1,0 +1,346 @@
+{% extends "engineering/base.html" %}
+{% block title %}Intent routing{% endblock %}
+{% block heading %}Intent routing &amp; latency{% endblock %}
+
+{% block content %}
+
+<section class="eng-intro">
+  <p class="eng-lede">
+    Every command has to be routed before it can be answered: handled locally,
+    turned into a device action, or escalated to Claude. Two things here are
+    settled — that the split between local and cloud is worth having, and how
+    any router gets measured. <strong>The classifier currently doing the
+    routing is not.</strong> It works, its costs are measured below, and it is
+    flagged for replacement.
+  </p>
+</section>
+
+<section>
+  <h2>Decisions</h2>
+
+  <!-- 1 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">01</div>
+    <div class="eng-decision-body">
+      <h3>The eval tests the classification task, not the classifier</h3>
+      <p class="eng-claim">
+        {{ corpus.routing_cases }} routing cases and
+        {{ corpus.conversation_cases }} context-dependent ones, written against
+        the <em>problem</em> rather than the implementation — so the router can
+        be replaced without losing the ability to compare before and after.
+      </p>
+      <p>
+        Each case is an input and an <code>expected_route</code>. Nothing in
+        the corpus mentions keywords, embeddings, spaCy, tiers or thresholds,
+        which means it is not a test of the current classifier and never was.
+        A trained model, a local LLM or a function-calling router can be
+        dropped in and scored on exactly these cases.
+      </p>
+      <p>
+        This is the decision that makes everything below replaceable. Coupling
+        the eval to the implementation is the normal mistake — it produces a
+        suite that passes right up until you change anything, and gives you no
+        way to answer "is the new thing actually better". Architecture-agnostic
+        cases are what buy measurement continuity across a rewrite.
+      </p>
+
+      <div class="eng-split">
+        <div>
+          <div class="eng-split-label deployment">by category</div>
+          <table class="eng-table compact">
+            <tbody>
+              {% for name, count in corpus.categories %}
+              <tr><td class="mono">{{ name }}</td><td class="num strong">{{ count }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div class="eng-split-label yardstick">by difficulty</div>
+          <table class="eng-table compact">
+            <tbody>
+              {% for name, count in corpus.difficulties %}
+              <tr><td class="mono">{{ name }}</td><td class="num strong">{{ count }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <p>
+        The composition carries its own argument. <code>adversarial</code> and
+        <code>compound</code> cases exist because a router that only sees
+        well-formed single-intent commands will pass a suite and fail a house.
+        The conversation set supplies history and then a fragment meaningless
+        on its own —
+        {% if corpus.sample %}
+        routing <em>"{{ corpus.sample.test_input }}"</em> correctly requires
+        knowing what was said immediately before it.
+        {% endif %}
+        Scenario files ({{ corpus.scenarios | join(', ') }}) chain commands the
+        way a real morning or evening runs. A registry rule at the top of the
+        file requires every new capability to add cases, so the target cannot
+        widen without the tests widening too.
+      </p>
+      <p class="eng-takeaway">
+        Write the eval against the task, not the solution. It costs nothing at
+        the time and it is the only reason a planned rewrite is not also a
+        restart on evidence.
+      </p>
+    </div>
+  </article>
+
+  <!-- 2 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">02</div>
+    <div class="eng-decision-body">
+      <h3>Local-fast versus cloud-slow is worth the split, whatever does the splitting</h3>
+      {% if claude_ms %}
+      <p class="eng-claim">
+        A Claude round trip measures about
+        {{ '{:,}'.format((claude_ms / 100) | round | int * 100) }} ms. Anything
+        resolved locally — by any mechanism — avoids that entirely.
+      </p>
+      {% endif %}
+      <p>
+        This is the part of the design that survives whatever replaces the
+        current classifier. The measured local layers span
+        {% if cheapest and dearest %}
+        {{ '%.3f'|format(cheapest.avg_ms) }} ms to
+        {{ '%.1f'|format(dearest.avg_ms) }} ms
+        {% endif %}
+        — a wide spread in relative terms, and irrelevant next to the wall they
+        exist to avoid. Even the most expensive local path is roughly
+        {% if claude_ms and dearest %}
+        {{ '{:,}'.format((claude_ms / dearest.avg_ms) | round | int) }}×
+        {% endif %}
+        cheaper than asking the model.
+      </p>
+      <p>
+        That ratio is why the tier concept stays on the roadmap even though the
+        implementation does not. A replacement that is ten times slower at
+        classifying but still local would barely register; one that gives up
+        and escalates more often would be catastrophic for responsiveness. The
+        metric that matters for any future router is <em>escalation rate</em>,
+        not classification latency.
+      </p>
+      <p class="eng-takeaway">
+        Know which number your architecture is actually defending. Here it is
+        the round trip avoided, not the microseconds spent deciding — and that
+        reframes what a replacement has to be good at.
+      </p>
+    </div>
+  </article>
+
+  <!-- 3 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">03</div>
+    <div class="eng-decision-body">
+      <h3>Prompt caching was measured and rejected — but the first five results were lying</h3>
+      <p class="eng-claim">
+        Six attempts, none faster. Five of them never turned caching on at all,
+        and reported that as "no speedup".
+      </p>
+      <p>
+        Prompt caching should cut latency by reusing an already processed
+        prefix. The experiment ran the same command with caching on and off,
+        {{ caching[0].runs_per_mode if caching else 10 }} runs per mode. Every
+        speedup came back at roughly 1.0×, which reads as a clean negative
+        result — until you check whether anything was cached:
+      </p>
+
+      <table class="eng-table compact">
+        <thead>
+          <tr><th>run</th><th class="num">input tokens</th>
+              <th class="num">cache written</th><th class="num">cache read</th>
+              <th class="num">speedup</th><th>verdict</th></tr>
+        </thead>
+        <tbody>
+          {% for run in caching %}
+          <tr class="{% if not run.engaged %}excluded{% endif %}">
+            <td class="mono">{{ run.timestamp[:16] }}{% if run.with_history %}
+              <span class="eng-tag">--with-history</span>{% endif %}</td>
+            <td class="num">{{ run.input_tokens }}</td>
+            <td class="num {% if run.cache_created %}up{% endif %}">{{ '{:,}'.format(run.cache_created) }}</td>
+            <td class="num {% if run.cache_read %}up{% endif %}">{{ '{:,}'.format(run.cache_read) }}</td>
+            <td class="num strong">{{ '%.3f'|format(run.speedup) }}×</td>
+            <td class="role">
+              {% if run.engaged %}cache genuinely used{% else %}caching never engaged{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p>
+        <code>cache_creation_input_tokens</code> and
+        <code>cache_read_input_tokens</code> are zero for the first five runs.
+        Nothing was written to a cache and nothing was read from one, so those
+        runs measured an identical request against itself. Note that
+        <code>--with-history</code> was already in use for three of them — the
+        flag was added to push the prefix over the cacheable minimum, and it
+        still took several attempts before the counters moved.
+      </p>
+      {% if caching_engaged %}
+      <p>
+        The last run is the real measurement:
+        {{ '{:,}'.format(caching_engaged[-1].cache_created) }} tokens written,
+        {{ '{:,}'.format(caching_engaged[-1].cache_read) }} read back, so
+        caching demonstrably worked. Latency was
+        {{ '%.0f'|format(caching_engaged[-1].on_ms) }} ms cached against
+        {{ '%.0f'|format(caching_engaged[-1].off_ms) }} ms uncached — a
+        {{ '%.2f'|format(caching_engaged[-1].speedup) }}× speedup, which is to
+        say none.
+      </p>
+      <p>
+        That is believable rather than disappointing. At a prefix of about a
+        thousand tokens, re-reading it is a small part of a
+        {{ '%.1f'|format((caching_engaged[-1].off_ms or 0) / 1000) }}-second
+        request dominated by generating the response. Caching pays off at
+        context sizes an order of magnitude larger. This result holds
+        regardless of what routes the command — it is a property of the model
+        call, not the router.
+      </p>
+      {% endif %}
+      <p class="eng-takeaway">
+        Before believing a null result, confirm the mechanism ran. A feature
+        that silently no-ops looks exactly like a feature that does not work,
+        and the usage counters were in the response the whole time.
+      </p>
+      <p class="eng-note">
+        Read from <code>{{ caching_source }}</code>{% if caching %} ·
+        {{ caching[0].model }}{% endif %}.
+      </p>
+    </div>
+  </article>
+</section>
+
+<!-- ─── Current implementation, explicitly provisional ───── -->
+
+<section>
+  <h2>Current implementation <span class="eng-badge provisional">up for redesign</span></h2>
+
+  <p>
+    Routing is currently a hand-written cascade: keyword matching first, then
+    spaCy parsing, then embedding similarity, escalating to Claude only when
+    none of them can decide. It works and it is fast. It is listed here as the
+    <em>current</em> answer rather than the settled one, because it does not
+    scale.
+  </p>
+
+  <p class="eng-note">
+    Measured over
+    {{ '{:,}'.format(intent_run.runs_per_command) if intent_run else '1,000' }}
+    runs per command, grouped by layer. The tier-3 row is the cost of
+    <em>deciding</em> to escalate, not the Claude call that follows.
+  </p>
+
+  <table class="eng-table compact">
+    <thead>
+      <tr><th>layer</th><th class="num">tier</th><th class="num">commands</th>
+          <th class="num">mean</th><th class="num">p95</th></tr>
+    </thead>
+    <tbody>
+      {% for layer in layers %}
+      <tr>
+        <td class="mono">{{ layer.layer }}</td>
+        <td class="num">{{ layer.tier }}</td>
+        <td class="num">{{ layer.commands }}</td>
+        <td class="num strong">{{ '%.3f'|format(layer.avg_ms) }} ms</td>
+        <td class="num">{{ '%.2f'|format(layer.p95_ms) }} ms</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if tables %}
+  <div class="eng-caveat-block">
+    <h3>Why it is being replaced: it is a lookup table wearing a classifier's clothes</h3>
+    <p>
+      Intent coverage is a set of hand-maintained phrase lists —
+      <strong>{{ tables.total }} entries</strong> across
+      {{ tables.tables | length }} tables that all have to agree:
+    </p>
+    <table class="eng-table compact">
+      <tbody>
+        {% for name, count in tables.tables %}
+        <tr><td class="mono">{{ name }}</td><td class="num strong">{{ count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p>
+      Adding one capability means editing several of these by hand, and every
+      phrasing a user invents that nobody wrote down is a miss. The cost is not
+      runtime, it is maintenance that grows linearly with the product while the
+      quality of coverage does not.
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="eng-caveat-block">
+    <h3>What replaces it is open</h3>
+    <p>Candidates under consideration, none decided:</p>
+    <ul class="eng-errors">
+      <li><strong>A trained local classifier</strong> — learns the mapping instead of enumerating it, keeps latency in the local band.</li>
+      <li><strong>A small local LLM parsing intent</strong> — handles unseen phrasing, at a latency cost that still avoids the network.</li>
+      <li><strong>Auto-discovered intents via embeddings</strong> — derives the intent set from real usage rather than from what was imagined up front.</li>
+      <li><strong>Routes defined as tools</strong> — a function-calling model routes internally, deleting the routing layer as a separate concern.</li>
+    </ul>
+    <p class="eng-note">
+      Whatever wins gets scored on the same {{ corpus.routing_cases }} routing
+      cases and {{ corpus.conversation_cases }} conversation cases as the
+      current cascade, which is the entire point of decision 01. The tier
+      concept survives; the lookup tables do not.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>What these numbers don't tell you</h2>
+
+  <div class="eng-caveat-block">
+    <h3>Routing accuracy has never been measured</h3>
+    <p>
+      The corpus defines
+      {{ corpus.routing_cases + corpus.conversation_cases }} cases and
+      <code>tests/eval/results/</code> is
+      {% if corpus.has_scored_results %}populated{% else %}<strong>empty</strong>{% endif %} —
+      nothing has been scored against it. Everything on this page is latency,
+      which says how fast a decision is made and nothing about whether it was
+      right. That gap matters twice over here: without a baseline score for the
+      current cascade, a replacement can be measured but not <em>compared</em>.
+      Scoring the existing classifier is the prerequisite for the rewrite, not
+      a follow-up to it.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>The measurements are old, and the model has moved</h3>
+    <p>
+      Routing latencies are from
+      {{ intent_run.timestamp[:10] if intent_run else 'April 2026' }}, caching
+      from {% if caching %}{{ caching[-1].timestamp[:10] }}{% endif %} against
+      {% if caching %}<code>{{ caching[0].model }}</code>{% endif %}. Both the
+      classifier and the model have changed since. The shape of the argument
+      survives — a local match will always beat a network round trip — but the
+      specific milliseconds should be re-measured before anyone quotes them.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>The caching experiment is a single prompt</h3>
+    <p>
+      One command, {{ caching[0].runs_per_mode if caching else 10 }} runs per
+      mode. Enough to show the mechanism engaged and produced no speedup at
+      this context size; not enough to characterise caching in general, and it
+      says nothing about token cost, which is the other reason to use it.
+    </p>
+  </div>
+</section>
+
+<p class="eng-note">
+  {{ intent_runs }} intent run(s) on file · {{ caching | length }} caching run(s) ·
+  sources <code>{{ intent_source }}</code>, <code>{{ caching_source }}</code>
+</p>
+
+{% endblock %}
