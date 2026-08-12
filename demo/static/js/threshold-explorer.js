@@ -89,16 +89,21 @@
 
     const tar = genuineTotal ? trueAccepts / genuineTotal : 0;
     const far = nonmateTotal ? falseAccepts / nonmateTotal : 0;
-    const precision = trueAccepts + falseAccepts
-      ? trueAccepts / (trueAccepts + falseAccepts)
-      : 0;
+    // Precision is undefined, not zero, at a threshold that accepts nobody —
+    // "0% of accepts are right" claims a wrongness that never happened. TAR
+    // and FAR are honestly 0 there, since their denominators are populations.
+    const accepts = trueAccepts + falseAccepts;
+    const anyAccepts = accepts > 1e-9;
+    const precision = anyAccepts ? trueAccepts / accepts : 0;
     const missed = genuineTotal - trueAccepts;
 
     stats.innerHTML = "";
     [
       ["TAR", (tar * 100).toFixed(1) + "%", "accepted of genuine", tar > 0.95 ? "good" : ""],
       ["FAR", (far * 100).toFixed(2) + "%", "accepted of non-mates", far > 0.01 ? "bad" : "good"],
-      ["precision", (precision * 100).toFixed(1) + "%", "of accepts are right", ""],
+      ["precision",
+       anyAccepts ? (precision * 100).toFixed(1) + "%" : "—",
+       anyAccepts ? "of accepts are right" : "nothing accepted here", ""],
       ["missed", missed.toFixed(1), "genuine rejected", missed > 0 ? "bad" : "good"],
       ["false accepts", falseAccepts.toFixed(1), "strangers let in", falseAccepts > 0 ? "bad" : "good"],
     ].forEach(([label, value, sub, tone]) => {

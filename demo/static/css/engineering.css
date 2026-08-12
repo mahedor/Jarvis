@@ -520,6 +520,24 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
 /* Detection explorer shares the recognition explorer's chrome; only the
    third series needs its own swatch colour. */
 .swatch.f1 { background: #7c9ad1; }
+.swatch.ghost { background: rgba(124, 154, 209, 0.38); }
+.swatch.accept { background: rgba(var(--accent-rgb), 0.28); border: 1px solid rgba(var(--accent-rgb), 0.5); }
+
+/* Whether the shipped threshold means anything on the curve currently
+   selected. Sits inside the explorer panel because it describes the chart,
+   not the section — and it has to be read before the numbers under it. */
+.eng-scope-note {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--muted);
+  border-left: 2px solid var(--border);
+  padding-left: 11px;
+  margin-bottom: 16px;
+}
+.eng-scope-note strong { color: var(--text); font-weight: 500; }
+.eng-scope-note.off-scope { border-left-color: rgba(209, 154, 58, 0.45); }
+.eng-scope-note.off-scope strong { color: var(--yardstick); }
 
 /* A stage whose implementation is deliberately unsettled. Distinct from
    "pending" (not built) and "measured" (settled): built, measured, and known

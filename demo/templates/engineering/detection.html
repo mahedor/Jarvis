@@ -192,19 +192,35 @@
     throw away.
   </p>
   <p class="eng-note">
-    Resampled from the precision-recall curve at 200 fixed confidences, so all
-    detectors are sampled at the same points and are directly comparable.
+    Resampled from the precision-recall curve at
+    {% if sweep_points %}{{ sweep_points }}{% else %}a grid of{% endif %}
+    fixed confidences, so all detectors are sampled at the same points and are
+    directly comparable.
     Unlike the recognition explorer this is not a binned approximation of
     something else — the underlying curve is exactly what AP is computed from.
-    {% if detection_threshold is not none %}
-    The marker shows the shipped threshold of
-    <strong>{{ '%.2f'|format(detection_threshold) }}</strong>.
-    {% endif %}
   </p>
+  {% if detection_threshold is not none and provenance %}
+  <p class="eng-note">
+    The dashed marker is the shipped threshold of
+    <strong>{{ '%.2f'|format(detection_threshold) }}</strong>. It only appears
+    on <code>{{ provenance.detector }}</code>, because a confidence score is
+    whatever a given model's head emits — {{ '%.2f'|format(detection_threshold) }}
+    on one detector is not the same quantity as
+    {{ '%.2f'|format(detection_threshold) }} on another, so the line would be
+    meaningless on the others rather than merely unsupported. Switch detectors
+    and the shipped detector's F1 stays on the chart as a faint line to compare
+    against. On
+    {% for d in provenance.supported_by %}<code>{{ d }}</code>{% if not loop.last %} and {% endif %}{% endfor %}
+    — the datasets that decided the value — the marker is bright; elsewhere it
+    dims, because that curve is not evidence for it.
+  </p>
+  {% endif %}
 
   <div class="eng-explorer" id="det-explorer"
        data-sweeps='{{ explorer | tojson }}'
-       data-shipped='{{ detection_threshold if detection_threshold is not none else "" }}'>
+       data-shipped='{{ detection_threshold if detection_threshold is not none else "" }}'
+       data-shipped-detector='{{ provenance.detector if provenance else "" }}'
+       data-shipped-datasets='{{ (provenance.supported_by if provenance else []) | tojson }}'>
     <div class="eng-explorer-controls">
       <label>dataset <select id="det-dataset"></select></label>
       <label>detector <select id="det-detector"></select></label>
@@ -213,12 +229,16 @@
         <input type="range" id="det-threshold" min="0" max="1" step="0.005" value="0.57">
       </label>
     </div>
+    <p class="eng-scope-note" id="det-scope"></p>
     <div class="eng-explorer-stats" id="det-stats"></div>
     <canvas id="det-canvas" class="eng-canvas" height="240"></canvas>
     <div class="eng-legend">
       <span><i class="swatch genuine"></i>precision</span>
       <span><i class="swatch impostor"></i>recall</span>
       <span><i class="swatch f1"></i>F1</span>
+      <span id="det-ghost-legend" hidden><i class="swatch ghost"></i>shipped
+        detector's F1, same dataset</span>
+      <span><i class="swatch accept"></i>accepted at this confidence</span>
     </div>
   </div>
 </section>

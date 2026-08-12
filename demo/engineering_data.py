@@ -451,9 +451,16 @@ def detection_page_data():
     # the field being recorded.
     regimes = [(b["dataset"], b["run"].get("min_box_size")) for b in datasets]
     distinct = {value for _, value in regimes}
+    # How many confidences the explorer is actually drawn from. Counted, not
+    # asserted: the prose used to claim "200" while confidence_sweep(steps=200)
+    # stores steps + 1 = 201 points, and a page about being exact cannot round
+    # its own description of itself.
+    lengths = {len(sweep) for detectors in explorer.values()
+               for sweep in detectors.values()}
     return {"datasets": datasets, "total_runs": len(runs),
             "winner": pick_detection_winner(datasets),
             "explorer": explorer,
+            "sweep_points": lengths.pop() if len(lengths) == 1 else None,
             "datasets_without_sweep": [b["dataset"] for b in datasets if not b["has_sweep"]],
             "filter_regimes": regimes,
             "mixed_filters": len(distinct) > 1,

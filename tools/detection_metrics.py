@@ -291,13 +291,17 @@ def confidence_sweep(precisions, recalls, thresholds, total_gt, steps=200):
     At each grid confidence c the reported point is the curve position for
     "accept every detection with confidence >= c". Grid points above the
     detector's highest observed confidence accept nothing and are reported as
-    precision 0, recall 0.
+    precision 0, recall 0 — precision there is really 0/0, i.e. UNDEFINED, and
+    a consumer that plots the stored 0 verbatim draws a cliff the detector
+    never fell off. Such points are identifiable by tp == 0 and fp == 0; the
+    engineering-log explorer breaks its precision line across them.
 
     Inputs:
         precisions, recalls, thresholds (array-like): as returned by
             accumulate_pr, ordered by DECREASING threshold.
         total_gt (int): total ground-truth boxes, used to recover TP/FP counts.
-        steps (int): number of grid points spanning [0, 1] inclusive.
+        steps (int): number of INTERVALS spanning [0, 1]; the grid therefore
+            has steps + 1 points, both endpoints included.
     Returns:
         list[dict]: one entry per grid confidence, each
         {"threshold", "precision", "recall", "f1", "tp", "fp"}, ordered by

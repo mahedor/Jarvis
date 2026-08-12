@@ -407,6 +407,50 @@ def test_pages_render(client, url):
     assert response.status_code == 200
 
 
+def test_detection_explorer_is_told_what_the_threshold_was_decided_from(client):
+    """The shipped marker must not be drawn as an operating point on curves it
+    was never derived from.
+
+    0.57 came from yolo on mafa + widerface; FDDB was deliberately excluded
+    (pipeline_config.py). The chart can only honour that if the page hands it
+    the scope, so the scope has to survive in the markup.
+    """
+    html = client.get("/engineering/detection").get_data(as_text=True)
+    assert "data-shipped-detector='yolo'" in html
+
+    datasets = html[html.index("data-shipped-datasets='"):]
+    datasets = datasets[:datasets.index("'>")]
+    assert "mafa" in datasets and "widerface" in datasets
+    assert "fddb" not in datasets, "FDDB had no vote in the shipped threshold"
+
+
+def test_detection_page_counts_its_own_sweep_resolution():
+    """The prose claimed 200 confidences; confidence_sweep(steps=200) stores
+    201. Count it rather than restate it."""
+    page = data.detection_page_data()
+    sweeps = [s for detectors in page["explorer"].values()
+              for s in detectors.values()]
+    if not sweeps:
+        pytest.skip("no confidence sweeps recorded")
+    assert page["sweep_points"] == len(sweeps[0])
+
+
+def test_sweep_resolution_is_withheld_when_runs_disagree(monkeypatch):
+    """Runs resampled onto different grids have no single honest number, so
+    the page must say nothing rather than pick one."""
+    def two_grids(_path):
+        return [
+            {"dataset": "a", "timestamp": "2026-01-01T00:00:00Z", "limit": None,
+             "results": [{"detector": "yolo", "ap": 0.9,
+                          "confidence_sweep": [{"threshold": 0.0}] * 201}]},
+            {"dataset": "b", "timestamp": "2026-01-02T00:00:00Z", "limit": None,
+             "results": [{"detector": "yolo", "ap": 0.9,
+                          "confidence_sweep": [{"threshold": 0.0}] * 101}]},
+        ]
+    monkeypatch.setattr(data, "load_runs", two_grids)
+    assert data.detection_page_data()["sweep_points"] is None
+
+
 def test_routing_page_states_the_accuracy_gap(client):
     """Latency is not accuracy, and the page must not let that slide."""
     html = client.get("/engineering/routing").get_data(as_text=True)
