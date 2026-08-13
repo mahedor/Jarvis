@@ -18,6 +18,10 @@
       <div class="eng-eyebrow">J.A.R.V.I.S. — Engineering Log</div>
       <h1>{% block heading %}How this was built{% endblock %}</h1>
     </div>
+    <!-- Measured work first and ambition last, in reading order. The
+         architecture page is set apart at the END: it is the only one with no
+         artifact behind it, and it only reads as credible to someone who has
+         already been through the ones that do. -->
     <nav class="eng-nav">
       <a href="{{ url_for('engineering.index') }}"
          class="{% if request.endpoint == 'engineering.index' %}active{% endif %}">overview</a>
@@ -25,8 +29,13 @@
          class="{% if request.endpoint == 'engineering.routing' %}active{% endif %}">routing</a>
       <a href="{{ url_for('engineering.detection') }}"
          class="{% if request.endpoint == 'engineering.detection' %}active{% endif %}">detection</a>
+      <a href="{{ url_for('engineering.enrollment') }}"
+         class="{% if request.endpoint == 'engineering.enrollment' %}active{% endif %}">enrollment</a>
       <a href="{{ url_for('engineering.recognition') }}"
          class="{% if request.endpoint == 'engineering.recognition' %}active{% endif %}">recognition</a>
+      <span class="eng-nav-sep"></span>
+      <a href="{{ url_for('engineering.architecture') }}"
+         class="eng-nav-goal {% if request.endpoint == 'engineering.architecture' %}active{% endif %}">architecture</a>
       <a href="{{ url_for('index') }}" class="eng-exit">&larr; assistant</a>
     </nav>
   </div>
