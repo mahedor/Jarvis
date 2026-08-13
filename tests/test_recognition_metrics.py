@@ -20,8 +20,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 from recognition_metrics import (  # noqa: E402  (import follows the sys.path tweak)
     AGGREGATIONS,
+    average_precision,
     best_f1_threshold,
     dprime,
+    operating_point,
+    roc_auc,
+    score_sweep,
     gallery_mean,
     gallery_medoid,
     gallery_multiref,
@@ -227,3 +231,127 @@ def test_histogram_counts_sum_to_input_size():
     hist = histogram(values, bins=10, value_range=(-1.0, 1.0))
     assert sum(hist["counts"]) == values.size
     assert len(hist["edges"]) == len(hist["counts"]) + 1
+
+
+# ─── roc_auc ─────────────────────────────────────────────────────
+
+def test_auc_is_one_when_perfectly_separated():
+    assert roc_auc([0.8, 0.9], [0.1, 0.2]) == pytest.approx(1.0)
+
+
+def test_auc_is_half_when_populations_are_identical():
+    # Every pair is a tie, so each contributes 0.5 — chance, by construction.
+    assert roc_auc([0.5, 0.5], [0.5, 0.5]) == pytest.approx(0.5)
+
+
+def test_auc_counts_ties_as_half():
+    # 2x2 pairs: (0.5>0.1), (0.5>0.3), (0.2>0.1), (0.2 vs 0.3 loses) -> 3/4.
+    assert roc_auc([0.5, 0.2], [0.1, 0.3]) == pytest.approx(0.75)
+
+
+def test_auc_matches_the_rank_definition_on_random_scores():
+    rng = np.random.default_rng(0)
+    genuine, nonmate = rng.normal(1.0, 1.0, 200), rng.normal(0.0, 1.0, 300)
+    brute = np.mean(
+        (genuine[:, None] > nonmate[None, :]) + 0.5 * (genuine[:, None] == nonmate[None, :])
+    )
+    assert roc_auc(genuine, nonmate) == pytest.approx(brute)
+
+
+def test_auc_empty_is_zero_not_chance():
+    assert roc_auc([], [0.1]) == 0.0
+    assert roc_auc([0.1], []) == 0.0
+
+
+# ─── average_precision ───────────────────────────────────────────
+
+def test_ap_is_one_when_perfectly_separated():
+    assert average_precision([0.8, 0.9], [0.1, 0.2]) == pytest.approx(1.0)
+
+
+def test_ap_penalises_a_nonmate_ranked_top():
+    # Ranking: 0.9(non), 0.8(gen), 0.7(gen). Recall 0.5 at precision 1/2,
+    # recall 1.0 at precision 2/3 -> AP = 0.5*0.5 + 0.5*(2/3).
+    ap = average_precision([0.8, 0.7], [0.9, 0.1])
+    assert ap == pytest.approx(0.5 * 0.5 + 0.5 * (2.0 / 3.0))
+
+
+def test_ap_is_lower_than_auc_under_heavy_imbalance():
+    # The imbalance argument in the docstring: same scores, 50x more non-mates.
+    rng = np.random.default_rng(1)
+    genuine, nonmate = rng.normal(1.0, 1.0, 40), rng.normal(0.0, 1.0, 2000)
+    assert average_precision(genuine, nonmate) < roc_auc(genuine, nonmate)
+
+
+def test_ap_empty_inputs_are_zero():
+    assert average_precision([], [0.1]) == 0.0
+
+
+# ─── score_sweep ─────────────────────────────────────────────────
+
+def test_sweep_has_one_point_per_grid_step_plus_endpoint():
+    sweep = score_sweep([0.8], [0.1], steps=20)
+    assert len(sweep) == 21
+    assert sweep[0]["threshold"] == pytest.approx(-1.0)
+    assert sweep[-1]["threshold"] == pytest.approx(1.0)
+
+
+def test_sweep_thresholds_are_ascending_and_tar_is_non_increasing():
+    rng = np.random.default_rng(2)
+    sweep = score_sweep(rng.normal(0.6, 0.1, 50), rng.normal(0.0, 0.2, 200), steps=50)
+    thresholds = [p["threshold"] for p in sweep]
+    tars = [p["tar"] for p in sweep]
+    assert thresholds == sorted(thresholds)
+    assert all(a >= b for a, b in zip(tars, tars[1:]))  # raising the bar can only reject
+
+
+def test_sweep_accepts_everything_at_the_bottom_of_the_range():
+    bottom = score_sweep([0.8, 0.9], [0.1, 0.2], steps=10)[0]
+    assert bottom["tar"] == 1.0 and bottom["far"] == 1.0
+    assert bottom["precision"] == pytest.approx(0.5)  # 2 genuine of 4 accepted
+
+
+def test_sweep_precision_is_none_where_nothing_is_accepted():
+    # Every score is below 0.5, so grid points above it accept nothing and
+    # precision is 0/0 — undefined, not zero.
+    sweep = score_sweep([0.3], [0.1], steps=20)
+    empty = [p for p in sweep if p["tp"] == 0 and p["fp"] == 0]
+    assert empty and all(p["precision"] is None for p in empty)
+    assert all(p["recall"] == 0.0 for p in empty)
+
+
+def test_sweep_tar_and_recall_are_the_same_quantity():
+    sweep = score_sweep([0.7, 0.4], [0.2, 0.5], steps=30)
+    assert all(p["tar"] == p["recall"] for p in sweep)
+
+
+def test_sweep_empty_inputs_give_no_curve():
+    assert score_sweep([], [0.1]) == []
+
+
+# ─── operating_point ─────────────────────────────────────────────
+
+def test_operating_point_counts_accepts_at_an_offgrid_threshold():
+    point = operating_point([0.8, 0.6], [0.55, 0.1], 0.5773)
+    assert point["tp"] == 2 and point["fp"] == 0
+    assert point["tar"] == 1.0 and point["far"] == 0.0
+    assert point["precision"] == pytest.approx(1.0)
+
+
+def test_operating_point_is_inclusive_of_the_threshold():
+    # "Accept" means score >= threshold, matching the module's convention.
+    assert operating_point([0.5], [0.9], 0.5)["tp"] == 1
+
+
+def test_operating_point_agrees_with_tar_at_far():
+    rng = np.random.default_rng(3)
+    genuine, nonmate = rng.normal(0.7, 0.1, 60), rng.normal(0.1, 0.15, 3000)
+    far = tar_at_far(genuine, nonmate, 0.01)
+    point = operating_point(genuine, nonmate, far["threshold"])
+    assert point["tar"] == pytest.approx(far["tar"], abs=1e-6)
+    assert point["far"] == pytest.approx(far["far_achieved"], abs=1e-6)
+
+
+def test_operating_point_precision_is_none_when_nothing_accepted():
+    point = operating_point([0.3], [0.2], 0.99)
+    assert point["precision"] is None and point["tp"] == 0

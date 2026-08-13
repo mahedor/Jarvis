@@ -4,6 +4,11 @@
 
 {% block content %}
 
+<!-- Measured work leads. The system this is all aimed at is a real and large
+     part of the project, and it is deliberately NOT here: it is the last page
+     in the nav. Put first it would be a pitch; put last it is a conclusion the
+     reader has already been given the evidence for. -->
+
 <section class="eng-intro">
   <p class="eng-lede">
     A record of the decisions behind the face pipeline — what was chosen, what
@@ -26,6 +31,50 @@
   <!-- 1 ─────────────────────────────────────────────────── -->
   <article class="eng-decision">
     <div class="eng-decision-index">01</div>
+    <div class="eng-decision-body">
+      <h3>I refused to label any data, and that decided the enrollment design</h3>
+      <p class="eng-claim">
+        The gallery had to be built without anyone hand-sorting face crops.
+        That single requirement chose the algorithm, the input layout, and the
+        one failure mode worth fearing.
+      </p>
+      <p>
+        My reference photos came out of Google Photos as one flat bucket, most
+        of them containing several people. There is no per-face ground truth in
+        that: a folder is an event, a photo is a scene, a face is neither. The
+        obvious path — detect everything, dump the crops, sort them by hand over
+        an evening — would have worked. I turned it down because a manual step
+        has to be paid again every time the input changes.
+      </p>
+      <p>
+        So: detect every face, embed all of them, and run one HDBSCAN pass over
+        the whole pot until each person emerges as their own cluster. The only
+        thing left for a human is renaming the cluster folders, which takes
+        seconds. <strong>Seed-based selection would have been more
+        reliable</strong> — an anchor crop per identity avoids the hardest
+        question in the problem, how many people are in the pile — and it was
+        rejected purely because choosing that anchor is a person labelling
+        data.
+      </p>
+      <p>
+        The same requirement picked HDBSCAN over DBSCAN: an epsilon is a number
+        you tune by eyeballing output, which is hand-labelling in a hat, whereas
+        HDBSCAN sweeps densities and keeps the stable clusters, leaving
+        <code>min_cluster_size</code> — a claim about the household, not about
+        the embedding space.
+      </p>
+      <p class="eng-takeaway">
+        "No hand-labelling" is a design constraint, not a preference. Adopted at
+        the start it picks your algorithm for you; adopted at the end, you have
+        already built the thing that needs labels.
+      </p>
+      <a class="eng-link" href="{{ url_for('engineering.enrollment') }}">the curation run, and what folder labels would have broken &rarr;</a>
+    </div>
+  </article>
+
+  <!-- 2 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">02</div>
     <div class="eng-decision-body">
       <h3>The development samples were biased, not noisy</h3>
       <p class="eng-claim">
@@ -96,9 +145,9 @@
     </div>
   </article>
 
-  <!-- 2 ─────────────────────────────────────────────────── -->
+  <!-- 3 ─────────────────────────────────────────────────── -->
   <article class="eng-decision">
-    <div class="eng-decision-index">02</div>
+    <div class="eng-decision-index">03</div>
     <div class="eng-decision-body">
       <h3>Two thresholds, two jobs — only one of them ships</h3>
       <p class="eng-claim">
@@ -127,12 +176,17 @@
         </div>
       </div>
       <p>
-        For the winning encoder they are <strong>0.214</strong> and
-        <strong>0.342</strong> — far enough apart that shipping the wrong one
-        would be a real regression, close enough that nothing would obviously
-        break. The benchmark now prints both, always labelled, and hands over
-        the exact build command carrying the deployment value; a test asserts
-        that command never carries the yardstick.
+        {% if recognition_winner %}
+        For the winning encoder they are
+        <strong>{{ '%.3f'|format(recognition_winner.yardstick_threshold) }}</strong>
+        and
+        <strong>{{ '%.3f'|format(recognition_winner.deployment_threshold) }}</strong>
+        — far enough apart that shipping the wrong one would be a real
+        regression, close enough that nothing would obviously break.
+        {% endif %}
+        The benchmark now prints both, always labelled, and hands over the
+        exact build command carrying the deployment value; a test asserts that
+        command never carries the yardstick.
       </p>
       <p class="eng-takeaway">
         When one number ranks and another operates, name them differently
@@ -143,9 +197,9 @@
     </div>
   </article>
 
-  <!-- 3 ─────────────────────────────────────────────────── -->
+  <!-- 4 ─────────────────────────────────────────────────── -->
   <article class="eng-decision">
-    <div class="eng-decision-index">03</div>
+    <div class="eng-decision-index">04</div>
     <div class="eng-decision-body">
       <h3>MediaPipe was eliminated for a failure mode, not for a score</h3>
       <p class="eng-claim">
@@ -176,9 +230,9 @@
     </div>
   </article>
 
-  <!-- 4 ─────────────────────────────────────────────────── -->
+  <!-- 5 ─────────────────────────────────────────────────── -->
   <article class="eng-decision">
-    <div class="eng-decision-index">04</div>
+    <div class="eng-decision-index">05</div>
     <div class="eng-decision-body">
       <h3>The benchmark runs sequentially, and that is not an oversight</h3>
       <p class="eng-claim">
@@ -354,7 +408,9 @@
 
   <div class="eng-lock">
     <div class="eng-lock-value">
-      <span class="eng-lock-number">0.342</span>
+      <span class="eng-lock-number">
+        {{- '%.3f'|format(recognition_winner.deployment_threshold) if recognition_winner else '—' -}}
+      </span>
       <span class="eng-lock-label">recognition accept<br>(cosine)</span>
     </div>
     <div class="eng-lock-body">
@@ -390,6 +446,138 @@
     </article>
     {% endfor %}
   </div>
+</section>
+
+<!-- ─── Roadmap — the one section with no evidence behind it ─ -->
+
+<section id="roadmap">
+  <h2>What's next <span class="eng-badge planned">not measured</span></h2>
+
+  <div class="eng-roadmap">
+    <p class="eng-roadmap-note">
+      <strong>Everything above this point is backed by an artifact. Nothing
+      below it is.</strong> These are intentions — no runs, no tables, no
+      numbers of their own. Anything here that cites a figure is quoting a
+      measurement from further up the page, not producing one. When one of
+      these acquires evidence it moves up and stops being a plan.
+    </p>
+
+    <div class="eng-tier">
+      <div class="eng-tier-label">building next</div>
+
+      <article class="eng-plan">
+        <h3>Real-time presence service
+          <span class="eng-badge planned">planned</span></h3>
+        <p>
+          Webcam frames through the exact pipeline the rest of this log
+          measured — nothing in it is a new question:
+        </p>
+        <pre class="eng-code">frame → YOLO @ {{ '%.2f'|format(detection_threshold) if detection_threshold is not none else '—' }} → crop → {{ recognition_winner.encoder if recognition_winner else 'ArcFace' }} embed → gallery match @ {{ '%.3f'|format(recognition_winner.deployment_threshold) if recognition_winner else '—' }} → MQTT presence event</pre>
+        <p>
+          Both thresholds are already locked and justified above; the gallery
+          already exists. This is the point where the benchmarks stop being
+          measurements and start being a running system — and the first place
+          they can be wrong in a way no table would have shown.
+        </p>
+      </article>
+    </div>
+
+    <div class="eng-tier">
+      <div class="eng-tier-label">after that</div>
+
+      <article class="eng-plan">
+        <h3>Re-identification and tracking
+          <span class="eng-badge planned">planned</span></h3>
+        <p>
+          The service above recognises every frame from scratch, which makes
+          presence a stream of unrelated sightings. Tracking makes a person one
+          entity that persists across frames and through brief occlusions —
+          which is what turns presence into a <em>state</em> you can ask
+          questions about rather than a sequence of independent recognitions.
+        </p>
+      </article>
+
+      <article class="eng-plan">
+        <h3>Audio classification
+          <span class="eng-badge planned">planned</span></h3>
+        <p>
+          The second sensor, and the first non-vision model in the stack. Same
+          treatment as the vision stages when it gets there: compare backends,
+          pick an operating point, pin it to the run that justifies it.
+        </p>
+      </article>
+
+      <article class="eng-plan">
+        <h3>Audio-native pipeline — an open decision
+          <span class="eng-badge provisional">undecided</span></h3>
+        <p>
+          Whether to keep STT → LLM → TTS or move to a speech-to-speech model
+          is still unresolved from Phase 1. Going audio-native removes the
+          conversion latency and preserves tone and emphasis that text throws
+          away; it also needs hardware this does not have yet. Listed here as a
+          decision rather than a build, because that is what it currently is.
+        </p>
+      </article>
+    </div>
+
+    <div class="eng-tier">
+      <div class="eng-tier-label">longer horizon</div>
+
+      <article class="eng-plan">
+        <h3>Drone integration
+          <span class="eng-badge planned">planned</span></h3>
+        <p>
+          Aerial visual confirmation and pursuit tracking for the things fixed
+          cameras cannot see. Sequenced behind the presence and tracking work,
+          and behind hardware not bought yet — later than the rest of this
+          list, not less certain than it.
+        </p>
+      </article>
+
+      <article class="eng-plan">
+        <h3>Radar fusion — mmWave into the camera's embedding space
+          <span class="eng-badge research">research</span></h3>
+        <p class="eng-note">
+          The nearest concrete step toward the thing all of this is for —
+          see <a class="eng-link" href="{{ url_for('engineering.architecture') }}">architecture</a>.
+        </p>
+        <p>
+          The idea is
+          to use JEPA to train mmWave radar to project into the
+          <em>same</em> embedding space the camera encoder already produces —
+          so a person could be identified from radar alone, matched against the
+          gallery that already exists, with no separate enrolment.
+        </p>
+        <p>
+          It also gives liveness for free: a photograph held up to
+          a camera has no radar signature. That is the appeal. Whether the two
+          modalities can be made to share a space at this scale is an open
+          research question.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Only now: what all of it is for ──────────────────── -->
+
+<section class="eng-onward">
+  <div class="eng-onward-rule"><span>and where all of it is heading</span></div>
+  <p>
+    Everything above is a sensor layer. It exists because of what sits on top
+    of it: a system that learns this household's behavioural patterns from
+    camera, radar and wearable streams and <strong>predicts what happens
+    next</strong> rather than reporting what just happened — two memory
+    systems, a decision layer that chooses whether to speak at all, and a loop
+    that writes down its prediction in advance so it can be wrong out loud.
+  </p>
+  <p>
+    None of that is built, and the page that describes it says so in its first
+    line. It is last in this log on purpose: it is only worth reading after
+    the thresholds, the rejected results and the reruns above.
+  </p>
+  <a class="eng-link eng-onward-link"
+     href="{{ url_for('engineering.architecture') }}">the architecture it is all for &rarr;</a>
 </section>
 
 {% endblock %}

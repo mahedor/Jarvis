@@ -1,0 +1,478 @@
+{% extends "engineering/base.html" %}
+{% block title %}Enrollment curation{% endblock %}
+{% block heading %}Enrollment curation{% endblock %}
+
+{% block content %}
+
+<section class="eng-intro">
+  <p class="eng-lede">
+    The recognition stage matches against a gallery of named reference faces.
+    This is where that gallery comes from — a flat bucket of household photos
+    out of Google Photos, turned into named folders of crops, with
+    <strong>no face labelled by hand anywhere in the process</strong>.
+  </p>
+  <p>
+    That constraint is not a detail of the implementation. It is the thing that
+    chose the implementation: the algorithm, the shape of the input, and the
+    one failure mode worth being afraid of all follow from refusing to sort
+    crops by hand.
+  </p>
+</section>
+
+{% if not curation %}
+  <p class="eng-empty">
+    No curation run on this machine. The manifest lives at
+    <code>{{ curation_source }}</code>, beside the reference crops it
+    describes — inside the gitignored <code>data/</code> tree, because it is
+    provenance for photographs of real people. Run
+    <code>python tools/collect_faces.py</code> to produce one.
+  </p>
+{% else %}
+
+<!-- ─── The decisions ────────────────────────────────────── -->
+
+<section>
+  <h2>Decisions</h2>
+
+  <!-- 1 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">01</div>
+    <div class="eng-decision-body">
+      <h3>I would not label any data, and everything else fell out of that</h3>
+      <p class="eng-claim">
+        The requirement was never "cluster the faces". It was "do not spend an
+        evening hand-sorting a few hundred crops" — and that one constraint
+        picked the algorithm, the input layout, and the failure mode.
+      </p>
+      <p>
+        The reference photos came out of Google Photos as one flat bucket, and
+        most of them contain more than one person. So there is no per-face
+        ground truth anywhere in the input: a folder is an event, a photo is a
+        scene, and a face is neither. Nothing in the pile says who anybody is.
+      </p>
+      <p>
+        The obvious path was to detect every face, dump the crops into a
+        directory and sort them by hand. A few hundred crops, an hour or two,
+        done — and it would have worked. I refused it, because a manual step
+        has to be paid again every time the input changes, and "I'll re-sort
+        the crops" is the kind of chore a personal project quietly dies of.
+      </p>
+      <p>
+        What runs instead: detect every face in every photo, embed all of them,
+        and run a <strong>single HDBSCAN pass over the whole pot</strong>. Each
+        person falls out as their own cluster. The only manual step left is
+        renaming the cluster folders it writes —
+        <code>cluster_000/</code> → <code>michael/</code> — and deleting the
+        ones that turn out to be strangers. That takes seconds.
+      </p>
+      <p>
+        <code>collect_faces.py</code> never writes a name. It has no idea who
+        anyone is and cannot acquire one; all it asserts is that a group of
+        crops is the same person. The rename <em>is</em> the labelling step, and
+        it is the whole of it.
+      </p>
+      <p class="eng-takeaway">
+        "No hand-labelling" is a design constraint, not a preference. Adopt it
+        at the start and it picks your algorithm for you. Adopt it at the end
+        and you have already built the thing that needs labels.
+      </p>
+    </div>
+  </article>
+
+  <!-- 2 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">02</div>
+    <div class="eng-decision-body">
+      <h3>The most reliable option was rejected on exactly those grounds</h3>
+      <p class="eng-claim">
+        Seed-based selection — one known-good crop per person, everything else
+        matched against it — would have been more robust than clustering. It
+        needs a human to choose that crop, so it was out.
+      </p>
+      <p>
+        Seeding is the strong answer here and it is worth being honest about
+        that. An anchor crop per identity means the method has no "how many
+        people are in this pile?" to get wrong, the hardest question in the
+        whole problem. It degrades gracefully, and it is trivial to reason
+        about.
+      </p>
+      <p>
+        But the seed has to be picked, by a person, once per identity — and it
+        has to be a <em>good</em> one, because a bad anchor silently poisons
+        that entire identity. That is the labelling step the requirement
+        forbids, in its smallest and most seductive form. Rejecting the
+        strongest alternative on the constraint is what makes it a constraint
+        rather than a preference.
+      </p>
+      <p>Two others were weighed and dropped:</p>
+      <div class="eng-subblock">
+        <div class="eng-subhead">density / consensus filter
+          <span class="eng-note">simplest — keep the crops that agree with the bulk of their pile</span>
+        </div>
+        <p>
+          Needs a cutoff chosen by hand, and assumes each pile has one clear
+          majority identity to agree with. This bucket does not: most photos
+          contain several people, so the "majority" of a pile is not a person.
+        </p>
+      </div>
+      <div class="eng-subblock">
+        <div class="eng-subhead">iterative medoid trimming
+          <span class="eng-note">recompute the centre, drop the furthest, repeat</span>
+        </div>
+        <p>
+          Couples rejection to aggregation — the thing deciding who belongs is
+          computed from the set it is deciding about — so an early mistake
+          compounds. It is also sensitive to where it starts, which is another
+          way of saying it wants a good seed.
+        </p>
+      </div>
+      <p class="eng-takeaway">
+        The measure of a constraint is what you turn down that you would
+        otherwise have taken. Seed-based was the better engineering answer to a
+        question I had decided not to ask.
+      </p>
+    </div>
+  </article>
+
+  <!-- 3 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">03</div>
+    <div class="eng-decision-body">
+      <h3>HDBSCAN over DBSCAN, for the same reason again</h3>
+      <p class="eng-claim">
+        DBSCAN would have handed me an epsilon to tune by hand. HDBSCAN sweeps
+        densities and keeps whichever clusters stay stable, which leaves one
+        knob that is a fact about the household rather than about the embedding
+        space.
+      </p>
+      <p>
+        DBSCAN needs a neighbourhood radius. There is no principled value for
+        it: the right epsilon depends on the encoder, the crop quality, the
+        lighting and the people. Finding it means running the thing over and
+        over and eyeballing the output — hand-tuning, which is hand-labelling
+        wearing a different hat.
+      </p>
+      <p>
+        HDBSCAN builds the cluster hierarchy across <em>all</em> densities and
+        extracts the clusters that persist over the widest range of them. There
+        is no radius to choose. What remains is
+        <code>min_cluster_size</code>: the fewest crops that can constitute a
+        person — a question about my household, which I can answer, rather than
+        a question about the geometry of ArcFace's embedding space, which I
+        cannot.
+      </p>
+      <p>
+        It also has a native notion of <strong>noise</strong>. The one-off
+        stranger in the background of a single photo is labelled −1 and set
+        aside, instead of being forced into the nearest person's reference set
+        and poisoning it. k-means has nowhere to put that face; it must go in
+        somebody's pile.
+      </p>
+      <p class="eng-note">
+        Euclidean distance on L2-normalised vectors is monotonic with cosine
+        distance, so clustering with plain euclidean here still clusters by the
+        similarity ArcFace was trained for.
+      </p>
+      <p class="eng-takeaway">
+        Prefer the algorithm whose leftover parameter is a fact about your
+        problem to the one whose leftover parameter is a fact about your data's
+        geometry. You can answer the first one.
+      </p>
+    </div>
+  </article>
+
+  <!-- 4 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">04</div>
+    <div class="eng-decision-body">
+      <h3>The flat bucket is deliberate, and this run proves it</h3>
+      <p class="eng-claim">
+        {% if curation.collisions %}
+        Some of the source folders are named after people. Trusting those names
+        would have merged
+        {{ curation.collisions[0].identities }} different identities into one
+        and misfiled {{ curation.mislabelled_if_voted }} crops — with no error
+        and no warning.
+        {% else %}
+        Trusting the folder a photo sits in would label faces by whose event it
+        was, not by who is in it.
+        {% endif %}
+      </p>
+      <p>
+        <code>--input-dir</code> is walked recursively and treated as one flat
+        pot. Subfolder names are carried along as metadata — a hint shown in the
+        report to help you name a cluster — and are <em>never</em> used to group
+        anyone. That looks like laziness. It is the opposite.
+      </p>
+      <p>
+        The tempting alternative is to treat each folder as a label and take a
+        majority vote per pile. It fails in the worst available way: silently,
+        and most convincingly when it is most wrong. Someone who recurs across
+        many of one person's photos forms a clean, high-purity cluster of their
+        own — and gets filed under the folder owner's name. High purity is
+        exactly what you would check to convince yourself it worked.
+      </p>
+      {% if curation.collisions %}
+      <p>
+        This is not hypothetical. The bucket had
+        <strong>{{ curation.source_folders }}</strong> source folders and
+        contained <strong>{{ curation.people }}</strong> people. Every crop of
+        {{ curation.collisions[0].identities }} separate clusters came from
+        {{ curation.collisions[0].folder }} alone:
+      </p>
+      <table class="eng-table compact">
+        <thead>
+          <tr><th>cluster</th><th class="num">crops</th>
+              <th>source folders its crops came from</th></tr>
+        </thead>
+        <tbody>
+          {% for cluster in curation.clusters %}
+          <tr class="{% if cluster.sole_folder and cluster.id in curation.collisions[0].clusters %}winner{% endif %}">
+            <td class="mono">cluster_{{ '%03d'|format(cluster.id) }}</td>
+            <td class="num strong">{{ cluster.crops }}</td>
+            <td class="mono">
+              {% for folder, count in cluster.folders %}{{ folder }} ({{ count }}){% if not loop.last %}, {% endif %}{% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p>
+        A majority vote would have called all
+        {{ curation.collisions[0].identities }} of the highlighted rows by that
+        one folder's name. The largest
+        ({{ curation.collisions[0].keeps }} crops) really is that person; the
+        other {{ curation.collisions[0].identities - 1 }}
+        ({{ curation.collisions[0].absorbed }} crops) are different people who
+        happen to appear in their photos — my mother, my dad and my sister,
+        none of whom ever had a folder of their own.
+      </p>
+      {% endif %}
+      <p>
+        In a flat bucket a recurring non-household face simply becomes its own
+        cluster, which I look at once and either name or delete. The cost of
+        the flat design is one extra folder to glance at. The cost of the
+        labelled design is three people wrongly enrolled as a fourth.
+      </p>
+      <p class="eng-takeaway">
+        A label that is usually right is worse than no label at all, because the
+        cases where it is wrong are the ones that look most convincing.
+      </p>
+    </div>
+  </article>
+
+  <!-- 5 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">05</div>
+    <div class="eng-decision-body">
+      <h3>min_cluster_size is the only real knob, and it deletes people</h3>
+      <p class="eng-claim">
+        HDBSCAN discards any group smaller than <code>min_cluster_size</code> as
+        noise. Set it too high and a real member of the household disappears
+        from the gallery — no error, no warning, no empty folder to notice.
+      </p>
+      <p>
+        This run used <strong>{{ curation.min_cluster_size }}</strong>. The
+        smallest identities that survived hold
+        <strong>{{ curation.smallest }}</strong> crops each
+        {%- set smallest_count = curation.clusters | selectattr('crops', 'equalto', curation.smallest) | list | length %}
+        ({{ smallest_count }} of the {{ curation.people }} clusters sit at that
+        size), which is {{ curation.headroom }} above the floor. Set the knob to
+        {{ curation.smallest + 1 }} instead and
+        {{ smallest_count }} of {{ curation.people }} people vanish into
+        <code>_noise/</code>. The run still succeeds. The report still prints a
+        cluster count. Nothing says anyone is missing.
+      </p>
+      <p>
+        The exposure is structural rather than bad luck: the people with the
+        fewest photos are the first the knob deletes, and they are also the ones
+        you are least likely to notice the absence of. The thinnest source
+        folder here contributed only
+        {{ curation.folders[-1].photos }} photos, and thinner input survives
+        the quality filter as fewer crops still.
+      </p>
+      <table class="eng-table compact">
+        <thead>
+          <tr><th>source folder</th><th class="num">photos</th>
+              <th class="num">crops kept</th></tr>
+        </thead>
+        <tbody>
+          {% for folder in curation.folders %}
+          <tr>
+            <td class="mono">{{ folder.label }}</td>
+            <td class="num">{{ folder.photos }}</td>
+            <td class="num strong">{{ folder.crops }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p>
+        What makes this survivable is that noise is <em>written to disk</em>
+        rather than dropped. All {{ curation.noise }} noise crops go to
+        <code>_noise/</code>, so the check after every run is to open that
+        folder and look for a face that should have been a cluster. A silent
+        failure mode is only tolerable when the artifact makes the silence
+        visible.
+      </p>
+      <p class="eng-takeaway">
+        When a parameter's failure mode is deletion without an error, the tool
+        has to write down what it deleted. Otherwise the only way to discover
+        the setting was wrong is for the system to fail to greet somebody,
+        months later.
+      </p>
+    </div>
+  </article>
+</section>
+
+<!-- ─── What the run produced ────────────────────────────── -->
+
+<section>
+  <h2>What the run produced</h2>
+  <p>
+    The bet was that a single unsupervised pass over an unlabelled pot would
+    separate the household cleanly enough that naming it would take seconds. It
+    did, and it went further than that.
+  </p>
+
+  <div class="eng-winner-grid">
+    <div>
+      <div class="eng-split-label deployment">discovered</div>
+      <div class="eng-metric">
+        <strong>{{ curation.people }}</strong> people from
+        <strong>{{ curation.source_folders }}</strong> source folders
+      </div>
+      <div class="eng-note">
+        every housemate separated, plus my sister, dad and mother — who are in
+        the photos but were never given a folder, and were surfaced anyway
+      </div>
+    </div>
+    <div>
+      <div class="eng-split-label yardstick">manual effort</div>
+      <div class="eng-metric">
+        <strong>{{ curation.people }}</strong> folder renames
+      </div>
+      <div class="eng-note">
+        no crop sorted by hand; each cluster ships a
+        <code>_face_card.jpg</code> (its medoid) so it can be identified at a
+        glance
+      </div>
+    </div>
+  </div>
+
+  <table class="eng-table">
+    <thead>
+      <tr><th>stage</th><th class="num">count</th><th>note</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>photos read</td>
+        <td class="num strong">{{ '{:,}'.format(curation.counts.photos_read) }}</td>
+        <td class="role">one flat bucket, walked recursively</td>
+      </tr>
+      <tr>
+        <td>faces detected</td>
+        <td class="num strong">{{ '{:,}'.format(curation.counts.faces_detected) }}</td>
+        <td class="role">the detector is run at confidence 0.0 so the floor can
+          be applied here and <em>counted</em>, not swallowed inside the backend</td>
+      </tr>
+      <tr>
+        <td>below the confidence floor</td>
+        <td class="num">{{ '{:,}'.format(curation.counts.rejects.get('low_confidence', 0)) }}</td>
+        <td class="role">candidate flood, not near-misses — see the box-rate
+          caveat on the overview</td>
+      </tr>
+      <tr>
+        <td>too small</td>
+        <td class="num">{{ curation.counts.rejects.get('too_small', 0) }}</td>
+        <td class="role">shortest box side under
+          {{ curation.settings.min_box_size|int }} px</td>
+      </tr>
+      <tr>
+        <td>crops kept</td>
+        <td class="num strong">{{ curation.counts.crops_kept }}</td>
+        <td class="role">embedded with {{ curation.settings.encoder }}
+          {%- if curation.counts.embed_failures %},
+          {{ curation.counts.embed_failures }} failed{% endif %}</td>
+      </tr>
+      <tr class="winner">
+        <td>clustered into identities</td>
+        <td class="num strong">{{ curation.clustered_crops }}</td>
+        <td class="role">across {{ curation.people }} clusters, sized
+          {{ curation.smallest }}–{{ curation.largest }}</td>
+      </tr>
+      <tr>
+        <td>noise</td>
+        <td class="num">{{ curation.noise }}</td>
+        <td class="role">written to <code>_noise/</code> for inspection, not
+          discarded</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="eng-note">
+    {{ curation.settings.detector }} · {{ curation.settings.encoder }} ·
+    margin {{ curation.settings.margin }} ·
+    min_confidence {{ curation.settings.min_confidence }} ·
+    min_cluster_size {{ curation.min_cluster_size }} ·
+    blur filter {{ 'off' if curation.settings.min_blur is none else curation.settings.min_blur }} ·
+    run {{ curation.generated_at }} ·
+    source <code>{{ curation_source }}</code>
+  </p>
+
+  <p>
+    The three surfaced family members are the part worth pointing at, because
+    they are what the flat bucket was <em>for</em>. Nobody asked the tool to
+    look for them; there was no folder for them to be found in. They were in
+    the photos, they recurred often enough to clear
+    <code>min_cluster_size</code>, and so they came out as clusters of their
+    own — which is precisely the behaviour that a folder-derived label would
+    have destroyed.
+  </p>
+</section>
+
+<!-- ─── Why this is defensible ───────────────────────────── -->
+
+<section class="eng-callout">
+  <h2>Clustering is the wrong tool one stage later</h2>
+  <p>
+    It is worth being explicit that this is not how identification works at
+    inference, and that the difference is the point rather than an
+    inconsistency.
+  </p>
+  <div class="eng-split">
+    <div>
+      <div class="eng-split-label deployment">at curation — discovery</div>
+      <p>
+        There are no labels at all, and the actual question is "how many people
+        are in this pot, and which crops belong together?". Nobody knows the
+        answer, including me. That is a discovery problem, and discovery is
+        what clustering is for.
+      </p>
+    </div>
+    <div>
+      <div class="eng-split-label yardstick">at inference — comparison</div>
+      <p>
+        The identities are known, the gallery is fixed, and the question is
+        "which of these six, if any, is this face?" — a cosine comparison
+        against stored vectors and a threshold. Clustering here would
+        re-derive, from one frame, something already established from
+        {{ curation.clustered_crops }} crops.
+      </p>
+    </div>
+  </div>
+  <p class="eng-note">
+    Same embeddings, same distance metric, two different questions. Using the
+    unsupervised method where the labels exist would be as wrong as using the
+    supervised one where they do not.
+  </p>
+</section>
+
+<p class="eng-note">
+  Next step: <code>build_gallery.py</code> embeds the named folders into
+  <code>data/gallery.npz</code> with the deployment threshold —
+  <a class="eng-link" href="{{ url_for('engineering.recognition') }}">how that threshold was chosen &rarr;</a>
+</p>
+
+{% endif %}
+
+{% endblock %}

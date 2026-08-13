@@ -29,6 +29,12 @@ RECOGNITION_FILE = RESULTS_DIR / "benchmarks_recognition.json"
 INTENT_FILE = RESULTS_DIR / "benchmarks_intent.json"
 CACHING_FILE = RESULTS_DIR / "benchmarks_caching.json"
 EVAL_DIR = REPO_ROOT / "tests" / "eval"
+# Written by tools/collect_faces.py. NOT under results/ and NOT in git: it sits
+# beside the reference crops it describes, inside the gitignored data/ tree,
+# because it is provenance for a set of photographs of real people. The
+# curation page therefore renders from it when it is present on the machine
+# serving the log, and shows an empty state when it is not.
+CURATION_MANIFEST = REPO_ROOT / "data" / "reference_faces" / "manifest.json"
 
 # The FAR the recognition benchmark ranks encoders at. Mirrors PRIMARY_FAR in
 # benchmark_recognition.py; kept as a literal to avoid importing it (see above).
@@ -73,6 +79,43 @@ def load_runs(path):
 
     _cache[path] = (mtime, runs)
     return runs
+
+
+def load_document(path):
+    """Load a single JSON object artifact, re-reading only when it changes.
+
+    load_runs' sibling for artifacts that are one document rather than a list
+    of runs (the curation manifest). Same mtime cache, same rule that a missing
+    or malformed file yields an empty result instead of a 500.
+
+    Inputs:
+        path (Path): a JSON file whose top level is an object.
+    Returns:
+        dict: the parsed document, or {} if absent, unreadable, or not an
+        object.
+    """
+    path = Path(path)
+    if not path.is_file():
+        return {}
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+
+    cached = _cache.get(path)
+    if cached and cached[0] == mtime:
+        return cached[1]
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            document = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(document, dict):
+        document = {}
+
+    _cache[path] = (mtime, document)
+    return document
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -223,6 +266,11 @@ def recognition_matrix(run):
                 "f1": (metrics.get("f1_threshold") or {}).get("f1"),
                 "deployment_threshold": (metrics.get("f1_threshold") or {}).get("threshold"),
                 "dprime": (metrics.get("separation") or {}).get("dprime_vs_stranger"),
+                # Curve summaries; None for runs recorded before curves were
+                # persisted, so the table can blank the cell rather than
+                # inventing a 0.000 that reads like a measured failure.
+                "roc_auc": (metrics.get("curves") or {}).get("roc_auc"),
+                "ap": (metrics.get("curves") or {}).get("average_precision"),
             }
 
     def rank(encoder):
@@ -270,18 +318,102 @@ def pick_winner(matrix):
     return best
 
 
+def _exact_counts(metrics):
+    """The recorded sweep, flattened to parallel arrays for the explorer.
+
+    The sweep is stored as 201 objects per encoder x aggregation, which is the
+    right shape on disk and the wrong one to inline into a page — as JSON in an
+    HTML attribute, nine of them run to six figures of markup. Only two numbers
+    per grid point are actually needed (accepted genuine, accepted non-mates);
+    everything the explorer displays is derived from those. Sending them as two
+    integer arrays plus the grid's origin and step costs about a tenth as much
+    and lets the client index straight to a threshold instead of searching.
+
+    Inputs:
+        metrics (dict): one aggregation's metric block.
+    Returns:
+        dict | None: {"min", "step", "tp", "fp", "genuine_total",
+        "nonmate_total"} — or None for runs recorded before curves existed,
+        which is the signal to fall back to the binned histograms.
+    """
+    sweep = ((metrics.get("curves") or {}).get("sweep")) or []
+    if len(sweep) < 2:
+        return None
+
+    counts = metrics.get("counts") or {}
+    nonmate_total = int(counts.get("impostor", 0)) + int(counts.get("stranger", 0))
+    if not counts.get("genuine") or not nonmate_total:
+        return None
+
+    return {
+        "min": sweep[0]["threshold"],
+        "step": round(sweep[1]["threshold"] - sweep[0]["threshold"], 6),
+        "tp": [point["tp"] for point in sweep],
+        "fp": [point["fp"] for point in sweep],
+        "genuine_total": int(counts["genuine"]),
+        "nonmate_total": nonmate_total,
+    }
+
+
+def _curve_summary(metrics):
+    """The curve scalars and shipped markers, for the client-side plots.
+
+    Only what the canvas cannot derive itself. The curves are drawn from the
+    tp/fp arrays already in the payload — precision, recall, TAR and FAR are
+    all ratios of those — so the exact AUC/AP scalars and the two off-grid
+    operating points are the entire remainder.
+
+    Inputs:
+        metrics (dict): one aggregation's metric block.
+    Returns:
+        dict | None: {"auc", "ap", "markers": {"yardstick", "deployment"}} —
+        or None when the run recorded no curves.
+    """
+    curves = metrics.get("curves") or {}
+    markers = curves.get("markers") or {}
+    yardstick = markers.get(f"tar@far={float(PRIMARY_FAR):g}")
+    deployment = markers.get("best_f1")
+    if not curves.get("sweep") or not yardstick or not deployment:
+        return None
+
+    def point(marker):
+        return {
+            "threshold": marker.get("threshold"),
+            "tar": marker.get("tar"),
+            "far": marker.get("far"),
+            "recall": marker.get("recall"),
+            "precision": marker.get("precision"),
+        }
+
+    return {
+        "auc": curves.get("roc_auc"),
+        "ap": curves.get("average_precision"),
+        "markers": {"yardstick": point(yardstick), "deployment": point(deployment)},
+    }
+
+
 def explorer_payload(run):
     """Score distributions for the client-side threshold explorer.
 
-    Ships the stored 40-bin histograms rather than raw scores, because raw
-    scores are not persisted - the explorer is therefore a BINNED approximation
-    (bin width 0.05 over cosine [-1, 1]) and the page says so. Good enough to
-    show the shape of the precision/recall trade, not a substitute for the
-    exact numbers the benchmark computed.
+    Ships two things per cell, for two different jobs:
+
+    - the stored 40-bin histograms, which draw the SHAPE of the three score
+      populations on the canvas;
+    - "exact", the recorded threshold sweep (see _exact_counts), which supplies
+      the COUNTS the readout quotes.
+
+    Splitting them matters because the histograms cannot answer the readout's
+    question honestly. Resolved to 0.05, a threshold landing mid-bin has to
+    have its bin split by interpolation, which invents fractional samples — the
+    explorer used to report things like "0.3 false accepts" at a threshold
+    whose true count is zero. The sweep is counted from the real scores at
+    benchmark time, so wherever "exact" is present the readout is not an
+    estimate at all. Runs recorded before curve persistence have no sweep and
+    fall back to the old binned path.
 
     Returns:
-        dict: "encoder|aggregation" -> {"genuine", "impostor", "stranger"},
-        each {"edges": [...], "counts": [...]}, plus "meta" describing the run.
+        dict: "encoder|aggregation" -> {"genuine", "impostor", "stranger"}
+        histograms, plus "exact" when the run carries a sweep.
     """
     run = run or {}
     payload = {}
@@ -298,8 +430,34 @@ def explorer_payload(run):
                 if histogram:
                     entry[population] = histogram
             if entry:
+                exact = _exact_counts(metrics)
+                if exact:
+                    entry["exact"] = exact
+                curve = _curve_summary(metrics)
+                if curve:
+                    entry["curve"] = curve
                 payload[f"{encoder}|{aggregation}"] = entry
     return payload
+
+
+def explorer_has_curves(payload):
+    """Whether any cell can be plotted client-side.
+
+    A cell needs both halves: the tp/fp grid the curves are drawn from and the
+    scalars/markers that cannot be recovered from it. Anything less and the
+    section stays hidden rather than rendering empty axes.
+    """
+    return any("curve" in cell and "exact" in cell for cell in (payload or {}).values())
+
+
+def explorer_is_exact(payload):
+    """Whether every cell in the explorer payload has exact counts.
+
+    Drives the page's caveat: the "binned approximation" warning must appear
+    when any cell would fall back to interpolation, and must NOT appear when
+    none do.
+    """
+    return bool(payload) and all("exact" in cell for cell in payload.values())
 
 
 def sampling_comparison(runs, min_dev_images=30):
@@ -672,6 +830,193 @@ def routing_page_data():
     }
 
 
+# ══════════════════════════════════════════════════════════════════
+# Enrollment curation (tools/collect_faces.py).
+# ══════════════════════════════════════════════════════════════════
+
+def _anonymise_folders(crops):
+    """Map each source folder to a neutral label, biggest contributor first.
+
+    The manifest records real Google Photos folder names, which here are
+    people's full names. The ARGUMENT the page makes needs to know how many
+    distinct folders there were and how the clusters fell across them; it never
+    needs to know whose they are. So the names stop at this function.
+
+    Inputs:
+        crops (list[dict]): manifest crop records.
+    Returns:
+        dict[str, str]: real folder name -> "folder A", "folder B", ...
+    """
+    totals = {}
+    for crop in crops:
+        folder = crop.get("source_folder", ".")
+        totals[folder] = totals.get(folder, 0) + 1
+    # Ties broken by name so the labelling is stable across reloads.
+    ordered = sorted(totals, key=lambda name: (-totals[name], name))
+    return {
+        name: "folder " + chr(ord("A") + index)
+        for index, name in enumerate(ordered)
+    }
+
+
+def curation_clusters(manifest):
+    """Per-cluster sizes and the source folders each drew from.
+
+    Inputs:
+        manifest (dict): a collect_faces manifest.
+    Returns:
+        tuple[list[dict], int]: one entry per real cluster (id, crops, the
+        anonymised folder breakdown, and the sole folder when every crop came
+        from one), plus the count of noise crops.
+    """
+    crops = manifest.get("crops") or []
+    labels = _anonymise_folders(crops)
+
+    grouped, noise = {}, 0
+    for crop in crops:
+        cluster = crop.get("cluster")
+        if cluster is None or cluster < 0:
+            noise += 1
+            continue
+        folder = labels.get(crop.get("source_folder", "."), "folder ?")
+        bucket = grouped.setdefault(cluster, {})
+        bucket[folder] = bucket.get(folder, 0) + 1
+
+    clusters = []
+    for cluster in sorted(grouped):
+        folders = sorted(grouped[cluster].items(), key=lambda kv: (-kv[1], kv[0]))
+        total = sum(count for _, count in folders)
+        clusters.append({
+            "id": cluster,
+            "crops": total,
+            "folders": folders,
+            # The interesting case: every crop of this identity came out of a
+            # single source folder, so a folder label could not tell it apart
+            # from anyone else in that folder.
+            "sole_folder": folders[0][0] if len(folders) == 1 else None,
+            "majority_folder": folders[0][0] if folders else None,
+        })
+    return clusters, noise
+
+
+def curation_folders(manifest):
+    """What each source folder actually contributed, anonymised.
+
+    Photos as well as crops, because the two say different things: crops is how
+    much of the gallery a folder fed, photos is how thin the person's input
+    was — and thin input is what makes min_cluster_size dangerous.
+
+    Inputs:
+        manifest (dict): a collect_faces manifest.
+    Returns:
+        list[dict]: {label, photos, crops}, biggest contributor first.
+    """
+    crops = manifest.get("crops") or []
+    labels = _anonymise_folders(crops)
+
+    tally = {}
+    for crop in crops:
+        label = labels.get(crop.get("source_folder", "."), "folder ?")
+        entry = tally.setdefault(label, {"label": label, "crops": 0, "photos": set()})
+        entry["crops"] += 1
+        entry["photos"].add(crop.get("source_photo"))
+
+    rows = [{"label": e["label"], "crops": e["crops"], "photos": len(e["photos"])}
+            for e in tally.values()]
+    return sorted(rows, key=lambda r: (-r["crops"], r["label"]))
+
+
+def folder_label_collisions(clusters):
+    """What labelling by source folder would have merged.
+
+    The rejected alternative was to trust the folder a photo sits in and take a
+    majority vote per pile. This computes what that would actually have done to
+    THIS bucket: any folder that is the majority for more than one cluster
+    would have had those separate identities collapse into a single name.
+
+    The largest cluster is treated as keeping the name, so the mislabelled
+    count is every crop in the smaller clusters that folder would have absorbed.
+
+    Inputs:
+        clusters (list[dict]): from curation_clusters.
+    Returns:
+        tuple[list[dict], int]: one entry per colliding folder (folder, the
+        cluster ids it would have merged, crops absorbed), and the total crops
+        that would have been filed under the wrong person.
+    """
+    by_folder = {}
+    for cluster in clusters:
+        folder = cluster["majority_folder"]
+        if folder is None:
+            continue
+        by_folder.setdefault(folder, []).append(cluster)
+
+    collisions, mislabelled = [], 0
+    for folder in sorted(by_folder):
+        members = sorted(by_folder[folder], key=lambda c: -c["crops"])
+        if len(members) < 2:
+            continue
+        absorbed = sum(c["crops"] for c in members[1:])
+        mislabelled += absorbed
+        collisions.append({
+            "folder": folder,
+            "clusters": [c["id"] for c in members],
+            "identities": len(members),
+            "keeps": members[0]["crops"],
+            "absorbed": absorbed,
+        })
+    return collisions, mislabelled
+
+
+def curation_page_data():
+    """Everything the enrollment curation page renders.
+
+    Returns {"curation": None, ...} when the manifest is not on this machine —
+    it lives in the gitignored data/ tree, so a fresh clone legitimately has no
+    run to describe and the page says so rather than inventing one.
+    """
+    manifest = load_document(CURATION_MANIFEST)
+    if not manifest or not manifest.get("crops"):
+        return {"curation": None, "curation_source": _relative(CURATION_MANIFEST)}
+
+    clusters, noise = curation_clusters(manifest)
+    collisions, mislabelled = folder_label_collisions(clusters)
+    settings = manifest.get("settings") or {}
+    counts = manifest.get("counts") or {}
+
+    sizes = [c["crops"] for c in clusters]
+    min_cluster_size = settings.get("min_cluster_size")
+    smallest = min(sizes) if sizes else None
+    folders = {folder for c in clusters for folder, _ in c["folders"]}
+
+    return {
+        "curation": {
+            "generated_at": manifest.get("generated_at"),
+            "settings": settings,
+            "counts": counts,
+            "clusters": clusters,
+            "noise": noise,
+            "clustered_crops": sum(sizes),
+            "people": len(clusters),
+            "source_folders": len(folders),
+            "smallest": smallest,
+            "largest": max(sizes) if sizes else None,
+            "min_cluster_size": min_cluster_size,
+            # How many crops of slack the thinnest identity had before
+            # min_cluster_size would have deleted it. This is the trap.
+            "headroom": (smallest - min_cluster_size)
+                        if (smallest is not None and min_cluster_size) else None,
+            "at_risk": [c for c in clusters
+                        if min_cluster_size and c["crops"] < min_cluster_size * 2],
+            "collisions": collisions,
+            "mislabelled_if_voted": mislabelled,
+            "folders": curation_folders(manifest),
+            "blur": manifest.get("blur_distribution"),
+        },
+        "curation_source": _relative(CURATION_MANIFEST),
+    }
+
+
 def overview_page_data():
     """Evidence the narrative on the overview page cites.
 
@@ -683,10 +1028,109 @@ def overview_page_data():
     # WIDER FACE is the crowded set, so it is where per-image box counts say
     # the most; fall back to whatever full run exists.
     busiest = full.get("widerface") or (next(iter(full.values()), None))
+    # The roadmap section names the operating points the presence service will
+    # consume. They are read rather than typed for the same reason as every
+    # other number on this page: a plan that cites a stale threshold is worse
+    # than one that cites none.
+    recognition = load_runs(RECOGNITION_FILE)
     return {
         "sampling": sampling_comparison(runs),
         "box_rates": candidate_box_rates(busiest),
         "box_rate_run": busiest,
+        "recognition_winner": pick_winner(
+            recognition_matrix(recognition[-1] if recognition else None)),
+    }
+
+
+def direction_page_data():
+    """The measured anchors the direction page is allowed to stand on.
+
+    That page is about where the project is going, so almost none of it can be
+    backed by an artifact — which is exactly why the few points that CAN be are
+    read rather than typed. The ladder diagram marks the boundary between the
+    measured stages and the intended ones, and the boundary has to move on its
+    own when a benchmark is rerun. If it were hardcoded, the one claim the page
+    genuinely must get right — how far along it actually is — would be the one
+    claim nobody would notice going stale.
+
+    Returns:
+        dict with the recognition winner, the datasets detection has been
+        measured on, and the total images behind those runs.
+    """
+    detection = load_runs(DETECTION_FILE)
+    full = latest_full_run_per_dataset(detection)
+    recognition = load_runs(RECOGNITION_FILE)
+    latest_recognition = recognition[-1] if recognition else None
+    winner = pick_winner(recognition_matrix(latest_recognition))
+
+    return {
+        "recognition_winner": winner,
+        "recognition_run": latest_recognition,
+        "recognition_counts": _winner_counts(latest_recognition, winner),
+        "primary_far": PRIMARY_FAR,
+        "detection_datasets": sorted(full),
+        "detection_images": sum(run.get("num_images", 0) for run in full.values()),
+    }
+
+
+def _winner_counts(run, winner):
+    """The score populations the winning cell was actually judged against.
+
+    The caption has to name the non-mate set honestly, and "500 strangers" is
+    not it: those 500 LFW faces are scored against every gallery, and the
+    household's own members are scored against each other's galleries too. The
+    real denominator is impostors AND strangers combined, because a deployment
+    threshold has to reject both — a stranger at the door and the wrong
+    housemate are different failure modes and the benchmark was built to catch
+    each. Reading the counts keeps that claim honest if the run changes shape.
+
+    Inputs:
+        run (dict | None): a recognition run payload.
+        winner (dict | None): the winning cell, from pick_winner.
+    Returns:
+        dict | None: {"genuine", "impostor", "stranger", "nonmate"} comparison
+        counts, or None if the run does not record them.
+    """
+    if not run or not winner:
+        return None
+    for result in run.get("results", []):
+        if result.get("encoder") != winner.get("encoder"):
+            continue
+        metrics = (result.get("aggregations") or {}).get(winner.get("aggregation"))
+        counts = (metrics or {}).get("counts")
+        if not counts:
+            return None
+        impostor = int(counts.get("impostor", 0))
+        stranger = int(counts.get("stranger", 0))
+        return {
+            "genuine": int(counts.get("genuine", 0)),
+            "impostor": impostor,
+            "stranger": stranger,
+            "nonmate": impostor + stranger,
+        }
+    return None
+
+
+def recognition_curve_figures(matrix):
+    """Which ROC/PR figures are on disk AND backed by the run being shown.
+
+    Both conditions matter. A figure file left over from an older run would
+    otherwise be served next to newer numbers it does not describe, so the
+    figures are only offered when the displayed run actually carries curve
+    data — the same condition under which the plotter could have drawn them.
+
+    Inputs:
+        matrix (dict): as returned by recognition_matrix.
+    Returns:
+        dict {"roc": bool, "pr": bool}: whether each figure can be shown.
+    """
+    has_curves = any(cell.get("roc_auc") is not None
+                     for cell in (matrix.get("cells") or {}).values())
+    if not has_curves:
+        return {"roc": False, "pr": False}
+    return {
+        "roc": (RESULTS_DIR / "recognition_roc.svg").exists(),
+        "pr": (RESULTS_DIR / "recognition_pr.svg").exists(),
     }
 
 
@@ -695,11 +1139,15 @@ def recognition_page_data():
     runs = load_runs(RECOGNITION_FILE)
     latest = runs[-1] if runs else None
     matrix = recognition_matrix(latest)
+    explorer = explorer_payload(latest)
     return {
         "run": latest,
         "matrix": matrix,
         "winner": pick_winner(matrix),
-        "explorer": explorer_payload(latest),
+        "explorer": explorer,
+        "explorer_exact": explorer_is_exact(explorer),
+        "curves_available": explorer_has_curves(explorer),
+        "figures": recognition_curve_figures(matrix),
         "total_runs": len(runs),
         "source": _relative(RECOGNITION_FILE),
     }

@@ -446,12 +446,65 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
   letter-spacing: 0;
 }
 .eng-explorer-controls input[type="range"] { flex: 1; accent-color: var(--accent); min-width: 160px; }
-#explorer-value {
+#explorer-value,
+#curve-value {
   font-size: 15px;
   color: var(--accent);
   min-width: 56px;
   display: inline-block;
 }
+
+/* ─── Curve explorer (PR + ROC) ──────────────────────────── */
+
+.eng-checkbox-label { gap: 7px !important; text-transform: none !important; letter-spacing: 0 !important; }
+.eng-checkbox-label input { accent-color: var(--accent); }
+
+/* Side by side while there is room; PR above ROC once there is not, since a
+   curve squeezed below ~300px stops being readable at all. */
+.eng-curve-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  margin-bottom: 6px;
+}
+.eng-curve-grid figure { margin: 0; }
+.eng-curve-grid figcaption {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.eng-curve-legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.eng-curve-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+.eng-curve-toggle:hover { border-color: rgba(var(--accent-rgb), 0.5); }
+/* Hidden series stay legible but obviously off — greyed, not removed, so the
+   control still reads as a toggle rather than a disappearing act. */
+.eng-curve-toggle.off { opacity: 0.4; }
+.eng-curve-toggle.off .swatch { background: var(--dim) !important; }
+.eng-curve-scalars { color: var(--muted); font-size: 11px; }
+
+.eng-curve-readout { margin-top: 14px; }
+.eng-curve-readout table { margin: 0; }
 
 .eng-explorer-stats {
   display: grid;
@@ -498,6 +551,62 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
 .swatch.genuine { background: #3ad19a; }
 .swatch.impostor { background: #d19a3a; }
 .swatch.stranger { background: #6b6b8a; }
+
+/* ─── Generated figures ──────────────────────────────────── */
+
+/* The plots are drawn on the page's own background (see
+   tools/plot_recognition_curves.py), so they need a frame but no matting. */
+.eng-figure { margin: 20px 0 26px; }
+.eng-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.eng-figure figcaption {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* Inline marker key, matching the dots drawn inside the figures. */
+.eng-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 2px;
+  vertical-align: 1px;
+}
+.eng-dot.yardstick { background: var(--yardstick); }
+.eng-dot.deployment { background: var(--deployment); }
+
+/* A metric a run is too old to carry — blank, not a measured zero. */
+.eng-na { color: var(--dim); }
+
+/* ─── Shipped operating point (explorer header) ──────────── */
+
+.eng-shipped {
+  margin: 16px 0 18px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--deployment);
+  border-radius: 4px;
+}
+.eng-shipped p { margin: 6px 0 0; }
+.eng-shipped-model { font-size: 15px; color: var(--text); font-weight: 600; }
+.eng-shipped-agg {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+.eng-shipped-threshold { font-size: 15px; color: var(--deployment); font-weight: 600; }
+.eng-shipped .eng-note { margin-top: 8px; }
 
 /* ─── Footer ─────────────────────────────────────────────── */
 
@@ -550,4 +659,571 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
   margin-left: 10px;
   vertical-align: middle;
   text-transform: uppercase;
+}
+
+/* ─── Roadmap ────────────────────────────────────────────── */
+
+/* Deliberately unlike every block above it. Each of those is a claim with an
+   artifact behind it; this one is intentions. Dashed rather than solid
+   borders, no numbers of its own, and every entry carries a badge — so a
+   reader skimming can tell in one glance that the evidence stopped here. */
+.eng-roadmap {
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 20px 24px 6px;
+}
+.eng-roadmap-note {
+  font-size: 13.5px !important;
+  color: var(--muted) !important;
+  border-left: 2px solid rgba(209, 154, 58, 0.45);
+  padding-left: 12px;
+  margin-bottom: 22px !important;
+}
+.eng-tier { margin-bottom: 22px; }
+.eng-tier-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 14px;
+}
+.eng-plan { margin-bottom: 16px; }
+.eng-plan h3 {
+  font-size: 15px;
+  font-weight: 500;
+  color: #d6d6e2;
+  margin-bottom: 5px;
+}
+.eng-plan h3 .eng-badge { margin-left: 8px; vertical-align: 1px; }
+.eng-plan p { font-size: 14px; color: #a0a0b0; margin-bottom: 8px; }
+.eng-plan .eng-code { margin: 10px 0; font-size: 11.5px; }
+
+/* Planned = intended, unstarted, no numbers. Research = may not work at all,
+   and saying so is the point. */
+.eng-badge.planned { color: var(--muted); }
+.eng-badge.research {
+  color: #b98ee0;
+  border-color: rgba(185, 142, 224, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Direction page — the destination, not a result.
+
+   This is the only page in the log with no findings on it, and the styling
+   carries part of that message: measured things are solid and green here as
+   everywhere else, while intended things are dashed, hollow and purple. If a
+   reader takes nothing but the shapes, they should still come away knowing
+   which half exists.
+   ═══════════════════════════════════════════════════════════ */
+
+.eng-nav-goal { color: #b98ee0; }
+.eng-nav-goal:hover { color: #d3b9f0; }
+
+/* ─── Hero ───────────────────────────────────────────────── */
+
+.eng-goal-hero {
+  padding: 34px 0 30px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 26px !important;
+}
+.eng-goal-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #b98ee0;
+  margin-bottom: 16px;
+}
+/* Deliberately the largest type in the log: on every other page the headline
+   is a measurement, and here it is the reason the measurements exist. */
+.eng-goal-statement {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 29px;
+  line-height: 1.38;
+  font-weight: 300;
+  color: var(--text);
+  letter-spacing: -0.4px;
+  max-width: 30ch;
+  margin: 0 0 20px !important;
+}
+.eng-goal-statement em {
+  font-style: normal;
+  background: linear-gradient(180deg, transparent 64%, rgba(var(--accent-rgb), 0.32) 64%);
+  color: #fff;
+}
+.eng-goal-sub { font-size: 15px !important; color: #a8a8b8; max-width: 74ch; }
+
+@media (max-width: 700px) {
+  .eng-goal-statement { font-size: 22px; max-width: none; }
+}
+
+/* The banner reuses the roadmap's "nothing below is evidence" voice, turned up
+   because here it applies to the entire page rather than one section. */
+.eng-goal-warning {
+  background: rgba(209, 154, 58, 0.05);
+  border-left-width: 3px;
+  padding: 14px 16px;
+  border-radius: 0 4px 4px 0;
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 46px;
+}
+.eng-goal-warning strong { color: var(--yardstick); }
+
+/* ─── Ladder diagram ─────────────────────────────────────── */
+
+.eng-ladder {
+  margin: 26px 0 8px;
+  padding: 18px 10px 10px;
+  background: linear-gradient(180deg, var(--surface) 0%, rgba(16, 16, 24, 0.35) 100%);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.eng-ladder svg { display: block; width: 100%; height: auto; }
+.eng-ladder figcaption {
+  margin-top: 12px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.eng-ladder-label {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  fill: #c9c9d6;
+}
+.eng-ladder-label.done { fill: var(--deployment); }
+.eng-ladder-label.goal { fill: #c9a6f5; font-size: 15px; }
+.eng-ladder-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+/* Grade tags on the unbuilt rungs. Same monotonic fade as the dashes they sit
+   under, so the word and the line agree about how settled each one is. */
+.eng-ladder-grade {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  fill: #a97cf5;
+}
+.eng-ladder-grade.next { fill-opacity: 0.95; }
+.eng-ladder-grade.planned { fill-opacity: 0.68; }
+.eng-ladder-grade.research { fill-opacity: 0.52; }
+
+/* Sensor track: modality coverage, on its own axis under the ladder. */
+.eng-ladder-lane {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  fill: #c9a6f5;
+}
+.eng-ladder-lane.done { fill: var(--deployment); }
+.eng-ladder-lane.dim { fill-opacity: 0.75; }
+
+.eng-ladder-here,
+.eng-ladder-axis {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  fill: var(--muted);
+}
+
+/* ─── The thesis pull-quote ──────────────────────────────── */
+
+.eng-goal-thesis {
+  margin: 22px 0 24px;
+  padding: 22px 26px;
+  background: rgba(var(--accent-rgb), 0.07);
+  border: 1px solid rgba(var(--accent-rgb), 0.28);
+  border-radius: 6px;
+}
+.eng-goal-thesis p {
+  margin: 0 !important;
+  font-size: 18px;
+  line-height: 1.55;
+  color: #ded8f2;
+  max-width: 68ch;
+}
+.eng-goal-thesis strong { color: #fff; font-weight: 500; }
+
+/* ─── Nearest concrete step ──────────────────────────────── */
+
+.eng-goal-step {
+  margin: 20px 0 22px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid #b98ee0;
+  border-radius: 0 4px 4px 0;
+}
+.eng-goal-step-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.eng-goal-step-mod {
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+/* Dashed, because the shared space is the part that does not exist yet. */
+.eng-goal-step-space {
+  padding: 7px 15px;
+  border: 1px dashed rgba(var(--accent-rgb), 0.55);
+  border-radius: 4px;
+  font-size: 13px;
+  color: #c9a6f5;
+  background: rgba(var(--accent-rgb), 0.06);
+}
+.eng-goal-step-arrow { color: var(--muted); font-size: 14px; }
+.eng-goal-step .eng-note { margin: 0 !important; }
+
+/* ─── Falsifiers ─────────────────────────────────────────── */
+
+.eng-goal-risks {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin-top: 18px;
+}
+.eng-goal-risks article {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.eng-goal-risks h3 {
+  font-size: 14px !important;
+  color: var(--yardstick);
+  margin-bottom: 8px;
+}
+.eng-goal-risks p {
+  font-size: 13.5px !important;
+  color: #a0a0b0;
+  margin: 0 !important;
+  line-height: 1.68;
+}
+
+/* ─── Nav: the goal is the front door ────────────────────── */
+
+/* A hairline between the destination and the details, so the nav reads as
+   "the goal, then everything that serves it" rather than six peer pages. */
+.eng-nav-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  display: inline-block;
+}
+
+/* ─── Landing handoff: argument ends, evidence begins ────── */
+
+.eng-handoff { padding-top: 8px; }
+
+/* The seam of the whole site. Everything above it is intent and everything
+   below it is measured, and that transition deserves to be visible rather
+   than inferred from a change of tone. */
+.eng-handoff-rule {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 8px 0 34px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+.eng-handoff-rule::before,
+.eng-handoff-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+.eng-handoff-rule::before {
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.45));
+}
+.eng-handoff-rule::after {
+  background: linear-gradient(90deg, rgba(58, 209, 154, 0.45), transparent);
+}
+.eng-handoff-rule span { white-space: nowrap; }
+
+.eng-handoff-lead { margin-top: 22px !important; }
+
+@media (max-width: 640px) {
+  .eng-handoff-rule { font-size: 9px; letter-spacing: 1px; }
+  .eng-handoff-rule span { white-space: normal; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Architecture page — the two memory systems, the eight paths,
+   the Conductor and the loop. All of it unbuilt, and the styling
+   says so: dashed borders throughout, purple rather than green.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Onward pointer at the end of the build log ─────────── */
+
+.eng-onward-rule {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 22px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+}
+.eng-onward-rule::before,
+.eng-onward-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.4), transparent);
+}
+.eng-onward-rule span { white-space: nowrap; }
+.eng-onward-link { font-size: 14px !important; }
+
+/* ─── Two memory systems ─────────────────────────────────── */
+
+.eng-memory-pair {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  margin: 20px 0 6px;
+}
+.eng-memory {
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px dashed rgba(var(--accent-rgb), 0.45);
+  border-radius: 6px;
+}
+.eng-memory-kind {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #b98ee0;
+  margin-bottom: 8px;
+}
+.eng-memory h3 { font-size: 17px !important; color: #fff; margin-bottom: 10px; }
+.eng-memory p { font-size: 14px !important; color: #a8a8b8; }
+/* What each one CANNOT do, stated as plainly as what it can — the pair only
+   justifies itself if both limits are visible. */
+.eng-memory-limit {
+  margin: 12px 0 0 !important;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--muted) !important;
+  font-size: 13px !important;
+}
+.eng-memory-limit span {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--yardstick);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  margin-right: 6px;
+}
+
+/* ─── Architecture diagram ───────────────────────────────── */
+
+.eng-arch-figure {
+  margin: 24px 0 10px;
+  padding: 16px 10px 10px;
+  background: linear-gradient(180deg, var(--surface) 0%, rgba(16, 16, 24, 0.35) 100%);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.eng-arch-figure svg { display: block; width: 100%; height: auto; }
+.eng-arch-figure figcaption {
+  margin-top: 10px;
+  padding: 0 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.eng-arch-box rect {
+  fill: rgba(16, 16, 24, 0.9);
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+.eng-arch-box rect.mem {
+  fill: rgba(124, 58, 237, 0.07);
+  stroke: rgba(169, 124, 245, 0.55);
+}
+.eng-arch-box rect.decide {
+  fill: rgba(124, 58, 237, 0.12);
+  stroke: rgba(201, 166, 245, 0.7);
+}
+
+.eng-arch-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  fill: #d8d8e4;
+}
+.eng-arch-title.mem { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 1.2px; fill: #c9a6f5; }
+.eng-arch-title.decide { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; letter-spacing: 1.4px; fill: #ded1f7; }
+.eng-arch-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+
+.eng-arch-flow path {
+  fill: none;
+  stroke: #a97cf5;
+  stroke-width: 1.6;
+  stroke-dasharray: 6 4;
+  opacity: 0.8;
+}
+.eng-arch-flow .faint { opacity: 0.45; }
+.eng-arch-flow.deferred path { stroke-dasharray: 2 6; opacity: 0.5; }
+/* Path 2 is the only claim on the diagram worth arguing with, so it gets the
+   one solid line and the colour the rest of the log reserves for real things. */
+.eng-arch-flow.key path { stroke: #3ad19a; stroke-dasharray: none; stroke-width: 2.2; opacity: 1; }
+
+.eng-arch-chip circle {
+  fill: #0a0a0f;
+  stroke: #a97cf5;
+  stroke-width: 1.2;
+}
+.eng-arch-chip text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  fill: #c9a6f5;
+}
+.eng-arch-chip.key circle { stroke: #3ad19a; stroke-width: 1.8; }
+.eng-arch-chip.key text { fill: #3ad19a; font-weight: 600; }
+
+/* ─── The eight paths ────────────────────────────────────── */
+
+.eng-paths {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin-top: 20px;
+}
+.eng-path-group {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.eng-path-kind {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+.eng-path-kind.write { color: #c9a6f5; }
+.eng-path-kind.read { color: #8fb8ff; }
+.eng-path-kind.feedback { color: var(--yardstick); }
+.eng-path-kind.deferred { color: var(--dim); }
+
+.eng-path-list { margin: 0; padding-left: 20px; }
+.eng-path-list li {
+  font-size: 13.5px;
+  color: #a0a0b0;
+  line-height: 1.62;
+  margin-bottom: 10px;
+}
+.eng-path-list li::marker {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--muted);
+  font-size: 12px;
+}
+.eng-path-list li.key { color: #c5c5d4; }
+.eng-path-list li.key::marker { color: var(--deployment); }
+.eng-path-name {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  color: #e0e0e0;
+  margin-bottom: 2px;
+}
+
+/* ─── The falsifiable loop ───────────────────────────────── */
+
+.eng-loop {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin: 20px 0;
+}
+.eng-loop-step {
+  display: flex;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px dashed rgba(var(--accent-rgb), 0.35);
+  border-radius: 5px;
+  font-size: 13.5px;
+  color: #a0a0b0;
+  line-height: 1.6;
+}
+.eng-loop-step strong { color: #d6d6e2; }
+.eng-loop-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  color: #a97cf5;
+  opacity: 0.75;
+}
+
+/* ─── Design commitments ─────────────────────────────────── */
+
+.eng-commitments {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  margin-top: 18px;
+}
+.eng-commitments article {
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid rgba(var(--accent-rgb), 0.55);
+  border-radius: 0 5px 5px 0;
+}
+.eng-commitments h3 {
+  font-size: 14.5px !important;
+  color: #e4e4ee;
+  margin-bottom: 8px;
+}
+.eng-commitments p {
+  font-size: 13.5px !important;
+  color: #a0a0b0;
+  margin: 0 !important;
+  line-height: 1.68;
+}
+
+/* ─── Closing line ───────────────────────────────────────── */
+
+.eng-closing { border-top: 1px solid var(--border); padding-top: 26px; }
+.eng-closing-line {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 21px;
+  font-weight: 300;
+  line-height: 1.5;
+  color: #d8d8e4;
+  max-width: 46ch;
+  margin-bottom: 14px !important;
 }

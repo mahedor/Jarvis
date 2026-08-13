@@ -19,6 +19,12 @@ tools/images/*
 !tools/images/.gitkeep
 tools/output/
 
+# Generated benchmark figures: the SVGs are committed (the engineering log
+# serves them), the PNGs are the same plot as a raster and would churn as a
+# binary blob on every regeneration. Rebuild them with
+# tools/plot_recognition_curves.py whenever a non-browser copy is needed.
+results/*.png
+
 # QA screenshots — WRITE-ONLY. test_qa.py saves one per state transition for
 # eyeballing after a run; nothing reads them back, and they are not visual
 # regression baselines (the tests assert on the DOM). Tracking them meant ~1.1 MB

@@ -148,6 +148,124 @@ def test_explorer_payload_is_json_serializable():
     json.dumps(data.explorer_payload(_recognition_run()))
 
 
+def _sweep_cell(points):
+    """A recognition cell carrying a recorded sweep, for the exact-path tests."""
+    cell = {
+        "counts": {"genuine": 10, "impostor": 20, "stranger": 30},
+        "curves": {"sweep": points},
+        "distributions": {
+            "genuine": {"histogram": {"edges": [0.0, 0.5, 1.0], "counts": [1, 9]}},
+            "impostor": {"histogram": {"edges": [0.0, 0.5, 1.0], "counts": [8, 2]}},
+            "stranger": {"histogram": {"edges": [0.0, 0.5, 1.0], "counts": [10, 0]}},
+        },
+    }
+    return {"timestamp": "T10", "aggregations_run": ["multi-reference"],
+            "results": [{"encoder": "arcface", "latency": {"mean_ms": 1.0},
+                         "aggregations": {"multi-reference": cell}}]}
+
+
+def test_explorer_payload_flattens_a_sweep_into_parallel_arrays():
+    run = _sweep_cell([
+        {"threshold": -1.0, "tp": 10, "fp": 50},
+        {"threshold": -0.99, "tp": 10, "fp": 49},
+        {"threshold": -0.98, "tp": 9, "fp": 40},
+    ])
+    exact = data.explorer_payload(run)["arcface|multi-reference"]["exact"]
+    assert exact["min"] == -1.0
+    assert exact["step"] == 0.01
+    assert exact["tp"] == [10, 10, 9]
+    assert exact["fp"] == [50, 49, 40]
+    assert exact["genuine_total"] == 10
+    assert exact["nonmate_total"] == 50  # impostor + stranger
+
+
+def test_explorer_payload_omits_exact_counts_for_a_run_without_curves():
+    """The absence is the fallback signal; a half-filled block would not be."""
+    payload = data.explorer_payload(_recognition_run())
+    assert "exact" not in payload["arcface|multi-reference"]
+    assert not data.explorer_is_exact(payload)
+
+
+def test_explorer_is_exact_only_when_every_cell_has_a_sweep():
+    run = _sweep_cell([{"threshold": -1.0, "tp": 1, "fp": 1},
+                       {"threshold": -0.99, "tp": 1, "fp": 1}])
+    assert data.explorer_is_exact(data.explorer_payload(run))
+
+    # One cell missing its sweep is enough to put the page back on the caveat.
+    run["aggregations_run"].append("medoid")
+    run["results"][0]["aggregations"]["medoid"] = {
+        "distributions": {"genuine": {"histogram": {"edges": [0.0, 1.0], "counts": [5]}}},
+    }
+    assert not data.explorer_is_exact(data.explorer_payload(run))
+
+
+def test_explorer_is_exact_is_false_for_an_empty_payload():
+    """No cells is not 'all cells are exact' — the page must not claim it."""
+    assert not data.explorer_is_exact({})
+
+
+def _curve_run():
+    """A run carrying everything the client-side curves need."""
+    run = _sweep_cell([{"threshold": -1.0, "tp": 10, "fp": 50},
+                       {"threshold": -0.99, "tp": 9, "fp": 40}])
+    metrics = run["results"][0]["aggregations"]["multi-reference"]
+    metrics["curves"].update({
+        "roc_auc": 0.994,
+        "average_precision": 0.981,
+        "markers": {
+            "tar@far=0.01": {"threshold": 0.21, "tar": 0.98, "far": 0.0099,
+                             "recall": 0.98, "precision": 0.66},
+            "tar@far=0.001": {"threshold": 0.28, "tar": 0.97, "far": 0.0009,
+                              "recall": 0.97, "precision": 0.95},
+            "best_f1": {"threshold": 0.34, "tar": 0.97, "far": 0.0,
+                        "recall": 0.97, "precision": 1.0},
+        },
+    })
+    return run
+
+
+def test_curve_summary_carries_the_scalars_and_both_shipped_markers():
+    cell = data.explorer_payload(_curve_run())["arcface|multi-reference"]
+    assert cell["curve"]["auc"] == 0.994
+    assert cell["curve"]["ap"] == 0.981
+    # The two markers the page names, mapped off their artifact keys.
+    assert cell["curve"]["markers"]["yardstick"]["threshold"] == 0.21
+    assert cell["curve"]["markers"]["deployment"]["threshold"] == 0.34
+    assert cell["curve"]["markers"]["deployment"]["precision"] == 1.0
+    assert data.explorer_has_curves(data.explorer_payload(_curve_run()))
+
+
+def test_curve_summary_is_withheld_when_a_shipped_marker_is_missing():
+    """Half a marker pair cannot be drawn, so the cell must not claim to be
+    plottable — the section hides rather than rendering a curve with no
+    operating point on it."""
+    run = _curve_run()
+    del run["results"][0]["aggregations"]["multi-reference"]["curves"]["markers"]["best_f1"]
+    payload = data.explorer_payload(run)
+    assert "curve" not in payload["arcface|multi-reference"]
+    assert not data.explorer_has_curves(payload)
+
+
+def test_a_run_without_curves_cannot_be_plotted():
+    assert not data.explorer_has_curves(data.explorer_payload(_recognition_run()))
+    assert not data.explorer_has_curves({})
+
+
+def test_recognition_page_renders_the_interactive_curve_controls(client):
+    """The curves are a control surface, not a picture of one."""
+    html = client.get("/engineering/recognition").get_data(as_text=True)
+    for element in ("curve-aggregation", "curve-threshold", "curve-log",
+                    "curve-pr", "curve-roc", "curve-explorer.js"):
+        assert element in html
+
+
+def test_curve_section_hides_when_the_run_predates_curves(client, monkeypatch):
+    monkeypatch.setattr(data, "load_runs", lambda path: [_recognition_run()])
+    html = client.get("/engineering/recognition").get_data(as_text=True)
+    assert "The curves behind the numbers" not in html
+    assert 'id="curves"' not in html
+
+
 # ══════════════════════════════════════════════════════════════════
 # Sampling-bias evidence (the overview page's opening argument).
 # ══════════════════════════════════════════════════════════════════
@@ -355,6 +473,100 @@ def test_sweeps_are_only_reported_when_present():
 
 
 # ══════════════════════════════════════════════════════════════════
+# Enrollment curation.
+# ══════════════════════════════════════════════════════════════════
+
+def _curation_manifest():
+    """Two people photographed inside one person's folder, plus a stranger.
+
+    Shaped like the real bucket: folder "alice" holds photos of Alice AND of
+    Bob, so a folder-derived label would merge them.
+    """
+    def crop(cluster, folder, photo):
+        return {"cluster": cluster, "source_folder": folder,
+                "source_photo": photo, "filename": f"{photo}_{cluster}.jpg"}
+
+    return {
+        "generated_at": "2026-01-01T00:00:00",
+        "settings": {"min_cluster_size": 6, "encoder": "arcface"},
+        "counts": {"photos_read": 4, "crops_kept": 13},
+        "crops": (
+            [crop(0, "alice", f"a{i}") for i in range(7)]        # Alice
+            + [crop(1, "alice", f"a{i}") for i in range(3)]      # Bob, in her photos
+            + [crop(2, "bob", f"b{i}") for i in range(2)]        # Bob's own folder
+            + [crop(-1, "alice", "a9")]                          # a passer-by
+        ),
+    }
+
+
+def test_curation_clusters_counts_noise_separately():
+    clusters, noise = data.curation_clusters(_curation_manifest())
+    assert noise == 1
+    assert [c["id"] for c in clusters] == [0, 1, 2]
+    assert [c["crops"] for c in clusters] == [7, 3, 2]
+
+
+def test_curation_never_exposes_real_folder_names():
+    """The manifest holds people's names; the page's argument never needs them."""
+    clusters, _ = data.curation_clusters(_curation_manifest())
+    rendered = str(clusters)
+    assert "alice" not in rendered and "bob" not in rendered
+    assert "folder A" in rendered
+
+
+def test_folder_labels_would_have_merged_two_identities():
+    """The load-bearing claim of the flat-bucket decision.
+
+    Clusters 0 and 1 are different people but every crop of both came out of
+    the same folder, so a majority vote would file one under the other's name.
+    """
+    clusters, _ = data.curation_clusters(_curation_manifest())
+    collisions, mislabelled = data.folder_label_collisions(clusters)
+
+    assert len(collisions) == 1
+    assert collisions[0]["identities"] == 2
+    assert collisions[0]["keeps"] == 7        # the larger keeps the name
+    assert mislabelled == 3                   # the smaller is absorbed
+
+
+def test_no_collision_when_each_folder_owns_one_identity():
+    clusters, _ = data.curation_clusters({
+        "crops": [{"cluster": 0, "source_folder": "x", "source_photo": "p1"},
+                  {"cluster": 1, "source_folder": "y", "source_photo": "p2"}],
+    })
+    collisions, mislabelled = data.folder_label_collisions(clusters)
+    assert collisions == [] and mislabelled == 0
+
+
+def test_curation_page_says_nothing_when_the_manifest_is_absent(monkeypatch):
+    """data/ is gitignored, so a fresh clone has no run to describe."""
+    monkeypatch.setattr(data, "CURATION_MANIFEST", data.REPO_ROOT / "nope.json")
+    assert data.curation_page_data()["curation"] is None
+
+
+def test_the_rendered_curation_page_leaks_no_real_folder_names(client):
+    """Guards the anonymisation end-to-end, on this machine's actual manifest.
+
+    The source folders are named after real people. If the page ever prints one
+    of them, that is a privacy regression, not a formatting one.
+    """
+    manifest = data.load_document(data.CURATION_MANIFEST)
+    if not manifest.get("crops"):
+        pytest.skip("no curation manifest on this machine")
+
+    html = client.get("/engineering/enrollment").get_data(as_text=True)
+    for folder in {c.get("source_folder") for c in manifest["crops"]}:
+        if folder and folder != ".":
+            assert folder not in html, f"source folder {folder!r} reached the page"
+
+
+def test_curation_page_renders_the_empty_state(client, monkeypatch):
+    monkeypatch.setattr(data, "CURATION_MANIFEST", data.REPO_ROOT / "nope.json")
+    html = client.get("/engineering/enrollment").get_data(as_text=True)
+    assert "No curation run on this machine" in html
+
+
+# ══════════════════════════════════════════════════════════════════
 # Loading degrades instead of raising.
 # ══════════════════════════════════════════════════════════════════
 
@@ -400,8 +612,9 @@ def client(monkeypatch_module=None):
     return jarvis_web.app.test_client()
 
 
-@pytest.mark.parametrize("url", ["/engineering/", "/engineering/routing",
-                                 "/engineering/detection", "/engineering/recognition"])
+@pytest.mark.parametrize("url", ["/engineering/", "/engineering/architecture",
+                                 "/engineering/routing", "/engineering/detection",
+                                 "/engineering/recognition", "/engineering/enrollment"])
 def test_pages_render(client, url):
     response = client.get(url)
     assert response.status_code == 200
@@ -451,6 +664,81 @@ def test_sweep_resolution_is_withheld_when_runs_disagree(monkeypatch):
     assert data.detection_page_data()["sweep_points"] is None
 
 
+def _flat(html):
+    """Rendered HTML with its line wrapping collapsed, so assertions can quote
+    a sentence the way it reads rather than the way it happens to wrap."""
+    return " ".join(html.split())
+
+
+def test_the_overview_never_hardcodes_a_threshold_it_could_read(client):
+    """No literal copy of either recognition threshold in the overview source.
+
+    Same failure class as the min_box_size that had to be reverse engineered
+    and the shipped marker drawn on curves it was never measured on: a number
+    typed in once is a number that can silently stop matching the run it
+    claims to come from. The overview cites both thresholds in three places,
+    and all three have to resolve from the artifact.
+    """
+    winner = data.overview_page_data()["recognition_winner"]
+    if not winner:
+        pytest.skip("no recognition run recorded")
+
+    template = (data.REPO_ROOT / "demo" / "templates" / "engineering"
+                / "index.html").read_text(encoding="utf-8")
+    for key in ("deployment_threshold", "yardstick_threshold"):
+        literal = "%.3f" % winner[key]
+        assert literal not in template, (
+            f"{literal} is typed into index.html; render it from "
+            f"recognition_winner.{key} instead"
+        )
+
+
+def test_the_overview_renders_the_locked_recognition_threshold(client):
+    """...and the value that reaches the page is the artifact's."""
+    winner = data.overview_page_data()["recognition_winner"]
+    if not winner:
+        pytest.skip("no recognition run recorded")
+
+    html = _flat(client.get("/engineering/").get_data(as_text=True))
+    expected = "%.3f" % winner["deployment_threshold"]
+    assert f'<span class="eng-lock-number"> {expected} </span>' in html \
+        or f'<span class="eng-lock-number">{expected}</span>' in html
+
+
+def test_the_roadmap_is_marked_as_unmeasured(client):
+    """The one section with no artifact behind it has to say so, loudly.
+
+    The whole page's credibility rests on every claim being backed by a run.
+    A roadmap that reads like the rest of the page borrows that credibility
+    without earning it.
+    """
+    html = _flat(client.get("/engineering/").get_data(as_text=True))
+    assert "What's next" in html
+    assert "Everything above this point is backed by an artifact. "\
+           "Nothing below it is." in html
+    assert 'class="eng-badge planned">not measured' in html
+
+
+def test_the_roadmap_comes_after_the_measured_work(client):
+    html = client.get("/engineering/").get_data(as_text=True)
+    assert html.index("What's next") > html.index("The measurements")
+
+
+def test_the_roadmap_quotes_locked_thresholds_instead_of_new_ones(client):
+    """The planned pipeline cites two operating points. Both must be the ones
+    already justified on this page, not numbers typed into the roadmap."""
+    winner = data.overview_page_data()["recognition_winner"]
+    if not winner:
+        pytest.skip("no recognition run recorded")
+
+    html = client.get("/engineering/").get_data(as_text=True)
+    pipeline = html[html.index("<pre class=\"eng-code\">frame"):]
+    pipeline = pipeline[:pipeline.index("</pre>")]
+    assert "%.3f" % winner["deployment_threshold"] in pipeline
+    assert winner["encoder"] in pipeline
+    assert "MQTT" in pipeline
+
+
 def test_routing_page_states_the_accuracy_gap(client):
     """Latency is not accuracy, and the page must not let that slide."""
     html = client.get("/engineering/routing").get_data(as_text=True)
@@ -470,6 +758,160 @@ def test_log_is_not_only_face_work(client):
     assert "/engineering/routing" in html
 
 
+# ══════════════════════════════════════════════════════════════════
+# Direction page — the destination. The tests here are almost entirely
+# about ONE property: it must never read as something that was built or
+# measured. Everywhere else in this suite a page is wrong if it hides a
+# result; this page is wrong if it implies one.
+# ══════════════════════════════════════════════════════════════════
+
+def test_measured_work_leads_and_ambition_does_not(client):
+    """THE ordering constraint, in one test.
+
+    The same architecture prose reads as a pitch when it opens the log and as
+    a conclusion when it closes one. So the landing page must show measured
+    work and must NOT be where the destination is argued — that lives last.
+    """
+    html = client.get("/engineering/").get_data(as_text=True)
+    assert "eng-decision" in html                    # the judgment calls
+    assert "eng-lock-number" in html                 # the locked operating points
+    # The unbuilt system is named on the way out, not on the way in.
+    assert html.index("Decisions") < html.index("where all of it is heading")
+    assert "Two memory systems" not in html
+    assert "The Conductor" not in html
+
+
+def test_architecture_is_last_in_the_nav(client):
+    """Nav order is reading order, and the one page with no artifact behind it
+    comes after every page that has one."""
+    html = client.get("/engineering/").get_data(as_text=True)
+    nav = html[html.index('class="eng-nav"'):html.index("</nav>")]
+    positions = [nav.index(f'/engineering/{p}') for p in
+                 ("routing", "detection", "enrollment", "recognition", "architecture")]
+    assert positions == sorted(positions)
+    assert nav.index("/engineering/architecture") == max(positions)
+
+
+def test_architecture_page_states_it_is_unmeasured_up_front(client):
+    """A page of confident prose about behavioural prediction has to say, in
+    its first screen, that none of it has been built."""
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    assert "This is the argument. The evidence was the rest of the log." in html
+    assert 'class="eng-badge measured"' not in html
+
+
+def test_architecture_page_shows_both_memory_systems(client):
+    """Neither replaces the other, so neither may be dropped — and the pair
+    only justifies itself if each one's limit is stated too."""
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    assert "Embedding space" in html and "Knowledge graph" in html
+    assert html.count('class="eng-memory-limit"') == 2
+
+
+def test_architecture_page_names_all_eight_paths(client):
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    for path in ("Transcript", "Resonance", "Perception", "Reflex",
+                 "Reasoning", "Intuition", "Truth", "Reflection"):
+        assert path in html, path
+    for kind in ("write", "read", "feedback", "deferred"):
+        assert f'eng-path-kind {kind}' in html, kind
+
+
+def test_resonance_is_singled_out(client):
+    """Path 2 is the least obvious and the most load-bearing: clustering
+    discovers graph nodes no conversation ever stated. If it reads as one of
+    eight equals, the diagram has failed to make its own argument."""
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    assert "eng-arch-flow key" in html          # the one solid arrow
+    assert "eng-arch-chip key" in html
+    assert "no single conversation ever stated" in html
+
+
+def test_architecture_page_separates_deciding_from_speaking(client):
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    assert "The Conductor decides. The LLM speaks." in html
+
+
+def test_architecture_page_carries_the_standing_commitments(client):
+    """Six positions that were invisible on the site before, each one a thing
+    a reader would otherwise have to be told in person."""
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    for commitment in ("Backbone stable", "Privacy is the representation",
+                       "data-history-bound", "Rules ship before learning",
+                       "Classic ML has three permanent roles",
+                       "brain-systems decomposition"):
+        assert commitment in html, commitment
+
+
+def test_architecture_page_keeps_the_prediction_loop_falsifiable(client):
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    assert "eng-loop-step" in html
+    assert "five cadences" in html
+
+
+def test_ladder_grades_the_unbuilt_rungs(client):
+    """One dashed style for all three flattened 'decided but unbuilt' into the
+    same bucket as 'open research bet'."""
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    for grade in ("next · thresholds locked", "planned · phases 3–5",
+                  "research · open bet"):
+        assert grade in html, grade
+
+
+def test_ladder_shows_where_the_other_sensors_enter(client):
+    """The goal is multimodal; a camera-only ladder hid that entirely."""
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    assert "+ mmWave radar" in html
+    assert "+ wearables" in html
+
+
+def test_ladder_caption_names_the_real_selection_metric(client):
+    """The winner was crowned on TAR@FAR, not on identification accuracy, and
+    the non-mate set was impostors AND strangers by design."""
+    html = client.get("/engineering/architecture").get_data(as_text=True)
+    flat = " ".join(html.split())
+    assert "TAR at FAR" in flat
+    assert "3,325 non-mate comparisons" in flat
+    assert "3,000 stranger and 325 impostor" in flat
+
+
+def test_direction_data_survives_empty_artifacts(monkeypatch):
+    """A fresh clone with no runs must still render the destination — the goal
+    does not depend on having measured anything yet."""
+    monkeypatch.setattr(data, "load_runs", lambda path: [])
+    payload = data.direction_page_data()
+    assert payload["recognition_winner"] is None
+    assert payload["detection_images"] == 0
+    assert payload["detection_datasets"] == []
+    assert payload["recognition_counts"] is None
+
+
+def test_architecture_page_renders_without_any_runs(client, monkeypatch):
+    monkeypatch.setattr(data, "load_runs", lambda path: [])
+    response = client.get("/engineering/architecture")
+    assert response.status_code == 200
+
+
+def test_every_page_offers_the_architecture(client):
+    for path in ("/engineering/", "/engineering/detection",
+                 "/engineering/recognition", "/engineering/routing"):
+        html = client.get(path).get_data(as_text=True)
+        assert "/engineering/architecture" in html, path
+
+
+def test_the_old_urls_still_land(client):
+    """Both of these were real for part of a day while the ordering moved."""
+    assert client.get("/engineering/decisions").headers["Location"].endswith("/engineering/")
+    assert client.get("/engineering/direction").headers["Location"].endswith("/architecture")
+
+
+def test_index_links_the_roadmap_anchor_the_architecture_promises(client):
+    overview = client.get("/engineering/").get_data(as_text=True)
+    architecture = client.get("/engineering/architecture").get_data(as_text=True)
+    assert 'id="roadmap"' in overview
+    assert "#roadmap" in architecture
+
+
 def test_recognition_page_labels_both_thresholds(client):
     """The same distinction test_benchmark_report guards in the terminal."""
     html = client.get("/engineering/recognition").get_data(as_text=True)
@@ -478,10 +920,55 @@ def test_recognition_page_labels_both_thresholds(client):
     assert "max-F1" in html
 
 
-def test_recognition_page_states_the_binned_caveat(client):
-    """The explorer is an approximation and must never imply otherwise."""
+def test_recognition_page_claims_exactness_only_with_a_recorded_sweep(client):
+    """The live artifact carries a sweep, so the explorer is exact and says so.
+
+    The claim and the caveat are a matched pair: exactly one of them belongs on
+    the page at a time, and which one is decided by the data, never by an
+    editor remembering to update the prose.
+    """
+    html = client.get("/engineering/recognition").get_data(as_text=True)
+    assert "readout is <strong>exact</strong>" in html
+    assert "binned approximation" not in html
+
+
+def test_recognition_page_states_the_binned_caveat_without_a_sweep(client, monkeypatch):
+    """A run predating curve persistence must admit the explorer is estimating."""
+    monkeypatch.setattr(data, "load_runs", lambda path: [_recognition_run()])
     html = client.get("/engineering/recognition").get_data(as_text=True)
     assert "binned approximation" in html
+    assert "readout is <strong>exact</strong>" not in html
+
+
+def test_explorer_names_the_shipped_encoder_and_threshold(client):
+    """The explorer must say what was actually shipped, not just offer a slider.
+
+    A threshold with no model beside it is unactionable, and a slider with no
+    marked starting point invites reading any position as the decision.
+    """
+    html = client.get("/engineering/recognition").get_data(as_text=True)
+    shipped = html[html.find('class="eng-shipped"'):][:600]
+    assert "arcface" in shipped
+    assert "multi-reference" in shipped
+    assert "0.342" in shipped
+
+
+def test_explorer_is_given_the_shipped_marker_provenance(client):
+    """The marker needs BOTH halves of its provenance, not just the number.
+
+    The encoder decides whether the line is drawn at all (a cosine score does
+    not transfer between embedding spaces) and the aggregation decides whether
+    it is drawn live or dim. A threshold shipped without them would be drawn
+    everywhere, which is the bug this scoping exists to prevent.
+    """
+    html = client.get("/engineering/recognition").get_data(as_text=True)
+    # Unrounded on purpose: the marker is drawn at the threshold that actually
+    # ships, and only rounded for its label. Feeding it 0.342 would place the
+    # line a thousandth away from the value the gallery decides with.
+    assert "data-shipped='0.3416'" in html
+    assert "data-shipped-encoder='arcface'" in html
+    assert "data-shipped-aggregation='multi-reference'" in html
+    assert 'id="explorer-scope"' in html
 
 
 def test_recognition_page_embeds_explorer_data(client):
