@@ -76,6 +76,10 @@ from recognition_metrics import (
     dprime,
     summarize_scores,
     histogram,
+    roc_auc,
+    average_precision,
+    score_sweep,
+    operating_point,
 )
 
 RESULTS_DIR = REPO_ROOT / "results"
@@ -85,6 +89,7 @@ DEFAULT_LFW_DIR = REPO_ROOT / "data" / "lfw"
 
 DEFAULT_ENCODERS = ["arcface", "facenet512", "vgg-face", "adaface", "dlib"]
 FAR_TARGETS = [0.01, 0.001]          # TAR is reported at each of these FARs
+SWEEP_STEPS = 200                    # grid intervals for the stored ROC/PR sweep
 PRIMARY_FAR = "0.01"                 # the table ranks encoders by TAR @ this FAR
 PRIMARY_FAR_LABEL = f"{float(PRIMARY_FAR) * 100:g}%"   # "1%", for the report text
 
@@ -254,16 +259,36 @@ def score_aggregation(person_data, stranger_embs, build_fn, score_fn, hist_bins)
     def describe(values):
         return {"summary": summarize_scores(values), "histogram": histogram(values, hist_bins)}
 
+    # Keep the unrounded TAR@FAR results: the thresholds feed the curve markers
+    # below, and a 4-dp threshold would place the marker off its own curve.
+    far_raw = {f"{far}": tar_at_far(genuine, nonmate, far) for far in FAR_TARGETS}
+    far_results = {
+        key: {k: round(v, 4) for k, v in value.items()} for key, value in far_raw.items()
+    }
+
+    # The ROC/PR curves behind the scalars above. The sweep is a fixed grid
+    # (comparable across encoders, small enough to store); the scalars and the
+    # shipped-threshold markers are computed at full precision off-grid, so the
+    # grid resolution never moves a number anyone quotes.
+    curves = {
+        "roc_auc": round(roc_auc(genuine, nonmate), 4),
+        "average_precision": round(average_precision(genuine, nonmate), 4),
+        "sweep": score_sweep(genuine, nonmate, SWEEP_STEPS),
+        "markers": {
+            **{f"tar@far={far}": operating_point(genuine, nonmate, far_raw[f"{far}"]["threshold"])
+               for far in FAR_TARGETS},
+            "best_f1": operating_point(genuine, nonmate, f1_thr),
+        },
+    }
+
     return {
         "rank1_accuracy": round(rank1_accuracy(score_matrix, np.asarray(true_idx)), 4),
-        "tar_at_far": {
-            f"{far}": {k: round(v, 4) for k, v in tar_at_far(genuine, nonmate, far).items()}
-            for far in FAR_TARGETS
-        },
+        "tar_at_far": far_results,
         "f1_threshold": {
             "threshold": round(f1_thr, 4), "precision": round(f1_p, 4),
             "recall": round(f1_r, 4), "f1": round(f1, 4),
         },
+        "curves": curves,
         "separation": {
             "dprime_vs_impostor": round(dprime(genuine, impostor), 4),
             "dprime_vs_stranger": round(dprime(genuine, stranger), 4),

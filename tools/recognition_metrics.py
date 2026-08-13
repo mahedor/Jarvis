@@ -43,6 +43,10 @@ __all__ = [
     "dprime",
     "summarize_scores",
     "histogram",
+    "roc_auc",
+    "average_precision",
+    "score_sweep",
+    "operating_point",
 ]
 
 
@@ -354,6 +358,193 @@ def summarize_scores(values):
         "p75": float(p75),
         "p95": float(p95),
         "max": float(array.max()),
+    }
+
+
+def roc_auc(genuine, nonmate):
+    """Area under the ROC curve, computed exactly from the score populations.
+
+    Mirrors detection_metrics.roc_auc, but takes the two score populations
+    directly instead of pre-built (fpr, tpr) arrays — the same convention the
+    rest of this module follows. Uses the Mann-Whitney identity rather than
+    integrating a sampled curve:
+        AUC = P(genuine > nonmate) + 0.5 * P(genuine == nonmate)
+    which is EXACT (no resampling error) and handles ties explicitly, so a
+    stored sweep can be coarse without costing accuracy here.
+
+    Inputs:
+        genuine (array-like): genuine similarity scores (should be accepted).
+        nonmate (array-like): impostor + stranger scores (should be rejected).
+    Returns:
+        float: AUC in [0, 1]; 0.5 is chance. Returns 0.0 if either input is
+        empty (no curve exists), NOT 0.5 — an absent measurement is not chance.
+    """
+    genuine = np.asarray(genuine, dtype=np.float64)
+    nonmate = np.asarray(nonmate, dtype=np.float64)
+    if genuine.size == 0 or nonmate.size == 0:
+        return 0.0
+
+    # Rank both populations together; ties share their average rank, which is
+    # what makes the 0.5-per-tie term fall out of the rank sum automatically.
+    combined = np.concatenate([genuine, nonmate])
+    order = combined.argsort(kind="mergesort")
+    ranks = np.empty(combined.size, dtype=np.float64)
+    ranks[order] = np.arange(1, combined.size + 1, dtype=np.float64)
+
+    unique, inverse, counts = np.unique(combined, return_inverse=True, return_counts=True)
+    tie_mean = np.zeros(unique.size, dtype=np.float64)
+    np.add.at(tie_mean, inverse, ranks)
+    ranks = (tie_mean / counts)[inverse]
+
+    rank_sum = ranks[: genuine.size].sum()
+    n_pos, n_neg = float(genuine.size), float(nonmate.size)
+    return float((rank_sum - n_pos * (n_pos + 1.0) / 2.0) / (n_pos * n_neg))
+
+
+def average_precision(genuine, nonmate):
+    """Area under the precision-recall curve, exact at full score resolution.
+
+    The open-set counterpart to detection_metrics.average_precision: positives
+    are genuine scores, negatives are non-mates, and every distinct observed
+    score is a candidate "accept if score >= t" cut-off. Area is accumulated as
+    sum_k (recall[k] - recall[k-1]) * precision[k] over increasing recall.
+
+    WHY IT MATTERS MORE THAN AUC HERE. The non-mate set outnumbers the genuine
+    set by roughly 50:1 (every probe is scored against every other gallery, plus
+    500 strangers). ROC's false-positive rate divides by that large negative
+    count, so it stays flattering under imbalance; precision divides by the
+    number of scores actually ACCEPTED, so it collapses as soon as non-mates
+    start getting in. AP is therefore the honest summary of this benchmark.
+
+    Inputs:
+        genuine (array-like): genuine similarity scores.
+        nonmate (array-like): impostor + stranger similarity scores.
+    Returns:
+        float: AP in [0, 1]. Returns 0.0 if either input is empty.
+    """
+    genuine = np.asarray(genuine, dtype=np.float64)
+    nonmate = np.asarray(nonmate, dtype=np.float64)
+    if genuine.size == 0 or nonmate.size == 0:
+        return 0.0
+
+    thresholds = np.unique(np.concatenate([genuine, nonmate]))[::-1]  # high -> low
+    gen_sorted = np.sort(genuine)
+    non_sorted = np.sort(nonmate)
+
+    tp = genuine.size - np.searchsorted(gen_sorted, thresholds, side="left")
+    fp = nonmate.size - np.searchsorted(non_sorted, thresholds, side="left")
+
+    accepted = tp + fp
+    precision = np.divide(tp, accepted, out=np.zeros(tp.shape, dtype=float), where=accepted > 0)
+    recall = tp / float(genuine.size)
+
+    # Recall starts at 0 before anything is accepted; prepend that origin so the
+    # first real point contributes only its own recall increment.
+    recall = np.concatenate([[0.0], recall])
+    precision = np.concatenate([[1.0], precision])
+    return float(np.sum(np.diff(recall) * precision[1:]))
+
+
+def score_sweep(genuine, nonmate, steps=200, value_range=(-1.0, 1.0)):
+    """Resample ROC and PR onto a fixed similarity grid, for storage and plots.
+
+    WHY RESAMPLE. Same reasoning as detection_metrics.confidence_sweep: the
+    full curve carries one point per distinct score, which is the right
+    resolution for computing AUC/AP and the wrong one for a JSON artifact
+    repeated across every encoder x aggregation pair. A fixed grid over cosine's
+    [-1, 1] is a few KB and — because the grid does NOT depend on the data —
+    is directly comparable BETWEEN encoders, exactly like `histogram`'s pinned
+    range. The exact scalars (roc_auc, average_precision) are computed
+    separately at full resolution, so nothing is lost to the grid.
+
+    At each grid similarity t the point describes "accept every score >= t".
+    Grid points above the highest observed score accept nothing; precision is
+    0/0 there, i.e. UNDEFINED, and is reported as `None` rather than a
+    fabricated 0.0 so a plot can break its line instead of drawing a cliff that
+    the encoder never fell off. Recall/TAR/FAR are genuinely 0.0 at those
+    points and are reported as such.
+
+    Inputs:
+        genuine (array-like): genuine similarity scores.
+        nonmate (array-like): impostor + stranger similarity scores.
+        steps (int): number of INTERVALS spanning value_range; the grid has
+            steps + 1 points, both endpoints included.
+        value_range (tuple[float, float]): (low, high) span of the grid.
+    Returns:
+        list[dict]: one entry per grid point, ordered by INCREASING threshold,
+        each {"threshold", "tar", "far", "precision", "recall", "tp", "fp"}.
+        "tar" and "recall" are the same quantity under two names (ROC and PR
+        conventions respectively) and are both emitted so a consumer can plot
+        either curve without knowing the other's vocabulary. Empty list if
+        either population is empty.
+    """
+    genuine = np.asarray(genuine, dtype=np.float64)
+    nonmate = np.asarray(nonmate, dtype=np.float64)
+    if genuine.size == 0 or nonmate.size == 0:
+        return []
+
+    low, high = float(value_range[0]), float(value_range[1])
+    grid = np.linspace(low, high, int(steps) + 1)
+
+    gen_sorted = np.sort(genuine)
+    non_sorted = np.sort(nonmate)
+
+    # Accepted at t == everything >= t; searchsorted(side="left") counts the
+    # scores strictly below t, so size - that is the accepted count.
+    tp = genuine.size - np.searchsorted(gen_sorted, grid, side="left")
+    fp = nonmate.size - np.searchsorted(non_sorted, grid, side="left")
+
+    sweep = []
+    for threshold, tp_at, fp_at in zip(grid, tp, fp):
+        accepted = int(tp_at) + int(fp_at)
+        sweep.append({
+            "threshold": round(float(threshold), 4),
+            "tar": round(float(tp_at) / genuine.size, 6),
+            "far": round(float(fp_at) / nonmate.size, 6),
+            "precision": round(float(tp_at) / accepted, 6) if accepted > 0 else None,
+            "recall": round(float(tp_at) / genuine.size, 6),
+            "tp": int(tp_at),
+            "fp": int(fp_at),
+        })
+    return sweep
+
+
+def operating_point(genuine, nonmate, threshold):
+    """Exact curve position at ONE threshold, off the storage grid.
+
+    The thresholds this benchmark actually ships (TAR@FAR=1%, @0.1%, best-F1)
+    are data-derived and land between `score_sweep` grid points. Plotting a
+    shipped operating point by snapping it to the nearest grid similarity would
+    move the marker off the curve it is supposed to label, so markers are
+    computed here at full precision instead.
+
+    Inputs:
+        genuine (array-like): genuine similarity scores.
+        nonmate (array-like): impostor + stranger similarity scores.
+        threshold (float): the similarity cut-off to evaluate ("accept >= t").
+    Returns:
+        dict {"threshold", "tar", "far", "precision", "recall", "tp", "fp"} —
+        the same shape as one `score_sweep` entry, with `precision` None when
+        nothing is accepted. All zeros (precision None) if either input is empty.
+    """
+    genuine = np.asarray(genuine, dtype=np.float64)
+    nonmate = np.asarray(nonmate, dtype=np.float64)
+    threshold = float(threshold)
+    if genuine.size == 0 or nonmate.size == 0:
+        return {"threshold": threshold, "tar": 0.0, "far": 0.0,
+                "precision": None, "recall": 0.0, "tp": 0, "fp": 0}
+
+    tp = int(np.count_nonzero(genuine >= threshold))
+    fp = int(np.count_nonzero(nonmate >= threshold))
+    accepted = tp + fp
+    return {
+        "threshold": round(threshold, 6),
+        "tar": round(tp / genuine.size, 6),
+        "far": round(fp / nonmate.size, 6),
+        "precision": round(tp / accepted, 6) if accepted > 0 else None,
+        "recall": round(tp / genuine.size, 6),
+        "tp": tp,
+        "fp": fp,
     }
 
 
