@@ -36,7 +36,9 @@
       <span class="eng-nav-sep"></span>
       <a href="{{ url_for('engineering.architecture') }}"
          class="eng-nav-goal {% if request.endpoint == 'engineering.architecture' %}active{% endif %}">architecture</a>
-      <a href="{{ url_for('index') }}" class="eng-exit">&larr; assistant</a>
+      {%- if assistant_url %}
+      <a href="{{ assistant_url }}" class="eng-exit">&larr; assistant</a>
+      {%- endif %}
     </nav>
   </div>
 </header>
@@ -46,11 +48,18 @@
 </main>
 
 <footer class="eng-footer">
+  {%- if build_info %}
+  <p>
+    Built {{ build_info.built_at }} · commit <code>{{ build_info.commit }}</code> ·
+    artifacts last written {{ build_info.artifacts_mtime }}.
+  </p>
+  {% else %}
   <p>
     Generated from <code>results/*.json</code> at request time — rerun a
     benchmark and refresh to see it here. Nothing on these pages is
     hand-transcribed.
   </p>
+  {%- endif %}
 </footer>
 
 </body>
