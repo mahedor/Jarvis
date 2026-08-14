@@ -20,7 +20,15 @@ no build step to forget and no copy of the numbers to fall out of date.
 import sys
 from pathlib import Path
 
-from flask import Blueprint, abort, redirect, render_template, send_from_directory, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    redirect,
+    render_template,
+    send_from_directory,
+    url_for,
+)
 
 import engineering_data as data
 
@@ -46,6 +54,28 @@ engineering = Blueprint(
     url_prefix="/engineering",
     template_folder="templates",
 )
+
+@engineering.context_processor
+def _shell_context():
+    """Values the shared shell needs, resolved per request rather than assumed.
+
+    The blueprint is registered on an app it does not own, and both of these
+    are things it must not take for granted about that app.
+
+    assistant_url: the log links back to the assistant, but that endpoint
+        belongs to the host app. Mounted somewhere without one, url_for('index')
+        raises BuildError and every page in the log 500s over a decorative
+        link. Checked rather than caught so the template can simply omit it.
+
+    build_info: whatever the host app chose to record about the build, or None
+        when it recorded nothing. The log renders from artifacts at request
+        time, so it cannot derive this itself and must not invent it.
+    """
+    return {
+        "assistant_url": url_for("index") if "index" in current_app.view_functions else None,
+        "build_info": current_app.config.get("ENG_BUILD_INFO"),
+    }
+
 
 # The pipeline as a reader should understand it: what each stage does, what was
 # compared, and what was locked in. Rendered on the index as the spine of the
