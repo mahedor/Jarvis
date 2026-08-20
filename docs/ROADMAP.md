@@ -162,11 +162,13 @@ Jarvis is a personal tool built by Michael, for Michael. Productization, multi-u
 ### Core
 18. Google Calendar integration (morning briefing, proactive nudges)
 19. Habit app sync (API or export)
-20. ~~Notion integration — read databases, voice queries~~ `[DONE]`
-    - Reads Work Table (30-min focus blocks with productivity ratings)
-    - Reads Start Table (session start tracking)
-    - Data injected into system prompt for Claude to answer questions
+20. Notion integration — read databases, voice queries
+    - Read Work Table (30-min focus blocks with productivity ratings)
+    - Read Start Table (session start tracking)
+    - Inject the data into the system prompt for Claude to answer questions
     - Direct API calls with database ID targeting
+    - A prototype exists on the unmerged `notion-integration` branch; nothing is
+      wired into `demo/jarvis_web.py` on `main`
 21. Morning briefing routine (sleep, schedule, habits, weather, room status)
 22. Smart alarm — Oura sleep stages + gradual light increase `[LATEST update]`
     - Color-changing lights escalate by severity: green (on time) → amber (snoozing) → red (late)
@@ -354,7 +356,7 @@ MUST be local-first. The whole point. A self-portrait this intimate is a liabili
 |---|---|---|---|
 | Phase 1 | 8 core + demo features | 2-4 weeks | 🟡 Demo + linter + benchmarks done; eval suite scaffolded; needs hardware |
 | Phase 2 | 15 | 3-4 weeks | ⬜ Planned |
-| Phase 3 | 8 | 2-3 weeks | 🟡 Notion done, rest planned |
+| Phase 3 | 8 | 2-3 weeks | ⬜ Planned |
 | Phase 4 | 11 | 3-4 weeks | ⬜ Planned |
 | Phase 5 | 15 | 3-4 weeks | ⬜ Planned |
 | Phase 6 | 10 | 3-4 weeks | ⬜ Planned |
