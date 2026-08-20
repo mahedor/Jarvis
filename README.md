@@ -2,9 +2,9 @@
 
 A personal AI assistant that controls my smart home, tracks my routines, and coaches me toward my goals. Built from scratch as a hands-on AI engineering project.
 
-> **Status:** Phase 1 — Voice + Home Control (Bedroom) + Phase 3 Notion Integration
+> **Status:** Phase 1 — Voice + Home Control (Bedroom)
 >
-> Working web demo with Claude-powered intelligence, browser-native voice I/O, Notion time tracking integration, device state tracking, futuristic UI with screensaver and 10 visual effects. Hardware deployment coming next.
+> Working web demo with Claude-powered intelligence, browser-native voice I/O, device state tracking, futuristic UI with screensaver and 10 visual effects. Hardware deployment coming next.
 
 ---
 
@@ -14,7 +14,7 @@ No hardware needed. From the **repo root**:
 
 ```bash
 # 1. Install dependencies
-pip install anthropic flask python-dotenv notion-client requests
+pip install anthropic flask python-dotenv
 
 # 2. Configure your keys (see "Environment" below)
 cp .env.example .env     # then edit .env and paste your key in
@@ -47,7 +47,6 @@ vars win.
 | Variable | Required | Default | What it does |
 |----------|----------|---------|--------------|
 | `ANTHROPIC_API_KEY` | **yes** | — | Claude API key. The server refuses to start without it. |
-| `NOTION_API_KEY` | no | — | Enables the Notion time-tracking queries. Everything else works without it. |
 | `JARVIS_DEBUG` | no | `1` (on) | Flask debug mode. Set to `0` to disable. |
 | `JARVIS_PORT` | no | `5000` | Port to serve on. |
 
@@ -55,7 +54,6 @@ Copy `.env.example` to `.env` and fill it in:
 
 ```ini
 ANTHROPIC_API_KEY=sk-ant-your-key-here
-NOTION_API_KEY=ntn_your-key-here   # optional
 ```
 
 Or set them per-shell instead:
@@ -96,8 +94,6 @@ always know which you're in.
 - `/health` — service status
 - `/devices` — current in-memory device states
 - `POST /reset` — clear conversation history and reset device states
-- `/notion` — Notion connection status and data preview
-- `/notion/raw` — raw API response for debugging
 
 ---
 
@@ -129,7 +125,6 @@ and there is no build step.
 - **Speech input** — click the mic, speak, auto-sends when you stop talking
 - **Device control** — structured `[ACTION: {...}]` parsing for smart home commands
 - **Device state tracking** — Jarvis knows what's on/off and gives accurate status reports
-- **Notion integration** — reads Work Table and Start Table for productivity/time tracking queries
 - **Interaction logging** — every command logged to `logs/interactions.jsonl`
 
 ### UI
@@ -150,7 +145,7 @@ Particles, grid, pulse, orbits, warp, neural, tendrils, starfield, circuits, hel
 You (voice/text)  →  Flask Orchestrator  →  Claude API  →  Orchestrator  →  You
                       (injects system        (thinks,       (parses out
                        prompt + device        responds)      actions +
-                       state + Notion)                       clean text)
+                       state)                                clean text)
                                                                 │
                                                     ┌───────────┴───────────┐
                                                     │                       │
@@ -161,7 +156,7 @@ You (voice/text)  →  Flask Orchestrator  →  Claude API  →  Orchestrator  �
 ```
 
 1. Your message (typed or spoken) goes to the **Flask orchestrator**
-2. The orchestrator injects the **system prompt** with Jarvis's personality, device states, and Notion data
+2. The orchestrator injects the **system prompt** with Jarvis's personality and device states
 3. **Claude** responds with natural text + structured `[ACTION: {...}]` blocks
 4. The orchestrator **parses** the response — actions update device state, clean text goes to the browser
 5. Browser **speaks** the response instantly via Web Speech API — zero latency TTS
@@ -176,7 +171,7 @@ You (voice/text)  →  Flask Orchestrator  →  Claude API  →  Orchestrator  �
 | Orchestrator | Python, Flask | ✅ Working |
 | TTS | Browser Web Speech API (Edge recommended) | ✅ Working |
 | STT | Browser SpeechRecognition API | ✅ Working |
-| Data | Notion API (time tracking) | ✅ Working |
+| Data | Notion API (time tracking) | ⬜ Planned |
 | Home Control | Home Assistant + Zigbee | ⬜ Needs hardware |
 | STT (production) | Whisper | ⬜ Needs hardware |
 | TTS (production) | TBD (Kokoro-82M / ElevenLabs) | ⬜ Evaluating |
@@ -200,9 +195,8 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan.
 | Phase | What | Status |
 |-------|------|--------|
 | **1 — Voice + Home Control** | Voice pipeline, device control, orchestrator | 🟡 In progress |
-| **3 — Notion Integration** | Read time tracking databases, query via voice | 🟢 Working |
 | 2 — Identity + Vision | Face recognition, activity detection, speaker ID | ⬜ Planned |
-| 3 — Calendar + Intelligence | Google Calendar, habits, web search | ⬜ Planned |
+| 3 — Calendar + Intelligence | Google Calendar, habits, Notion, web search | ⬜ Planned |
 | 4 — Data Warehouse | Sleep, screen time, location, spending tracking | ⬜ Planned |
 | 5 — Coaching | Daily check-ins, pattern recognition, RAG | ⬜ Planned |
 | 6 — Companion App | Phone app, wall tablet dashboard | ⬜ Planned |
@@ -215,7 +209,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan.
 jarvis/
 ├── demo/
 │   ├── jarvis_demo.py         # Terminal interface (v1)
-│   ├── jarvis_web.py          # Web UI (v2 — browser TTS, mic, screensaver, Notion)
+│   ├── jarvis_web.py          # Web UI (v2 — browser TTS, mic, screensaver)
 │   ├── engineering.py         # /engineering blueprint (the build log)
 │   ├── engineering_data.py    # Reshapes results/*.json for those pages
 │   ├── intent_classifier.py   # Local Tier 1-2 intent routing
@@ -246,7 +240,7 @@ PyTorch, TensorFlow) and is **not** needed to run the web demo — that stays on
 ### Branches
 - `main` — stable demo
 - `browser-tts` — browser-native TTS, mic input, screensaver, theme system
-- `notion-integration` — Notion API for time tracking data
+- `notion-integration` — unmerged prototype of the Notion time-tracking read; not on `main`
 
 ---
 
@@ -256,4 +250,4 @@ PyTorch, TensorFlow) and is **not** needed to run the web demo — that stays on
 |---------|-------------|
 | v0.1.0 | Terminal demo with Claude + device state tracking |
 | v0.2.0 | Web UI, streaming, server-side edge-tts |
-| v0.3.0 | Browser-native TTS/STT, screensaver, themes, Notion integration |
+| v0.3.0 | Browser-native TTS/STT, screensaver, themes |

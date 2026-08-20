@@ -10,7 +10,6 @@ pip install anthropic flask python-dotenv
 
 # Set API keys (PowerShell)
 $env:ANTHROPIC_API_KEY = "sk-ant-..."
-$env:NOTION_API_KEY = "ntn_..."   # optional
 
 # Web UI (primary interface)
 python demo/jarvis_web.py
@@ -52,9 +51,12 @@ Device state is **in-memory only** — resets on server restart. It simulates wh
 
 Claude responses are always spoken aloud. The system prompt enforces 1-3 sentences max. Any new prompt changes or features should respect this.
 
-### Notion integration
+### Notion integration (planned — not in this codebase)
 
-Notion data (Work Table — 30-min focus blocks with productivity ratings; Start Table — session starts) is fetched and injected into the system prompt before each Claude call.
+There is no Notion code in `demo/`. A prototype that queried a Work Table and a
+Start Table and injected the result into the system prompt lives on the unmerged
+`notion-integration` branch; it was never merged and is not wired into
+`jarvis_web.py`. Treat Notion as a planned Phase 3 feature.
 
 ### Interaction logging
 
@@ -62,4 +64,4 @@ Every turn is appended to `logs/interactions.jsonl`: `{timestamp, command, respo
 
 ## Roadmap context
 
-See `docs/ROADMAP.md`. Phase 1 web demo is complete (browser TTS/STT, streaming, device state tracking, screensaver UI). Hardware deployment (Home Assistant, Zigbee, Whisper STT, wake word) is the next Phase 1 step. Notion integration (Phase 3) is working. Phases 2 and 4-6 are planned.
+See `docs/ROADMAP.md`. Phase 1 web demo is complete (browser TTS/STT, streaming, device state tracking, screensaver UI). Hardware deployment (Home Assistant, Zigbee, Whisper STT, wake word) is the next Phase 1 step. Phases 2-6, including Notion integration (Phase 3), are planned.
