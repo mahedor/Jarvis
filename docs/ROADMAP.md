@@ -1,6 +1,6 @@
 # Jarvis — Definitive Phase Roadmap (v4)
 
-> Every single feature discussed, organized by phase. Last updated: May 5, 2026.
+> Every single feature discussed, organized by phase. Last updated: August 19, 2026.
 > 
 > Tags: `[NEW]` = added during planning · `[LATEST]` = just added · `[CAREER]` = portfolio enhancer · `[DONE]` = completed
 
@@ -32,31 +32,32 @@ Jarvis is a personal tool built by Michael, for Michael. Productization, multi-u
 - ~~Interaction logging to JSONL~~ `[DONE]`
 - ~~Prompt caching on Tier 3 system prompt (cache_control ephemeral)~~ `[DONE April 12]`
 - ~~Intent classifier hardening — negation guard, word-boundary fix, normalize unit tests, multi-pass prefix removal~~ `[DONE April]`
-- Voice mode — toggleable waveform/orb UI for voice-only interaction (no chat bubbles, just speak and listen) `[LATEST]`
-- Tier-aware filler phrases — spoken "Let me think..." for Tier 3 commands while Claude processes `[LATEST]`
+- ~~Voice mode — toggleable waveform/orb UI for voice-only interaction (no chat bubbles, just speak and listen)~~ `[DONE]` — `setMode()` in `theme.js`, canvas in `voice-engine.js`
+- ~~Tier-aware filler phrases — spoken "Let me think..." for Tier 3 commands while Claude processes~~ `[DONE]` — `POST /filler`, `get_filler_phrase()` in `intent_classifier.py`
     - Current: random from categorized pools (question/command/statement/complaint/reflection)
     - Upgrade: local Llama 3.2 3B generates contextual fillers in ~200ms (depends on Ollama setup)
 
 ### ⚡ NEXT UP
 10. **Development agents — automated code quality pipeline** `[LATEST]`
-    - See `jarvis-dev-agents.md` for full details, implementation code, and build order
+    - (Planning notes lived in `jarvis-dev-agents.md`, which is not in this repo — the build order below is the record that survives)
     - **Core (run every change):**
       - ~~Linter (ESLint + ruff) — catches syntax errors instantly~~ `[DONE April 22]` — `run_lint.sh` wraps both, configs in `eslint.config.mjs` and `ruff.toml`
-      - QA Agent (Playwright) — boots server + clicks through all UI + takes screenshots (~1-2 hrs to build)
+      - ~~QA Agent (Playwright) — boots server + clicks through all UI + takes screenshots~~ `[DONE]` — `tests/test_qa.py`, 8 tests on port 5002; screenshots to `tests/screenshots/` (gitignored, write-only)
     - **Extras (run when needed):**
       - Diff verification — catches missing code after refactors
       - Performance — page load, FPS, API response time
-    - Single command runs full pipeline: `python run_agents.py`
+    - Single-command pipeline (`python run_agents.py`) — not built; run `pytest` and `run_lint.sh` directly
 
 ### Career Enhancements
 6. ~~Local intent classifier (rules + spaCy + embeddings)~~ `[DONE]` `[CAREER]` ⏳ *review code deeper*
 7. Eval suite — test commands + accuracy tracking `[CAREER]` 🟡 *in progress*
-    - `tests/eval/routing_eval.jsonl` — 160-case route-classification suite covering all 25 planned route types (home_assistant, calendar, gmail, notion, drone, vehicle, oura, spending, coaching, code_assist, etc.) plus adversarial and compound cases
+    - `tests/eval/routing_eval.jsonl` — 156-case route-classification suite covering 24 planned route types (home_assistant, calendar, gmail, notion, drone, vehicle, oura, spending, coaching, code_assist, etc.) plus adversarial cases and 5 compound multi-route cases. `tests/eval/conversation_eval.jsonl` adds 25 context-dependent cases. (Count records, not lines — both files open with `#` header lines the loader skips.)
     - Registry rule: every new capability must add cases here AND a sub-suite under `tests/eval/suites/`
     - Runner + per-suite results writer (`tests/eval/results/`) not yet built
 8. ~~GitHub repo + ADRs + documentation~~ `[DONE]` `[CAREER]`
 9. Local failsafe LLM (Llama 3.2 3B via Ollama) — offline fallback when internet drops `[LATEST]`
-10. ~~Benchmarks — intent classifier (`tools/benchmark.py`, 1000x per command, per-tier aggregates → `logs/benchmarks.json`) and Claude API prompt-caching latency (`tools/benchmark_claude.py`, cache ON vs OFF, `--with-history` flag to push tokens past the cache-activation threshold)~~ `[DONE April]` `[CAREER]`
+10. ~~Benchmarks — intent classifier (`tools/benchmark.py`, 1000x per command, per-tier aggregates → `results/benchmarks_intent.json`) and Claude API prompt-caching latency (`tools/benchmark_claude.py`, cache ON vs OFF, `--with-history` flag to push tokens past the cache-activation threshold → `results/benchmarks_caching.json`)~~ `[DONE April]` `[CAREER]`
+    - Caching result: measured and **rejected as a latency win** — six attempts, none faster, and the first five never engaged the cache at all. `cache_control` is still set on the static prompt block; the write-up is on `/engineering/routing`.
 
 **Hardware needed:** Beelink Mini S12 Pro, ReSpeaker USB Mic Array, speaker
 **IoT starter kit (~$85):**
@@ -69,8 +70,19 @@ Jarvis is a personal tool built by Michael, for Michael. Productization, multi-u
 
 ## Phase 2: Identity, Presence + Vision — 3-4 weeks
 
+### Groundwork completed (no hardware needed)
+- ~~Detector benchmark — YOLO / RetinaFace / MTCNN / MediaPipe across WIDER FACE, MAFA and FDDB (AP, ROC AUC, F1, latency)~~ `[DONE Aug]`
+- ~~Encoder benchmark — ArcFace / FaceNet512 / VGG-Face × mean-renormalize / medoid / multi-reference, open-set, 6 people vs 500 strangers~~ `[DONE Aug]`
+- ~~Enrollment curation — `tools/collect_faces.py` turns an unlabelled photo bucket into clustered reference crops~~ `[DONE Aug]`
+- ~~Gallery builder — `tools/build_gallery.py` → `data/gallery.npz` (133 × 512-d vectors, threshold travels with it)~~ `[DONE Aug]`
+- ~~Operating points locked + pinned to their evidence — YOLOv8n-face @ 0.57 (`tools/pipeline_config.py`), ArcFace multi-reference @ 0.342 (`tools/build_gallery.py`); `tests/test_pipeline_config.py` fails the build on drift~~ `[DONE Aug]`
+- ~~Engineering log — `/engineering` pages reading `results/*.json` live, plus a static-site freezer (`tools/freeze_engineering.py`)~~ `[DONE Aug]`
+
+**Still to build:** the presence service that actually consumes any of this. The
+measurement work is done; nothing runs on a live camera feed yet.
+
 ### Core
-9. Facial recognition greeting (DeepFace/InsightFace)
+9. Facial recognition greeting (DeepFace/InsightFace) — 🟡 pipeline benchmarked and locked (above); the live greeting path is not built
 10. Room presence detection + duration tracking (in bed, at desk, on couch, out of room) `[LATEST]`
     - Camera detects location/position, orchestrator logs timestamped state changes
     - Enables queries like "How long was I on the couch today?"
@@ -354,8 +366,8 @@ MUST be local-first. The whole point. A self-portrait this intimate is a liabili
 
 | Phase | Features | Timeline | Status |
 |---|---|---|---|
-| Phase 1 | 8 core + demo features | 2-4 weeks | 🟡 Demo + linter + benchmarks done; eval suite scaffolded; needs hardware |
-| Phase 2 | 15 | 3-4 weeks | ⬜ Planned |
+| Phase 1 | 8 core + demo features | 2-4 weeks | 🟡 Demo + linter + QA agent + benchmarks done; eval corpus written, runner not built; needs hardware |
+| Phase 2 | 15 | 3-4 weeks | 🟡 Face pipeline benchmarked + locked; presence service not built |
 | Phase 3 | 8 | 2-3 weeks | ⬜ Planned |
 | Phase 4 | 11 | 3-4 weeks | ⬜ Planned |
 | Phase 5 | 15 | 3-4 weeks | ⬜ Planned |
