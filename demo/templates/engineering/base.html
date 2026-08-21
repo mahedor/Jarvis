@@ -18,13 +18,18 @@
       <div class="eng-eyebrow">J.A.R.V.I.S. — Engineering Log</div>
       <h1>{% block heading %}How this was built{% endblock %}</h1>
     </div>
-    <!-- Measured work first and ambition last, in reading order. The
-         architecture page is set apart at the END: it is the only one with no
-         artifact behind it, and it only reads as credible to someone who has
-         already been through the ones that do. -->
+    <!-- Reading order, and it is an argument. The working system comes first
+         because it is the only page describing something a reader can go and
+         use; routing sits with it because it is the assistant's front door,
+         not a step in a vision pipeline. Then the face stages in the order
+         they run. The architecture page is set apart at the END: it is the
+         only one with no artifact behind it, and it only reads as credible to
+         someone who has already been through the ones that do. -->
     <nav class="eng-nav">
       <a href="{{ url_for('engineering.index') }}"
          class="{% if request.endpoint == 'engineering.index' %}active{% endif %}">overview</a>
+      <a href="{{ url_for('engineering.assistant') }}"
+         class="{% if request.endpoint == 'engineering.assistant' %}active{% endif %}">assistant</a>
       <a href="{{ url_for('engineering.routing') }}"
          class="{% if request.endpoint == 'engineering.routing' %}active{% endif %}">routing</a>
       <a href="{{ url_for('engineering.detection') }}"
@@ -36,9 +41,12 @@
       <span class="eng-nav-sep"></span>
       <a href="{{ url_for('engineering.architecture') }}"
          class="eng-nav-goal {% if request.endpoint == 'engineering.architecture' %}active{% endif %}">architecture</a>
-      {%- if assistant_url %}
-      <a href="{{ assistant_url }}" class="eng-exit">&larr; assistant</a>
-      {%- endif %}
+      <!-- No link out to the running assistant. It used to sit here as
+           "← assistant" whenever the log was mounted on the real app, which
+           made a documentation site a door into an assistant that is not ready
+           to be walked into. The log is readable standalone by design; getting
+           to the app is a matter of knowing its URL, not of following a link
+           from here. -->
     </nav>
   </div>
 </header>

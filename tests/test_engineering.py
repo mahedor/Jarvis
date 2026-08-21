@@ -16,6 +16,7 @@ Run:
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -612,7 +613,8 @@ def client(monkeypatch_module=None):
     return jarvis_web.app.test_client()
 
 
-@pytest.mark.parametrize("url", ["/engineering/", "/engineering/architecture",
+@pytest.mark.parametrize("url", ["/engineering/", "/engineering/assistant",
+                                 "/engineering/architecture",
                                  "/engineering/routing", "/engineering/detection",
                                  "/engineering/recognition", "/engineering/enrollment"])
 def test_pages_render(client, url):
@@ -720,8 +722,10 @@ def test_the_roadmap_is_marked_as_unmeasured(client):
 
 
 def test_the_roadmap_comes_after_the_measured_work(client):
+    """Unchanged in intent; the heading it anchors on was renamed when the
+    stage grid stopped being a face-only list of "The measurements"."""
     html = client.get("/engineering/").get_data(as_text=True)
-    assert html.index("What's next") > html.index("The measurements")
+    assert html.index("What's next") > html.index("Every stage, and where it stands")
 
 
 def test_the_roadmap_quotes_locked_thresholds_instead_of_new_ones(client):
@@ -745,10 +749,10 @@ def test_routing_page_states_the_accuracy_gap(client):
     assert "never been measured" in html
 
 
-def test_routing_page_distinguishes_engaged_from_unengaged_caching(client):
-    html = client.get("/engineering/routing").get_data(as_text=True)
-    assert "caching never engaged" in html
-    assert "cache genuinely used" in html
+# The engaged/unengaged distinction is still guarded, on the page that now owns
+# the experiment: test_caching_experiment_lives_on_the_assistant_page. It was
+# asserted here while the routing page hosted the table, and moved with it
+# rather than being dropped — the property is about the write-up, not the URL.
 
 
 def test_log_is_not_only_face_work(client):
@@ -756,6 +760,123 @@ def test_log_is_not_only_face_work(client):
     misrepresents the project."""
     html = client.get("/engineering/").get_data(as_text=True)
     assert "/engineering/routing" in html
+    assert "/engineering/assistant" in html
+
+
+# ══════════════════════════════════════════════════════════════════
+# The assistant page — Phase 1, the system every other page serves.
+#
+# Its defining risk is the opposite of the architecture page's. That page is
+# wrong if it implies a result; this one is wrong if it LEVELS UP three
+# judgment calls into the same confident register as the benchmark tables it
+# sits beside. Most of what follows guards the seam between the two.
+# ══════════════════════════════════════════════════════════════════
+
+def test_assistant_page_renders(client):
+    assert client.get("/engineering/assistant").status_code == 200
+
+
+def test_assistant_page_covers_the_four_decisions(client):
+    """Orchestration, speech, the wait, and caching — the brief for the page."""
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert "build_system_prompt()" in html          # device state ownership
+    assert "speechSynthesis.speak()" in html        # browser TTS
+    assert "/filler" in html                        # streaming / filler design
+    assert "Prompt caching was measured and rejected" in html
+
+
+def test_assistant_page_cites_the_tts_adr_as_its_source(client):
+    """The latency figures are the ADR's, recorded while deciding. Presenting
+    them without saying so would pass them off as a benchmark this repo can
+    rerun, which it cannot."""
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert "docs/adr/002-browser-tts-over-server-tts.md" in html
+
+
+def test_browser_voice_is_framed_as_temporary_not_final(client):
+    """Both halves of the trade have to be on the page.
+
+    Browser speech is presented as a win — no server cost, no latency, and
+    Edge's recognition is genuinely good. Left there it reads as the finished
+    answer, which would contradict both the roadmap and ADR 002's own
+    demo-phase scoping. The page has to carry the exit alongside the win.
+    """
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    # The win.
+    assert "Edge's integrated speech recognition is genuinely" in html
+    assert "no added latency" in html
+    # The exit.
+    assert "Whisper" in html
+    assert "OpenWakeWord" in html
+    assert "not the destination" in html
+    # And the reason the swap is forced, not optional.
+    assert "headless" in html
+
+
+def test_voice_replacement_is_marked_planned_not_in_progress(client):
+    """THE distinction this page is most likely to blur.
+
+    "Being replaced by Whisper" and "blocked on hardware nobody has ordered"
+    are different states, and the second one is true. A log that lets naming a
+    successor imply work underway is doing the thing this whole site exists to
+    avoid.
+    """
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert "None of that replacement is in progress." in html
+    assert "no branch, no prototype, no benchmark" in html
+
+
+def test_assistant_page_does_not_claim_an_stt_benchmark(client):
+    """The "Edge is good" claim is an impression from daily use. There is no
+    transcription benchmark in this repo, and the page must not imply one."""
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert "an impression, not a number" in html
+
+
+def test_assistant_page_marks_its_unmeasured_claims(client):
+    """THE constraint for this page.
+
+    Three of its four decisions are arguments, not results. The site's whole
+    credibility rests on a reader being able to tell which is which at a
+    glance, so the unmeasured ones carry their own marker rather than sharing
+    the register of the measured one.
+    """
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert html.count("eng-unmeasured") >= 3
+    assert "Reasoned, not measured." in html
+    assert "What has no measurement behind it" in html
+
+
+def test_assistant_page_does_not_invent_evidence_for_the_ui(client):
+    """The theme, the screensaver and the personality were chosen by taste.
+    Saying so is the point; a page that quietly omitted them would read as
+    though everything on the product had been justified."""
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert "no A/B" in html or "no A/B test" in html
+    assert "never been measured" in html            # STT word error rate
+
+
+def test_assistant_page_says_devices_are_simulated(client):
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert "Devices are simulated" in html
+
+
+def test_caching_experiment_lives_on_the_assistant_page(client):
+    """It measures the model call, not the router — which is what the routing
+    page's own prose said while hosting it. One home, and this is it."""
+    html = client.get("/engineering/assistant").get_data(as_text=True)
+    assert "caching never engaged" in html
+    assert "cache genuinely used" in html
+
+
+def test_routing_page_keeps_the_claude_cost_but_not_the_experiment(client):
+    """Routing still needs what a tier-3 escalation costs — that number is the
+    entire justification for the cascade. It does not need the experiment."""
+    html = client.get("/engineering/routing").get_data(as_text=True)
+    assert "cache genuinely used" not in html
+    assert "cache written" not in html
+    # The cost argument survives the move.
+    assert "ms. Anything" in html
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -770,26 +891,123 @@ def test_measured_work_leads_and_ambition_does_not(client):
 
     The same architecture prose reads as a pitch when it opens the log and as
     a conclusion when it closes one. So the landing page must show measured
-    work and must NOT be where the destination is argued — that lives last.
+    work and must NOT be where the destination is ARGUED — that lives last.
+
+    Rewritten when the log widened from a face-pipeline record to the whole
+    project. The old version banned two capitalised phrases, which enforced the
+    right thing by accident: it happened to catch the architecture page's
+    headings while letting the same words through in lowercase prose. The
+    constraint was never about vocabulary. Naming the destination on the way
+    out is required — the closing section does exactly that — so what this now
+    asserts is that the landing page does not carry the architecture page's
+    STRUCTURE: its diagram, its memory-system breakdown, its decision-layer
+    thesis. Mentioning where the project is going stays legal; making the case
+    for it here does not.
     """
     html = client.get("/engineering/").get_data(as_text=True)
     assert "eng-decision" in html                    # the judgment calls
     assert "eng-lock-number" in html                 # the locked operating points
+
     # The unbuilt system is named on the way out, not on the way in.
     assert html.index("Decisions") < html.index("where all of it is heading")
-    assert "Two memory systems" not in html
-    assert "The Conductor" not in html
+
+    # The architecture page's load-bearing apparatus, none of which may appear
+    # before a reader has been through the evidence.
+    for argument in ("The Conductor decides. The LLM speaks.",
+                     "eng-memory-limit",
+                     "eng-arch-flow",
+                     "eng-loop-step"):
+        assert argument not in html, argument
 
 
-def test_architecture_is_last_in_the_nav(client):
-    """Nav order is reading order, and the one page with no artifact behind it
-    comes after every page that has one."""
+def test_landing_page_introduces_the_project_before_any_workstream(client):
+    """A reader arriving cold does not know what JARVIS is.
+
+    The log opened for months on "the decisions behind the face pipeline",
+    which answered a question nobody had been given a reason to ask and
+    misrepresented a voice assistant as a vision project. The system has to be
+    introduced before any single strand of it is.
+    """
+    html = client.get("/engineering/").get_data(as_text=True)
+    lede = html[html.index('class="eng-lede"'):html.index("</section>")]
+    assert "voice-driven assistant" in lede
+    # The face pipeline may not be what the page opens on.
+    assert "face pipeline" not in lede.lower() or (
+        lede.lower().index("assistant") < lede.lower().index("face pipeline"))
+    # And the workstreams are introduced before the face workstream's decisions.
+    assert html.index("The workstreams") < html.index("eng-decision")
+
+
+def test_landing_page_frames_face_decisions_as_one_workstream(client):
+    """The decision cards are the face workstream's record, not the site's
+    identity. Unlabelled, five vision decisions in a row re-assert exactly the
+    scoping this restructure removed."""
+    html = client.get("/engineering/").get_data(as_text=True)
+    heading = html[html.index("<h2>Decisions"):]
+    heading = heading[:heading.index("</h2>")]
+    assert "face pipeline" in heading
+
+
+def test_every_workstream_is_on_the_landing_page(client):
+    html = client.get("/engineering/").get_data(as_text=True)
+    import engineering as eng
+    for group in eng.WORKSTREAMS:
+        assert group["title"] in html, group["title"]
+
+
+def test_nav_is_reading_order_assistant_first_architecture_last(client):
+    """Nav order is reading order, and it makes two claims at once.
+
+    The assistant comes first because it is the only page describing something
+    that exists and runs; routing sits with it because it is the assistant's
+    front door rather than a stage in a vision pipeline. The one page with no
+    artifact behind it comes after every page that has one.
+    """
     html = client.get("/engineering/").get_data(as_text=True)
     nav = html[html.index('class="eng-nav"'):html.index("</nav>")]
-    positions = [nav.index(f'/engineering/{p}') for p in
-                 ("routing", "detection", "enrollment", "recognition", "architecture")]
-    assert positions == sorted(positions)
+    order = ("assistant", "routing", "detection", "enrollment",
+             "recognition", "architecture")
+    positions = [nav.index(f'/engineering/{p}') for p in order]
+    assert positions == sorted(positions), dict(zip(order, positions))
     assert nav.index("/engineering/architecture") == max(positions)
+
+
+def test_nav_does_not_link_out_to_the_running_assistant(client):
+    """The log must not be a door into the app.
+
+    An "← assistant" link used to sit at the end of the nav whenever the
+    blueprint was mounted on the real app, pointing at url_for('index'). The
+    assistant is not ready to be walked into from a documentation page, and the
+    log is meant to be readable standalone regardless. The `client` fixture
+    mounts the blueprint on an app that DOES have an index view, so this test
+    sees the exact condition under which the link used to appear.
+    """
+    html = client.get("/engineering/").get_data(as_text=True)
+    nav = html[html.index('class="eng-nav"'):html.index("</nav>")]
+    assert "eng-exit" not in nav
+    # Every href in the nav stays inside the log.
+    hrefs = re.findall(r'href="([^"]+)"', nav)
+    assert hrefs, "nav has no links at all"
+    for href in hrefs:
+        assert href.startswith("/engineering"), href
+
+
+def test_routing_is_not_listed_among_the_face_stages(client):
+    """It was, and that was the bug: a flat list put intent routing between
+    enrollment and recognition, implying the assistant is a step in the face
+    pipeline."""
+    import engineering as eng
+    face = next(g for g in eng.WORKSTREAMS if g["id"] == "face")
+    assert [s["id"] for s in face["stages"]] == [
+        "detection", "enrollment", "recognition", "presence"]
+    assistant = next(g for g in eng.WORKSTREAMS if g["id"] == "assistant")
+    assert "routing" in [s["id"] for s in assistant["stages"]]
+
+
+def test_stages_is_derived_from_workstreams(client):
+    """Two lists that can disagree eventually do."""
+    import engineering as eng
+    assert eng.STAGES == [s for g in eng.WORKSTREAMS for s in g["stages"]]
 
 
 def test_architecture_page_states_it_is_unmeasured_up_front(client):

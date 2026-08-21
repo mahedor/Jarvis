@@ -1,10 +1,17 @@
 """
 JARVIS Engineering Log — Routes
 ===============================
-A Flask blueprint serving /engineering: a "how this was built" record of how
-each stage of the face pipeline was designed, measured and tuned. It is NOT
-part of the assistant UI — nothing here talks to Claude, changes device state,
-or is meant for someone using JARVIS as an assistant.
+A Flask blueprint serving /engineering: a "how this was built" record for the
+WHOLE project — the assistant that ships today, the intent routing in front of
+it, the face pipeline being built for presence, and the architecture all of it
+is aimed at. It is NOT part of the assistant UI — nothing here talks to Claude,
+changes device state, or is meant for someone using JARVIS as an assistant.
+
+SCOPE. This log used to be a face-pipeline record that happened to have a
+routing page bolted on, which misrepresented the project: JARVIS is a
+voice-driven assistant first, and the vision work is one workstream serving it.
+The overview introduces the system, then the workstreams; the face stages are
+the face workstream's record rather than the site's identity. See WORKSTREAMS.
 
 Registered by jarvis_web.py under url_prefix="/engineering". A blueprint rather
 than more routes in jarvis_web.py because the two have nothing to say to each
@@ -59,29 +66,103 @@ engineering = Blueprint(
 def _shell_context():
     """Values the shared shell needs, resolved per request rather than assumed.
 
-    The blueprint is registered on an app it does not own, and both of these
-    are things it must not take for granted about that app.
-
-    assistant_url: the log links back to the assistant, but that endpoint
-        belongs to the host app. Mounted somewhere without one, url_for('index')
-        raises BuildError and every page in the log 500s over a decorative
-        link. Checked rather than caught so the template can simply omit it.
+    The blueprint is registered on an app it does not own, so this must not
+    take anything for granted about that app.
 
     build_info: whatever the host app chose to record about the build, or None
         when it recorded nothing. The log renders from artifacts at request
         time, so it cannot derive this itself and must not invent it.
+
+    There was also an assistant_url here, resolving url_for('index') to link
+    the log back to the running assistant. The link was removed deliberately —
+    the assistant is not something a documentation page should hand a reader a
+    door into yet — and the lookup went with it rather than being left dangling
+    for a template that no longer asks for it.
     """
     return {
-        "assistant_url": url_for("index") if "index" in current_app.view_functions else None,
         "build_info": current_app.config.get("ENG_BUILD_INFO"),
     }
 
 
-# The pipeline as a reader should understand it: what each stage does, what was
-# compared, and what was locked in. Rendered on the index as the spine of the
-# log. Stages without a page yet are shown as pending rather than hidden, so
-# the log describes the whole design and not just the finished parts.
-STAGES = [
+# The project as a reader should understand it: which workstreams exist, what
+# each one was asked to answer, and what got locked in. Rendered on the index as
+# the spine of the log.
+#
+# WHY WORKSTREAMS AND NOT A FLAT STAGE LIST. The flat list put "intent routing"
+# between two face-pipeline stages, which quietly claimed the assistant was a
+# step in a vision pipeline. It is the other way round: the assistant is the
+# product, and detection/enrollment/recognition are one workstream feeding a
+# presence feature it does not have yet. Grouping is the fix.
+#
+# Stages without a page yet are shown as pending rather than hidden, so the log
+# describes the whole design and not just the finished parts.
+WORKSTREAMS = [
+    {
+        "id": "assistant",
+        "title": "The assistant",
+        "blurb": "The system that exists and runs today: speak or type, it "
+                 "answers aloud and the lights change. Everything else in this "
+                 "log is either in front of it or being built to feed it.",
+        "stages": [
+            {
+                "id": "assistant",
+                "title": "Assistant core",
+                "question": "What does the working system actually do, and which "
+                            "parts of it were chosen with evidence?",
+                "status": "measured",
+                "endpoint": "engineering.assistant",
+                "summary": "Claude orchestration, device state as the source of "
+                           "truth, browser voice I/O taken as a deliberate "
+                           "stopgap, and a prompt-caching experiment that came "
+                           "back negative for a reason worth writing down.",
+            },
+            {
+                "id": "routing",
+                "title": "Intent routing & latency",
+                "question": "Which commands can be answered without calling an LLM at all?",
+                "status": "provisional",
+                "endpoint": "engineering.routing",
+                "summary": "The local/cloud split and the architecture-agnostic "
+                           "eval are settled; the hand-written cascade doing the "
+                           "routing today is measured, flagged and up for "
+                           "replacement.",
+            },
+        ],
+    },
+    {
+        "id": "face",
+        "title": "Face pipeline",
+        "blurb": "Three stages in sequence — find a face, learn who lives here, "
+                 "recognise them again — measured so a presence service can be "
+                 "built on numbers instead of defaults. None of it is wired to a "
+                 "live camera yet.",
+        "stages": [],  # filled from FACE_STAGES below
+    },
+    {
+        "id": "direction",
+        "title": "Where it is going",
+        "blurb": "The system the sensor work is for. Argued rather than "
+                 "measured, and last in the log on purpose.",
+        "stages": [
+            {
+                "id": "architecture",
+                "title": "Architecture direction",
+                "question": "What is all of this actually being built toward?",
+                "status": "planned",
+                "endpoint": "engineering.architecture",
+                # Deliberately a POINTER, not a precis. Reproducing that page's
+                # argument here would put the pitch first, which is the one
+                # ordering this log exists to avoid — see index() and
+                # architecture(). Name the subject; make the case there.
+                "summary": "The system the sensor work is for. Argued from the "
+                           "evidence in the pages before it, and built by "
+                           "nothing yet.",
+            },
+        ],
+    },
+]
+
+FACE_STAGES = [
     {
         "id": "detection",
         "title": "Face detection",
@@ -115,16 +196,6 @@ STAGES = [
                    "three gallery aggregation strategies.",
     },
     {
-        "id": "routing",
-        "title": "Intent routing & latency",
-        "question": "Which commands can be answered without calling an LLM at all?",
-        "status": "provisional",
-        "endpoint": "engineering.routing",
-        "summary": "The local/cloud split and the architecture-agnostic eval "
-                   "are settled; the hand-written cascade doing the routing "
-                   "today is measured, flagged and up for replacement.",
-    },
-    {
         "id": "presence",
         "title": "Presence service",
         "question": "How does a recognized face become 'Michael is home'?",
@@ -135,10 +206,26 @@ STAGES = [
     },
 ]
 
+# The face workstream owns its three measured stages plus the unbuilt one they
+# feed. Assembled here rather than inline above so the sequence reads in one
+# place.
+for _workstream in WORKSTREAMS:
+    if _workstream["id"] == "face":
+        _workstream["stages"] = FACE_STAGES
+
+# Flat view, in reading order, for templates that want every stage regardless of
+# grouping (the overview's measurement grid, the architecture ladder). Derived
+# rather than maintained separately — two lists that can disagree eventually do.
+STAGES = [stage for group in WORKSTREAMS for stage in group["stages"]]
+
 
 @engineering.route("/")
 def index():
-    """The build log: the judgment calls, the caveats, what got locked in.
+    """The build log: what the project is, then the judgment calls behind it.
+
+    THE PROJECT IS INTRODUCED BEFORE ANY WORKSTREAM. A reader landing here does
+    not yet know what JARVIS is, and opening on a detector comparison answers a
+    question they have not been given a reason to care about.
 
     MEASURED WORK LEADS, DELIBERATELY. The ambition is the last page in the
     nav, not the first, because the same content lands differently depending
@@ -149,11 +236,32 @@ def index():
     """
     return render_template(
         "engineering/index.html",
+        workstreams=WORKSTREAMS,
         stages=STAGES,
         detection_threshold=DETECTION_CONFIDENCE_THRESHOLD,
         detection_detector=DETECTION_DETECTOR,
         provenance=DETECTION_THRESHOLD_PROVENANCE,
         **data.overview_page_data(),
+    )
+
+
+@engineering.route("/assistant")
+def assistant():
+    """Phase 1: the working system every other page is in service of.
+
+    Placed first among the workstream pages because it is the only one a reader
+    can go and use. The face stages are measurements for a feature that does
+    not exist yet; this is the thing that answers when you talk to it.
+
+    Its evidence is deliberately uneven, and the page says so rather than
+    levelling it up: the caching experiment and the TTS latency comparison are
+    real measurements, while the voice UX and the interface were chosen by
+    judgment and never measured at all.
+    """
+    return render_template(
+        "engineering/assistant.html",
+        stages=STAGES,
+        **data.assistant_page_data(),
     )
 
 
@@ -167,6 +275,7 @@ def architecture():
     """
     return render_template(
         "engineering/architecture.html",
+        workstreams=WORKSTREAMS,
         stages=STAGES,
         detection_threshold=DETECTION_CONFIDENCE_THRESHOLD,
         detection_detector=DETECTION_DETECTOR,

@@ -4,29 +4,82 @@
 
 {% block content %}
 
-<!-- Measured work leads. The system this is all aimed at is a real and large
-     part of the project, and it is deliberately NOT here: it is the last page
-     in the nav. Put first it would be a pitch; put last it is a conclusion the
-     reader has already been given the evidence for. -->
+<!-- The project first, then the workstreams, then the decisions.
+     A reader landing here does not yet know what JARVIS is; opening on a
+     detector benchmark answers a question nobody has given them a reason to
+     ask. The system this is all aimed at is deliberately NOT here either: it
+     is the last page in the nav. Put first it would be a pitch; put last it is
+     a conclusion the reader has already been given the evidence for. -->
 
 <section class="eng-intro">
   <p class="eng-lede">
-    A record of the decisions behind the face pipeline — what was chosen, what
-    was rejected, and what turned out to be wrong along the way. The benchmark
-    tables exist and are linked, but the numbers are not the interesting part.
-    The judgment calls are.
+    <strong>J.A.R.V.I.S. is a voice-driven assistant for one household.</strong>
+    You speak or type, Claude answers aloud through the browser, and the lights,
+    fan and blinds change state. That much runs today. This log is the record of
+    how it was built and what is being built onto it — what was chosen, what was
+    rejected, and what turned out to be wrong along the way.
+  </p>
+  <p>
+    Under the conversation sits a routing cascade that answers most commands
+    without calling an LLM at all, and device state the model is re-shown on
+    every turn so it can never confidently narrate a light it has not checked.
+    Alongside it, a face pipeline is being measured so the assistant can
+    eventually know <em>who</em> walked in — that work is benchmarked and locked,
+    and is not yet wired to a camera.
   </p>
   <p class="eng-note">
-    Every figure below is read from <code>results/*.json</code> when the page
-    loads, so the arguments stand or fall on the current measurements rather
-    than on numbers typed in once and left to rot.
+    Every figure in this log is read from <code>results/*.json</code> when the
+    page loads, so the arguments stand or fall on the current measurements
+    rather than on numbers typed in once and left to rot. The benchmark tables
+    are linked from each workstream, but the numbers are not the interesting
+    part. The judgment calls are.
   </p>
+</section>
+
+<!-- ─── The workstreams ──────────────────────────────────── -->
+
+<section>
+  <h2>The workstreams</h2>
+  <p class="eng-note">
+    Four strands, in the order they are worth reading. The assistant is the
+    product; everything else is in front of it, feeding it, or aimed at it.
+  </p>
+
+  <div class="eng-workstreams">
+    {% for group in workstreams %}
+    <article class="eng-workstream" id="ws-{{ group.id }}">
+      <h3>{{ group.title }}</h3>
+      <p class="eng-workstream-blurb">{{ group.blurb }}</p>
+      <ul class="eng-workstream-stages">
+        {% for stage in group.stages %}
+        <li class="{% if stage.status == 'pending' %}pending{% endif %}">
+          {% if stage.endpoint %}
+          <a href="{{ url_for(stage.endpoint) }}">{{ stage.title }}</a>
+          {% else %}
+          <span>{{ stage.title }}</span>
+          {% endif %}
+          <span class="eng-badge {{ stage.status }}">{{ stage.status }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </article>
+    {% endfor %}
+  </div>
 </section>
 
 <!-- ─── The decisions, first ─────────────────────────────── -->
 
 <section>
-  <h2>Decisions</h2>
+  <h2>Decisions <span class="eng-badge">face pipeline</span></h2>
+  <p class="eng-note">
+    The five below are the face workstream's record — the longest-running and
+    most heavily measured strand, which is why it carries the most argument.
+    The assistant's own decisions, including a caching result that came back
+    negative, are on
+    <a class="eng-link" href="{{ url_for('engineering.assistant') }}">the assistant page</a>;
+    routing's are on
+    <a class="eng-link" href="{{ url_for('engineering.routing') }}">routing</a>.
+  </p>
 
   <!-- 1 ─────────────────────────────────────────────────── -->
   <article class="eng-decision">
@@ -264,7 +317,7 @@
 <!-- ─── Honesty about the limits ─────────────────────────── -->
 
 <section>
-  <h2>What these numbers don't tell you</h2>
+  <h2>What these numbers don't tell you <span class="eng-badge">face pipeline</span></h2>
 
   <div class="eng-caveat-block">
     <h3>The detectors aren't emitting comparable kinds of output</h3>
@@ -353,11 +406,11 @@
 <!-- ─── The locked values ────────────────────────────────── -->
 
 <section>
-  <h2>What got locked in</h2>
+  <h2>What got locked in <span class="eng-badge">face pipeline</span></h2>
   <p class="eng-note">
-    Values the live pipeline reads. Each is pinned to the run that justifies it
-    and re-checked by the test suite, so changing one without re-measuring
-    fails the build.
+    Values the presence service will read when it is built. Each is pinned to
+    the run that justifies it and re-checked by the test suite, so changing one
+    without re-measuring fails the build.
   </p>
 
   {% if detection_threshold is not none %}
@@ -430,7 +483,12 @@
 <!-- ─── Deeper routes ────────────────────────────────────── -->
 
 <section>
-  <h2>The measurements</h2>
+  <h2>Every stage, and where it stands</h2>
+  <p class="eng-note">
+    The same strands as above, flattened into reading order with what each one
+    was asked to answer. Stages with no page yet are listed rather than hidden —
+    a log that only shows finished work describes a different project.
+  </p>
   <div class="eng-stages">
     {% for stage in stages %}
     <article class="eng-stage {% if stage.status == 'pending' %}pending{% endif %}">

@@ -69,6 +69,13 @@ EXPECTED_ASSETS = {
     "js/detection-explorer.js",
     "js/threshold-explorer.js",
 }
+
+# The pages the shared nav links, in reading order. Not a routing table — the
+# freezer walks app.url_map and will pick up anything new on its own — but a
+# tripwire for the opposite failure: a page silently disappearing from a build
+# because its view was renamed or removed while base.html still links it.
+EXPECTED_PAGES = ("index", "assistant", "routing", "detection", "enrollment",
+                  "recognition", "architecture")
 ASSISTANT_ASSETS = ("styles.css", "chat.js", "voice-engine.js", "screensaver.js")
 
 STATIC_REF = re.compile(r"/static/([A-Za-z0-9_\-./]+)")
@@ -211,6 +218,39 @@ def preflight(engineering_module, data_module):
             problems.append("engineering_data.routing_tables() returned None")
     except Exception as exc:  # a documentation build should report, not traceback
         problems.append(f"engineering_data.routing_tables() raised: {exc}")
+
+    # The assistant page's one measured decision is the caching experiment. With
+    # no runs it renders an empty table under a heading promising six attempts
+    # and a reversal — the single most misleading way this page can fail, and it
+    # fails silently because an empty {% for %} is valid.
+    try:
+        caching = data_module.assistant_page_data().get("caching") or []
+        if not caching:
+            problems.append(
+                "assistant page has no caching runs: the prompt-caching table "
+                "renders empty under a heading that promises six of them"
+            )
+        elif not any(run.get("engaged") for run in caching):
+            problems.append(
+                "no caching run ever engaged the cache: the assistant page's "
+                "'the last run is the real measurement' section will be omitted"
+            )
+    except Exception as exc:
+        problems.append(f"engineering_data.assistant_page_data() raised: {exc}")
+
+    # Every page the shared nav links must exist as a view. A nav entry pointing
+    # at a missing endpoint raises BuildError mid-render on EVERY page, so this
+    # turns a site-wide 500 into one line of build output.
+    missing = [name for name in EXPECTED_PAGES
+               if not callable(getattr(engineering_module, name, None))]
+    if missing:
+        problems.append(f"blueprint is missing expected view functions: {missing}")
+
+    # Grouping is the log's argument, so a workstream losing its stages is a
+    # content failure the renderer cannot see.
+    for group in getattr(engineering_module, "WORKSTREAMS", []):
+        if not group.get("stages"):
+            problems.append(f"workstream {group.get('id')!r} has no stages")
 
     return problems
 

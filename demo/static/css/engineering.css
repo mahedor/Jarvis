@@ -85,8 +85,7 @@ body {
 }
 .eng-nav a:hover { color: var(--text); }
 .eng-nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
-.eng-nav a.eng-exit { color: var(--dim); margin-left: 8px; }
-.eng-nav a.eng-exit:hover { color: var(--text); }
+/* .eng-exit is gone: the nav no longer links out to the running assistant. */
 
 /* ─── Layout ─────────────────────────────────────────────── */
 
@@ -274,6 +273,54 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
   color: var(--muted);
 }
 .eng-badge.measured { color: var(--deployment); border-color: rgba(58, 209, 154, 0.3); }
+
+/* ─── Workstreams (overview) ─────────────────────────────────
+   The overview's spine. Grouping is the argument: the assistant is the
+   product, the face stages are one strand feeding it, and the direction
+   page is last. Cards rather than a list because each strand carries a
+   blurb the reader needs before the stage links mean anything. */
+
+.eng-workstreams {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-top: 18px;
+}
+
+.eng-workstream {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid rgba(var(--accent-rgb), 0.45);
+  border-radius: 8px;
+  padding: 18px 20px;
+}
+.eng-workstream h3 { font-size: 15px; margin-bottom: 8px; }
+.eng-workstream-blurb { font-size: 13.5px; color: var(--muted); }
+
+.eng-workstream-stages { list-style: none; margin-top: 14px; }
+.eng-workstream-stages li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 13.5px;
+  border-top: 1px solid var(--border);
+}
+.eng-workstream-stages li:first-child { border-top: none; }
+.eng-workstream-stages li.pending { opacity: 0.55; }
+.eng-workstream-stages a { color: var(--text); text-decoration: none; }
+.eng-workstream-stages a:hover { color: var(--accent); }
+.eng-workstream-stages span:not(.eng-badge) { color: var(--muted); }
+.eng-workstream-stages .eng-badge { margin-left: auto; }
+
+/* Marks a claim that was reasoned rather than measured. The site's whole
+   credibility rests on the two being visibly different, so this is a
+   distinct treatment and not just another note. */
+.eng-note.eng-unmeasured {
+  border-left: 2px solid var(--yardstick);
+  padding-left: 12px;
+  color: #b9a37a;
+}
 
 /* ─── Locked operating points ────────────────────────────── */
 
