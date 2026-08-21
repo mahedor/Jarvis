@@ -132,87 +132,11 @@
     </div>
   </article>
 
-  <!-- 3 ─────────────────────────────────────────────────── -->
-  <article class="eng-decision">
-    <div class="eng-decision-index">03</div>
-    <div class="eng-decision-body">
-      <h3>Prompt caching was measured and rejected — but the first five results were lying</h3>
-      <p class="eng-claim">
-        Six attempts, none faster. Five of them never turned caching on at all,
-        and reported that as "no speedup".
-      </p>
-      <p>
-        Prompt caching should cut latency by reusing an already processed
-        prefix. The experiment ran the same command with caching on and off,
-        {{ caching[0].runs_per_mode if caching else 10 }} runs per mode. Every
-        speedup came back at roughly 1.0×, which reads as a clean negative
-        result — until you check whether anything was cached:
-      </p>
-
-      <table class="eng-table compact">
-        <thead>
-          <tr><th>run</th><th class="num">input tokens</th>
-              <th class="num">cache written</th><th class="num">cache read</th>
-              <th class="num">speedup</th><th>verdict</th></tr>
-        </thead>
-        <tbody>
-          {% for run in caching %}
-          <tr class="{% if not run.engaged %}excluded{% endif %}">
-            <td class="mono">{{ run.timestamp[:16] }}{% if run.with_history %}
-              <span class="eng-tag">--with-history</span>{% endif %}</td>
-            <td class="num">{{ run.input_tokens }}</td>
-            <td class="num {% if run.cache_created %}up{% endif %}">{{ '{:,}'.format(run.cache_created) }}</td>
-            <td class="num {% if run.cache_read %}up{% endif %}">{{ '{:,}'.format(run.cache_read) }}</td>
-            <td class="num strong">{{ '%.3f'|format(run.speedup) }}×</td>
-            <td class="role">
-              {% if run.engaged %}cache genuinely used{% else %}caching never engaged{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-
-      <p>
-        <code>cache_creation_input_tokens</code> and
-        <code>cache_read_input_tokens</code> are zero for the first five runs.
-        Nothing was written to a cache and nothing was read from one, so those
-        runs measured an identical request against itself. Note that
-        <code>--with-history</code> was already in use for three of them — the
-        flag was added to push the prefix over the cacheable minimum, and it
-        still took several attempts before the counters moved.
-      </p>
-      {% if caching_engaged %}
-      <p>
-        The last run is the real measurement:
-        {{ '{:,}'.format(caching_engaged[-1].cache_created) }} tokens written,
-        {{ '{:,}'.format(caching_engaged[-1].cache_read) }} read back, so
-        caching demonstrably worked. Latency was
-        {{ '%.0f'|format(caching_engaged[-1].on_ms) }} ms cached against
-        {{ '%.0f'|format(caching_engaged[-1].off_ms) }} ms uncached — a
-        {{ '%.2f'|format(caching_engaged[-1].speedup) }}× speedup, which is to
-        say none.
-      </p>
-      <p>
-        That is believable rather than disappointing. At a prefix of about a
-        thousand tokens, re-reading it is a small part of a
-        {{ '%.1f'|format((caching_engaged[-1].off_ms or 0) / 1000) }}-second
-        request dominated by generating the response. Caching pays off at
-        context sizes an order of magnitude larger. This result holds
-        regardless of what routes the command — it is a property of the model
-        call, not the router.
-      </p>
-      {% endif %}
-      <p class="eng-takeaway">
-        Before believing a null result, confirm the mechanism ran. A feature
-        that silently no-ops looks exactly like a feature that does not work,
-        and the usage counters were in the response the whole time.
-      </p>
-      <p class="eng-note">
-        Read from <code>{{ caching_source }}</code>{% if caching %} ·
-        {{ caching[0].model }}{% endif %}.
-      </p>
-    </div>
-  </article>
+  <!-- The prompt-caching experiment used to be decision 03 here. It moved to
+       the assistant page, because this page's own prose gave the reason: the
+       result is a property of the Claude call, not of whatever decided to make
+       it. What routing keeps is the COST of that call, which is the number the
+       whole cascade argument rests on. -->
 </section>
 
 <!-- ─── Current implementation, explicitly provisional ───── -->
@@ -318,29 +242,20 @@
     <h3>The measurements are old, and the model has moved</h3>
     <p>
       Routing latencies are from
-      {{ intent_run.timestamp[:10] if intent_run else 'April 2026' }}, caching
-      from {% if caching %}{{ caching[-1].timestamp[:10] }}{% endif %} against
-      {% if caching %}<code>{{ caching[0].model }}</code>{% endif %}. Both the
+      {{ intent_run.timestamp[:10] if intent_run else 'April 2026' }}, and the
+      Claude round-trip they are compared against is older still. Both the
       classifier and the model have changed since. The shape of the argument
       survives — a local match will always beat a network round trip — but the
       specific milliseconds should be re-measured before anyone quotes them.
     </p>
   </div>
-
-  <div class="eng-caveat-block">
-    <h3>The caching experiment is a single prompt</h3>
-    <p>
-      One command, {{ caching[0].runs_per_mode if caching else 10 }} runs per
-      mode. Enough to show the mechanism engaged and produced no speedup at
-      this context size; not enough to characterise caching in general, and it
-      says nothing about token cost, which is the other reason to use it.
-    </p>
-  </div>
 </section>
 
 <p class="eng-note">
-  {{ intent_runs }} intent run(s) on file · {{ caching | length }} caching run(s) ·
-  sources <code>{{ intent_source }}</code>, <code>{{ caching_source }}</code>
+  {{ intent_runs }} intent run(s) on file · source <code>{{ intent_source }}</code>.
+  The Claude round-trip above is read from the caching runs — see
+  <a class="eng-link" href="{{ url_for('engineering.assistant') }}">the assistant page</a>,
+  where that experiment is written up.
 </p>
 
 {% endblock %}

@@ -1,0 +1,409 @@
+{% extends "engineering/base.html" %}
+{% block title %}The assistant{% endblock %}
+{% block heading %}The assistant &mdash; Phase 1{% endblock %}
+
+{% block content %}
+
+<!-- The only page in this log describing something a reader can go and use.
+     Its evidence is uneven on purpose: the caching experiment is a real
+     artifact, the TTS comparison is a decision-time record, and the voice UX
+     was never measured at all. Levelling those three up into one confident
+     voice would be the easiest lie on the site, so the page grades them
+     instead — see the closing section. -->
+
+<section class="eng-intro">
+  <p class="eng-lede">
+    This is the system the rest of the log is in service of. You speak or type,
+    a routing cascade decides whether the question needs an LLM at all, Claude
+    answers when it does, and the browser speaks the reply while the lights,
+    fan and blinds change state.
+  </p>
+  <p class="eng-note">
+    Phase 1, running today against simulated devices. The hardware it is
+    designed for &mdash; Zigbee bulbs, a mic array, wake word &mdash; is not
+    bought yet, so device state lives in memory and resets when the server
+    restarts. Everything below describes what the code does now, not what the
+    deployment will do.
+  </p>
+</section>
+
+<section>
+  <h2>Decisions</h2>
+
+  <!-- 1 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">01</div>
+    <div class="eng-decision-body">
+      <h3>The orchestrator owns device state, and re-shows it on every turn</h3>
+      <p class="eng-claim">
+        The model is never asked to remember what it switched on. Current state
+        is rebuilt into the prompt before every single request.
+      </p>
+      <p>
+        The tempting design is to let conversation history carry it: the model
+        said "turning on the lamp" three turns ago, so it knows the lamp is on.
+        That works until anything changes state outside the conversation &mdash;
+        a physical switch, a scheduled routine, a restart, another client
+        &mdash; at which point the model is confidently narrating a house that
+        does not exist, and nothing in the transcript contradicts it.
+      </p>
+      <p>
+        So <code>build_system_prompt()</code> returns two blocks: a static one
+        carrying the personality, the rules and the action format, and a dynamic
+        one carrying the live device table. Only the second is rebuilt per
+        request. The model is told, every turn, what is actually true, and
+        instructed to answer status questions from that block rather than from
+        the conversation.
+      </p>
+      <p>
+        Actions travel the other way as <code>[ACTION: {...}]</code> blocks
+        parsed out of the reply, applied to the state dict, and stripped before
+        the text reaches the browser. The model proposes; the orchestrator
+        records. That split is what will let Home Assistant replace the
+        in-memory dict later without the prompt changing at all.
+      </p>
+      <p class="eng-takeaway">
+        If state can change behind the model's back, the model cannot be the
+        thing that stores it. Re-showing the truth is cheaper than any scheme
+        for keeping a transcript honest.
+      </p>
+      <p class="eng-note eng-unmeasured">
+        Reasoned, not measured. No experiment compares this against
+        history-carried state &mdash; the argument is about a failure mode, and
+        the failure mode is not one a latency table would show.
+      </p>
+    </div>
+  </article>
+
+  <!-- 2 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">02</div>
+    <div class="eng-decision-body">
+      <h3>Voice I/O runs in the browser because it was fastest to ship &mdash;
+        and it is not the destination</h3>
+      <p class="eng-claim">
+        Both directions of speech are the browser's: <code>speechSynthesis</code>
+        out, <code>SpeechRecognition</code> in. Zero server cost, zero added
+        latency, nothing to install &mdash; and both are slated for replacement
+        once there is hardware to replace them with.
+      </p>
+      <p>
+        The original build generated audio in Python: call a cloud TTS API,
+        receive an mp3, write it to disk, load it, start playback. Every one of
+        those is fast and all of them together are not &mdash; and the cost lands
+        exactly where it is most visible, in the pause after the assistant has
+        finished thinking.
+      </p>
+      <p>
+        <code>speechSynthesis.speak()</code> removes the whole chain. The
+        browser's engine is already resident, so audio starts about as fast as
+        the text arrives, and the server stops generating audio entirely.
+      </p>
+      <p>
+        Input went the same way for the same reason, and it turned out better
+        than expected: <strong>Edge's integrated speech recognition is genuinely
+        good</strong> &mdash; accurate enough on ordinary household commands
+        that improving it has never been the bottleneck. Click the mic, talk,
+        and it submits when you stop. That is a real capability acquired for
+        roughly no engineering, which is the whole argument for taking it.
+      </p>
+
+      <table class="eng-table compact">
+        <thead>
+          <tr><th>approach</th><th class="num">time after the reply is ready</th>
+              <th>voice quality</th><th>dependencies</th></tr>
+        </thead>
+        <tbody>
+          <tr class="excluded">
+            <td class="mono">Windows SAPI (pyttsx3)</td>
+            <td class="num">~200 ms</td>
+            <td class="role">robotic</td>
+            <td class="role">pyttsx3</td>
+          </tr>
+          <tr class="excluded">
+            <td class="mono">server-side edge-tts</td>
+            <td class="num">~1&ndash;2 s</td>
+            <td class="role">neural, good</td>
+            <td class="role">edge-tts, pygame</td>
+          </tr>
+          <tr>
+            <td class="mono">browser Web Speech API</td>
+            <td class="num strong">~10 ms</td>
+            <td class="role">good on Edge, fair on Chrome</td>
+            <td class="role">none</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        The trade is control and portability. Voice quality is the browser's
+        opinion rather than ours &mdash; Edge is recommended for that reason
+        &mdash; and none of it works headless, which is exactly what the
+        eventual mini-PC deployment is. A box in a bedroom answering to "hey
+        Jarvis" has no tab open, so a design that depends on one cannot be the
+        final design. That was understood when the decision was made rather
+        than discovered afterwards:
+        <code>docs/adr/002</code> scopes itself to the demo phase in its own
+        consequences section and defers the production engine to a later ADR.
+      </p>
+
+      <div class="eng-split">
+        <div>
+          <div class="eng-split-label deployment">what it bought</div>
+          <p>
+            A working voice loop in both directions, immediately, for no server
+            cost, no added latency and no dependencies &mdash; on a project
+            whose hardware had not been bought. Good enough is a real
+            engineering result when the alternative is nothing to demo.
+          </p>
+        </div>
+        <div>
+          <div class="eng-split-label yardstick">what replaces it</div>
+          <p>
+            Server-side Whisper for STT and OpenWakeWord for "hey Jarvis",
+            both in the hardware phase. TTS is the genuinely open one: local
+            neural, cloud, or a speech-to-speech model that removes the
+            conversion entirely.
+          </p>
+        </div>
+      </div>
+
+      <p>
+        <strong>None of that replacement is in progress.</strong> Whisper, the
+        wake word and the mic array are roadmap items blocked on hardware that
+        has not been ordered; no branch, no prototype, no benchmark. They are
+        named here so the browser stack reads as a deliberate stopgap with a
+        known exit rather than as the finished answer &mdash; but a plan with a
+        dependency nobody has bought yet is a plan, and this page does not get
+        to call it anything else.
+      </p>
+      <p class="eng-takeaway">
+        Removing a step beats optimising it, and shipping the good-enough thing
+        beats waiting for the right one &mdash; provided the swap is designed in
+        rather than hoped for. What makes this a decision and not a shortcut is
+        that the boundary was written down at the time.
+      </p>
+      <p class="eng-note eng-unmeasured">
+        Recorded in <code>docs/adr/002-browser-tts-over-server-tts.md</code> at
+        decision time. The figures above are that ADR's, taken while choosing
+        between the three; they are not a benchmark artifact in
+        <code>results/</code> and were not re-run for this page. Note also that
+        the ADR covers <em>output</em> only &mdash; browser STT was adopted on
+        the same reasoning but never got a record of its own.
+      </p>
+    </div>
+  </article>
+
+  <!-- 3 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">03</div>
+    <div class="eng-decision-body">
+      <h3>The wait is covered by speaking first, not by streaming harder</h3>
+      <p class="eng-claim">
+        A Tier&nbsp;3 answer costs
+        {% if claude_ms %}about {{ '%.1f'|format(claude_ms / 1000) }} seconds{% else %}a couple of seconds{% endif %}
+        of silence. The frontend fills it by asking a second endpoint for
+        something to say.
+      </p>
+      <p>
+        Claude's reply is streamed internally but accumulated server-side before
+        anything is returned, because actions have to be parsed out of the
+        completed text before the browser is allowed to speak any of it &mdash;
+        half a sentence read aloud with an <code>[ACTION:&nbsp;...]</code> block
+        still in it is worse than a pause.
+      </p>
+      <p>
+        So the browser calls <code>/filler</code> and <code>/chat</code> at the
+        same time. <code>/filler</code> runs the same classifier, returns
+        <code>null</code> for anything under Tier&nbsp;3 &mdash; a local answer
+        needs no cover, and "let me think" in front of an instant reply is worse
+        than silence &mdash; and otherwise hands back a phrase from a pool keyed
+        to the kind of thing that was said. The phrase is spoken while the model
+        works.
+      </p>
+      <p class="eng-takeaway">
+        Perceived latency and actual latency are different problems. This one is
+        addressed where it is felt rather than where it is generated.
+      </p>
+      <p class="eng-note eng-unmeasured">
+        Unmeasured. Whether a spoken filler actually makes the wait feel shorter
+        &mdash; or just makes the assistant seem to stall twice &mdash; is a
+        question about people, and nothing here has asked one. The phrase pools
+        are hand-written and their selection is random within a category.
+      </p>
+    </div>
+  </article>
+
+  <!-- 4 ─────────────────────────────────────────────────── -->
+  <article class="eng-decision">
+    <div class="eng-decision-index">04</div>
+    <div class="eng-decision-body">
+      <h3>Prompt caching was measured and rejected &mdash; but the first five results were lying</h3>
+      <p class="eng-claim">
+        Six attempts, none faster. Five of them never turned caching on at all,
+        and reported that as "no speedup".
+      </p>
+      <p>
+        Prompt caching should cut latency by reusing an already processed
+        prefix &mdash; here, the static half of the system prompt, which is
+        identical on every request. The experiment ran the same command with
+        caching on and off,
+        {{ caching[0].runs_per_mode if caching else 10 }} runs per mode. Every
+        speedup came back at roughly 1.0×, which reads as a clean negative
+        result &mdash; until you check whether anything was cached:
+      </p>
+
+      <table class="eng-table compact">
+        <thead>
+          <tr><th>run</th><th class="num">input tokens</th>
+              <th class="num">cache written</th><th class="num">cache read</th>
+              <th class="num">speedup</th><th>verdict</th></tr>
+        </thead>
+        <tbody>
+          {% for run in caching %}
+          <tr class="{% if not run.engaged %}excluded{% endif %}">
+            <td class="mono">{{ run.timestamp[:16] }}{% if run.with_history %}
+              <span class="eng-tag">--with-history</span>{% endif %}</td>
+            <td class="num">{{ run.input_tokens }}</td>
+            <td class="num {% if run.cache_created %}up{% endif %}">{{ '{:,}'.format(run.cache_created) }}</td>
+            <td class="num {% if run.cache_read %}up{% endif %}">{{ '{:,}'.format(run.cache_read) }}</td>
+            <td class="num strong">{{ '%.3f'|format(run.speedup) }}×</td>
+            <td class="role">
+              {% if run.engaged %}cache genuinely used{% else %}caching never engaged{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p>
+        <code>cache_creation_input_tokens</code> and
+        <code>cache_read_input_tokens</code> are zero for the first five runs.
+        Nothing was written to a cache and nothing was read from one, so those
+        runs measured an identical request against itself. Note that
+        <code>--with-history</code> was already in use for three of them &mdash;
+        the flag was added to push the prefix over the cacheable minimum, and it
+        still took several attempts before the counters moved.
+      </p>
+      {% if caching_engaged %}
+      <p>
+        The last run is the real measurement:
+        {{ '{:,}'.format(caching_engaged[-1].cache_created) }} tokens written,
+        {{ '{:,}'.format(caching_engaged[-1].cache_read) }} read back, so
+        caching demonstrably worked. Latency was
+        {{ '%.0f'|format(caching_engaged[-1].on_ms) }} ms cached against
+        {{ '%.0f'|format(caching_engaged[-1].off_ms) }} ms uncached &mdash; a
+        {{ '%.2f'|format(caching_engaged[-1].speedup) }}× speedup, which is to
+        say none.
+      </p>
+      <p>
+        That is believable rather than disappointing. At a prefix of about a
+        thousand tokens, re-reading it is a small part of a
+        {{ '%.1f'|format((caching_engaged[-1].off_ms or 0) / 1000) }}-second
+        request dominated by generating the response. Caching pays off at
+        context sizes an order of magnitude larger.
+      </p>
+      {% endif %}
+      <p>
+        <code>cache_control</code> is still set on the static block. It is not
+        costing anything, the prompt will grow, and the machinery being already
+        in place is worth more than the line it takes up &mdash; but it is
+        marked here as a thing that currently buys nothing, so nobody has to
+        rediscover that later.
+      </p>
+      <p class="eng-takeaway">
+        Before believing a null result, confirm the mechanism ran. A feature
+        that silently no-ops looks exactly like a feature that does not work,
+        and the usage counters were in the response the whole time.
+      </p>
+      <p class="eng-note">
+        Read from <code>{{ caching_source }}</code>{% if caching %} ·
+        {{ caching[0].model }}{% endif %}.
+      </p>
+    </div>
+  </article>
+</section>
+
+<!-- ─── The honest ledger ────────────────────────────────── -->
+
+<section>
+  <h2>What has no measurement behind it
+    <span class="eng-badge provisional">unmeasured</span></h2>
+
+  <div class="eng-caveat-block">
+    <h3>Three of the four decisions above are arguments, not results</h3>
+    <p>
+      Only the caching experiment produced an artifact. The state design is
+      reasoned from a failure mode, the TTS comparison is a decision-time record
+      rather than a rerunnable benchmark, and the filler design has never been
+      evaluated against anyone's actual perception of waiting. Each is labelled
+      where it sits, and none of them should be read with the same weight as the
+      detector or encoder tables elsewhere in this log.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>The caching experiment is a single prompt</h3>
+    <p>
+      One command, {{ caching[0].runs_per_mode if caching else 10 }} runs per
+      mode. Enough to show the mechanism engaged and produced no speedup at
+      this context size; not enough to characterise caching in general, and it
+      says nothing about token cost, which is the other reason to use it.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>The interface was designed by taste</h3>
+    <p>
+      The dark theme, the six accent colours, the screensaver and its ten
+      effects, the greeting, the personality in the system prompt &mdash; all
+      chosen because they felt right for the thing being built. There is no A/B
+      test, no preference study and no usability session behind any of it, and
+      claiming otherwise would be the easiest way to make this page dishonest.
+      They are listed because they are real parts of the product, not because
+      they are defended.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>"Edge's recognition is good" is an impression, not a number</h3>
+    <p>
+      It is stated above as a reason the browser stack was worth taking, and it
+      is worth being clear about what backs it: daily use, and nothing else. Word
+      error rate on this household's voices, accents and room acoustics has
+      never been measured &mdash; there is no transcription benchmark in this
+      repo, and no baseline to compare a Whisper deployment against when it
+      arrives. Building one is part of what the swap is for.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>Devices are simulated</h3>
+    <p>
+      Four entities &mdash; a main light, a lamp, a fan and blinds &mdash; live
+      in a dictionary in the orchestrator process. They accept the same service
+      calls Home Assistant will (<code>light.turn_on</code>,
+      <code>cover.open_cover</code> and so on) so the prompt and the parsing do
+      not have to change later, but nothing has ever been sent to real hardware.
+      Latency, failure modes and partial state are all unknowns that only
+      arrive with the Zigbee stack.
+    </p>
+  </div>
+</section>
+
+<!-- ─── Onward ───────────────────────────────────────────── -->
+
+<section class="eng-onward">
+  <div class="eng-onward-rule"><span>what sits in front of it</span></div>
+  <p>
+    Every request above passes through the router before any of this happens
+    &mdash; and most of them never reach Claude at all. That is the next page:
+    which commands can be answered locally, what the cascade costs per layer,
+    and why the thing currently doing the work is flagged for replacement
+    despite working.
+  </p>
+  <a class="eng-link eng-onward-link"
+     href="{{ url_for('engineering.routing') }}">intent routing &amp; latency &rarr;</a>
+</section>
+
+{% endblock %}

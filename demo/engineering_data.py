@@ -808,9 +808,15 @@ def routing_tables():
 
 
 def routing_page_data():
-    """Everything the intent-routing page renders."""
+    """Everything the intent-routing page renders.
+
+    Reads the caching artifact for ONE value: claude_ms, the uncached
+    round-trip that the whole local/cloud split is justified against. The
+    caching experiment itself belongs to assistant_page_data() — it measures
+    the model call, not the router. Keeping only the number this page argues
+    from means a template change cannot silently resurrect the other one.
+    """
     intent_runs = load_runs(INTENT_FILE)
-    caching = caching_runs(load_runs(CACHING_FILE))
     latest_intent = intent_runs[-1] if intent_runs else None
     layers = intent_layers(latest_intent)
 
@@ -820,13 +826,10 @@ def routing_page_data():
         "layers": layers,
         "cheapest": layers[0] if layers else None,
         "dearest": layers[-1] if layers else None,
-        "caching": caching,
-        "caching_engaged": [r for r in caching if r["engaged"]],
-        "claude_ms": claude_call_ms(caching),
+        "claude_ms": claude_call_ms(caching_runs(load_runs(CACHING_FILE))),
         "corpus": eval_corpus(),
         "tables": routing_tables(),
         "intent_source": _relative(INTENT_FILE),
-        "caching_source": _relative(CACHING_FILE),
     }
 
 
@@ -1039,6 +1042,29 @@ def overview_page_data():
         "box_rate_run": busiest,
         "recognition_winner": pick_winner(
             recognition_matrix(recognition[-1] if recognition else None)),
+    }
+
+
+def assistant_page_data():
+    """Everything the Phase 1 assistant page renders.
+
+    THE CACHING RUNS LIVE HERE NOW. They were on the routing page, which was
+    the wrong home for them: the experiment measures a property of the Claude
+    call, not of whatever decided to make it — the page itself said so in
+    prose. Routing keeps claude_ms, which is the number that justifies the
+    cascade; the experiment moves to the page about orchestrating Claude.
+
+    Deliberately returns no numbers for browser speech, the filler phrases or
+    the interface. Those were judgment calls and were never measured, and
+    inventing a shape for them here is how a page starts implying evidence it
+    does not have. The template states them as unmeasured instead.
+    """
+    caching = caching_runs(load_runs(CACHING_FILE))
+    return {
+        "caching": caching,
+        "caching_engaged": [r for r in caching if r["engaged"]],
+        "claude_ms": claude_call_ms(caching),
+        "caching_source": _relative(CACHING_FILE),
     }
 
 
