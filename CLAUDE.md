@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Install dependencies
-pip install anthropic flask python-dotenv
+pip install anthropic flask python-dotenv paho-mqtt
 
 # Set API keys (PowerShell)
 $env:ANTHROPIC_API_KEY = "sk-ant-..."
@@ -34,7 +34,7 @@ insightface 1.0.1, opencv 4.13).
 ## Tests and linting
 
 ```bash
-python -m pytest tests/    # 265 tests, ~2.5 min
+python -m pytest tests/    # 282 tests, ~2.5 min
 ./run_lint.sh              # ruff + ESLint
 ```
 
@@ -143,6 +143,14 @@ describe this as deployed.
 `results/*.json` is committed and is what the engineering log reads. The datasets
 under `data/` and the model weights are not committed.
 
+## MQTT spike (`tools/mqtt_hello_*.py`)
+
+Two throwaway scripts on topic `jarvis/presence/test` that demonstrate QoS 0 vs
+QoS 1 across a disconnect, retained messages, and last-will. Groundwork for the
+Phase 2 REST -> MQTT migration. **Nothing in `demo/` imports them**, there is no
+`presence_service.py`, and MQTT is not part of the request path. Requires a local
+mosquitto on 127.0.0.1:1883 — install/start commands are in the README.
+
 ## Engineering log
 
 `/engineering` is a build-log blueprint that shares nothing with the assistant —
@@ -170,7 +178,7 @@ the runner and per-suite results writer are not built yet.
 See `docs/ROADMAP.md`.
 
 **Real today:** browser TTS/STT, voice mode, the local intent cascade, device
-state tracking, the screensaver UI, prompt caching, the linter, the 265-test
+state tracking, the screensaver UI, prompt caching, the linter, the 282-test
 suite, the routing eval corpus, the intent and prompt-caching benchmarks, the
 face detection/recognition benchmarks with locked operating points, and the
 `/engineering` log plus its static freezer.

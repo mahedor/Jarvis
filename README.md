@@ -18,7 +18,7 @@ No hardware needed. From the **repo root**:
 
 ```bash
 # 1. Install dependencies
-pip install anthropic flask python-dotenv
+pip install anthropic flask python-dotenv paho-mqtt
 
 # 2. Configure your keys (see "Environment" below)
 cp .env.example .env     # then edit .env and paste your key in
@@ -244,10 +244,112 @@ log reads. The datasets themselves and `data/gallery.npz` are not committed.
 
 ---
 
+## MQTT hello-world (presence groundwork)
+
+Throwaway spike for Phase 2 item 16 (REST -> MQTT message bus) and the presence
+service that will consume the face pipeline. **Nothing in `demo/` uses MQTT yet**
+and `presence_service.py` does not exist — this is two scripts and a broker,
+kept so the semantics do not have to be re-derived later.
+
+### Install and start the broker (Windows)
+
+```powershell
+winget install --source winget --id EclipseFoundation.Mosquitto
+```
+
+Installs to `C:\Program Files\mosquitto\` and registers a Windows service named
+`mosquitto` that **starts automatically** — after install there is usually
+nothing left to do. To check and control it:
+
+```powershell
+sc query mosquitto              # state, no admin needed
+Start-Service mosquitto         # admin
+Stop-Service mosquitto          # admin
+netstat -ano | findstr 1883     # confirm it is listening
+```
+
+To watch traffic while debugging, stop the service and run it in the foreground
+with verbose logging instead (the service already owns port 1883, so it has to
+be stopped first):
+
+```powershell
+Stop-Service mosquitto
+& "C:\Program Files\mosquitto\mosquitto.exe" -v
+```
+
+The shipped `mosquitto.conf` is **entirely comments**, so mosquitto 2.x falls
+back to its defaults: listen on `127.0.0.1:1883` only, anonymous access allowed.
+That is what makes the hello-world work with zero configuration — and it is also
+why a camera node on another machine will not be able to connect. Publishing
+presence from a Pi later means adding a real `listener` plus auth; treat this
+setup as loopback-only.
+
+### The two scripts
+
+`tools/mqtt_hello_pub.py` and `tools/mqtt_hello_sub.py`, both on topic
+`jarvis/presence/test`. Throwaway diagnostics, not imported by anything. They use
+paho-mqtt 2.x (`CallbackAPIVersion.VERSION2`) over MQTT v3.1.1.
+
+**QoS 0 vs QoS 1 — does a message survive the subscriber being offline?**
+
+```bash
+python tools/mqtt_hello_sub.py --scenario qos --phase register   # claim session, disconnect
+python tools/mqtt_hello_pub.py --scenario qos                    # send both, nobody listening
+python tools/mqtt_hello_sub.py --scenario qos --phase collect    # come back
+```
+
+Only the QoS 1 message is waiting. The QoS 0 one was dropped the instant it
+arrived at a broker with no connected subscriber. The queueing depends on a
+**persistent session** (`clean_session=False` plus a fixed client id) — on
+reconnect the broker reports `session_present=True`. With the default clean
+session, QoS 1 buys nothing across a disconnect, because the subscription itself
+is gone.
+
+**RETAIN — does a late subscriber learn the current state?**
+
+```bash
+python tools/mqtt_hello_pub.py --scenario retained    # publish, then exit
+python tools/mqtt_hello_sub.py --scenario retained    # start afterwards, still gets it
+```
+
+The message arrives immediately on SUBACK with `retain=True` — that flag is how
+you tell a stored state snapshot from a live event. The broker holds exactly one
+retained message per topic. This is the mechanism for "who is home right now?":
+a subscriber that boots at any time gets the answer without waiting for the next
+detection. `--scenario clear` (empty payload, `retain=True`) wipes it.
+
+**LAST WILL — does the broker announce a publisher that died?**
+
+```bash
+python tools/mqtt_hello_sub.py --scenario will --seconds 12 &   # subscriber first
+python tools/mqtt_hello_pub.py --scenario will --die-after 3    # hard-exits, no DISCONNECT
+```
+
+The subscriber sees the publisher's `hello`, then the will fires the moment the
+socket dies. The will payload is composed at **connect** time and handed to the
+broker inside the CONNECT packet, so its `sent_at` is the connect timestamp, not
+the death timestamp. `--die-after` uses `os._exit`, which looks identical to a
+`kill` from the broker's side; omit it to sit until you kill the process
+yourself. A clean `disconnect()` suppresses the will, which is the point — this
+is how a presence node will report "camera offline" instead of going silently
+stale.
+
+### Cleaning up
+
+The QoS demo leaves a persistent session on the broker that keeps queueing QoS 1
+messages for a subscriber that never returns:
+
+```bash
+python tools/mqtt_hello_sub.py --scenario wipe    # drop the session
+python tools/mqtt_hello_pub.py --scenario clear   # drop the retained message
+```
+
+---
+
 ## Development
 
 ```bash
-python -m pytest tests/      # 265 tests
+python -m pytest tests/      # 282 tests
 ./run_lint.sh                # ruff + ESLint (configs: ruff.toml, eslint.config.mjs)
 ```
 
@@ -389,13 +491,15 @@ jarvis/
 │   ├── plot_recognition_curves.py  # ROC / PR figures -> results/
 │   ├── sanity_check_detectors.py   # Spot-check helper
 │   ├── rerun_detection.sh     # Re-run helper
+│   ├── mqtt_hello_pub.py      # MQTT spike - publisher (throwaway)
+│   ├── mqtt_hello_sub.py      # MQTT spike - subscriber (throwaway)
 │   ├── freeze_engineering.py  # /engineering -> static site
 │   └── scan_public_output.py  # Leak scan before publishing
 ├── results/                   # Benchmark artifacts, committed — the log reads these
 │   ├── benchmarks_detection.json, benchmarks_recognition.json
 │   ├── benchmarks_intent.json, benchmarks_caching.json
 │   └── recognition_pr.svg, recognition_roc.svg
-├── tests/                     # 265 tests
+├── tests/                     # 282 tests
 │   └── eval/                  # Routing + conversation eval corpus, 4 scenario suites
 ├── docs/
 │   ├── ROADMAP.md
@@ -441,4 +545,4 @@ These are informal milestones — the repo carries no git tags.
 | v0.1.0 | Terminal demo with Claude + device state tracking |
 | v0.2.0 | Web UI, streaming, server-side edge-tts |
 | v0.3.0 | Browser-native TTS/STT, screensaver, themes |
-| Unreleased | Local intent cascade + voice mode + filler phrases; ruff/ESLint; 265-test suite; routing eval corpus; intent and prompt-caching benchmarks; the face pipeline (detection + recognition benchmarks, gallery builder, locked operating points); the `/engineering` log and its static-site freezer |
+| Unreleased | Local intent cascade + voice mode + filler phrases; ruff/ESLint; 282-test suite; routing eval corpus; intent and prompt-caching benchmarks; the face pipeline (detection + recognition benchmarks, gallery builder, locked operating points); the `/engineering` log and its static-site freezer |
