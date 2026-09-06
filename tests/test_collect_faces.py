@@ -10,8 +10,10 @@ Run:
   pytest tests/test_collect_faces.py
 """
 
+import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -22,10 +24,14 @@ from collect_faces import (  # noqa: E402  (import follows the sys.path tweak ab
     REJECT_LOW_CONFIDENCE,
     REJECT_TOO_BLURRY,
     REJECT_TOO_SMALL,
+    build_enrollment_summary,
+    folder_label_collisions,
     l2_normalize,
     medoid_index,
     quality_check,
+    summarize_clusters,
     summarize_distribution,
+    summarize_folders,
 )
 
 # A box whose shortest side is 100px, comfortably over any default.
@@ -170,3 +176,152 @@ def test_percentiles_of_a_known_range():
 
 def test_empty_distribution_is_none():
     assert summarize_distribution([]) is None
+
+
+# ══════════════════════════════════════════════════════════════════
+# The publishable summary.
+#
+# These moved here from tests/test_engineering.py when the derivation moved
+# from render time to write time. The point of the move is that the real folder
+# names — which are people's names — are handled only in this module and never
+# reach demo/ or results/, so this is where their handling has to be tested.
+# ══════════════════════════════════════════════════════════════════
+
+def _curation_crops():
+    """Two people photographed inside one person's folder, plus a stranger.
+
+    Shaped like the real bucket: folder "alice" holds photos of Alice AND of
+    Bob, so a folder-derived label would merge them.
+    """
+    def crop(cluster, folder, photo):
+        return {"cluster": cluster, "source_folder": folder,
+                "source_photo": photo, "filename": f"{photo}_{cluster}.jpg"}
+
+    return (
+        [crop(0, "alice", f"a{i}") for i in range(7)]        # Alice
+        + [crop(1, "alice", f"a{i}") for i in range(3)]      # Bob, in her photos
+        + [crop(2, "bob", f"b{i}") for i in range(2)]        # Bob's own folder
+        + [crop(-1, "alice", "a9")]                          # a passer-by
+    )
+
+
+def _args(**overrides):
+    settings = {"detector": "yolo", "encoder": "arcface", "margin": 0.35,
+                "min_box_size": 40, "min_confidence": 0.5, "min_blur": None,
+                "min_cluster_size": 6, "min_samples": None}
+    settings.update(overrides)
+    return SimpleNamespace(**settings)
+
+
+def _stats(**overrides):
+    counts = {"photos_read": 4, "unreadable_photos": 0, "faces_detected": 20,
+              "crops_kept": 13, "embed_failures": 0, "alignment_fallbacks": 0,
+              "rejects": {"low_confidence": 7}}
+    counts.update(overrides)
+    return counts
+
+
+def test_summarize_clusters_counts_noise_separately():
+    clusters, noise = summarize_clusters(_curation_crops())
+    assert noise == 1
+    assert [c["id"] for c in clusters] == [0, 1, 2]
+    assert [c["crops"] for c in clusters] == [7, 3, 2]
+
+
+def test_summarize_clusters_never_exposes_real_folder_names():
+    """The crops carry people's names; the page's argument never needs them."""
+    clusters, _ = summarize_clusters(_curation_crops())
+    rendered = str(clusters)
+    assert "alice" not in rendered and "bob" not in rendered
+    assert "folder A" in rendered
+
+
+def test_folder_labels_would_have_merged_two_identities():
+    """The load-bearing claim of the flat-bucket decision.
+
+    Clusters 0 and 1 are different people but every crop of both came out of
+    the same folder, so a majority vote would file one under the other's name.
+    """
+    clusters, _ = summarize_clusters(_curation_crops())
+    collisions, mislabelled = folder_label_collisions(clusters)
+
+    assert len(collisions) == 1
+    assert collisions[0]["identities"] == 2
+    assert collisions[0]["keeps"] == 7        # the larger keeps the name
+    assert mislabelled == 3                   # the smaller is absorbed
+
+
+def test_no_collision_when_each_folder_owns_one_identity():
+    clusters, _ = summarize_clusters([
+        {"cluster": 0, "source_folder": "x", "source_photo": "p1"},
+        {"cluster": 1, "source_folder": "y", "source_photo": "p2"},
+    ])
+    collisions, mislabelled = folder_label_collisions(clusters)
+    assert collisions == [] and mislabelled == 0
+
+
+def test_summarize_folders_counts_photos_not_paths():
+    """Distinct photos per folder, as a COUNT — the paths must not survive."""
+    rows = summarize_folders(_curation_crops())
+    assert [r["label"] for r in rows] == ["folder A", "folder B"]
+    assert rows[0]["crops"] == 11          # alice's folder fed 11 crops
+    assert rows[0]["photos"] == 8          # a0..a6 plus a9
+    assert all(isinstance(r["photos"], int) for r in rows)
+
+
+def test_summary_carries_no_names_filenames_or_paths():
+    """The privacy contract of the published artifact, asserted directly.
+
+    Checks the VALUES that came out of the crops, not key names: the summary
+    legitimately has a "source_folders" key (a count), so a naive substring
+    sweep for "source_folder" reports itself.
+    """
+    summary = build_enrollment_summary(_curation_crops(), _args(), _stats(), None)
+    blob = json.dumps(summary)
+
+    for secret in ("alice", "bob", ".jpg", "a0", "b0", "input_dir"):
+        assert secret not in blob, f"{secret!r} reached the published summary"
+
+    # No per-crop rows survive: every list in the summary is either numbers or
+    # the aggregate dicts the page renders, never one entry per photograph.
+    assert "clusters_detail" in summary
+    for cluster in summary["clusters_detail"]:
+        assert set(cluster) == {"id", "crops", "folders", "sole_folder",
+                                "majority_folder"}
+        assert all(label.startswith("folder ") for label, _ in cluster["folders"])
+
+
+def test_summary_reports_the_shape_the_page_renders():
+    summary = build_enrollment_summary(_curation_crops(), _args(), _stats(), None)
+    assert summary["clusters"] == 3
+    assert summary["cluster_sizes"] == [7, 3, 2]
+    assert summary["clustered_crops"] == 12
+    assert summary["noise_crops"] == 1
+    assert summary["source_folders"] == 2
+    assert summary["mislabelled_if_voted"] == 3
+    assert summary["settings"]["encoder"] == "arcface"
+    assert summary["rejects"] == {"low_confidence": 7}
+
+
+def test_summary_headroom_is_slack_before_min_cluster_size_deletes_someone():
+    """The trap the enrollment page is written around."""
+    summary = build_enrollment_summary(_curation_crops(), _args(min_cluster_size=2),
+                                       _stats(), None)
+    assert summary["smallest_cluster"] == 2
+    assert summary["headroom"] == 0          # one crop thinner and Bob vanishes
+
+
+def test_summary_flags_clusters_at_risk_of_deletion():
+    summary = build_enrollment_summary(_curation_crops(), _args(min_cluster_size=3),
+                                       _stats(), None)
+    # crops < min_cluster_size * 2, i.e. under 6: clusters 1 (3) and 2 (2).
+    assert summary["at_risk"] == [1, 2]
+
+
+def test_summary_of_an_empty_run_does_not_crash():
+    summary = build_enrollment_summary([], _args(), _stats(), None)
+    assert summary["clusters"] == 0
+    assert summary["cluster_sizes"] == []
+    assert summary["smallest_cluster"] is None
+    assert summary["headroom"] is None
+    assert summary["collisions"] == []

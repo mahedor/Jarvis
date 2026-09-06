@@ -7,8 +7,9 @@ A personal AI assistant that controls my smart home, tracks my routines, and coa
 > Working web demo with Claude-powered intelligence, browser-native voice I/O, a
 > local intent cascade that answers most commands without calling Claude, and
 > device state tracking. The face pipeline for Phase 2 has been **benchmarked and
-> its operating points locked**, but the live presence service is not built yet.
-> Hardware deployment is the next step.
+> its operating points locked**, and `tools/presence_service.py` runs that
+> pipeline live onto an MQTT bus — though it is standalone, not yet consumed by
+> the assistant. Hardware deployment is the next step.
 
 ---
 
@@ -18,7 +19,7 @@ No hardware needed. From the **repo root**:
 
 ```bash
 # 1. Install dependencies
-pip install anthropic flask python-dotenv
+pip install anthropic flask python-dotenv paho-mqtt
 
 # 2. Configure your keys (see "Environment" below)
 cp .env.example .env     # then edit .env and paste your key in
@@ -137,6 +138,7 @@ render it.
 | `/engineering/recognition` | Encoder comparison and a score-distribution threshold explorer |
 | `/engineering/enrollment` | How an unlabelled photo bucket became a gallery — clustering, noise, and the curation calls |
 | `/engineering/routing` | The intent cascade, the prompt-caching experiment that was measured and rejected, and what the eval corpus defines as correct |
+| `/engineering/presence` | **Preliminary.** The presence pipeline diagram and topic layout — a design that runs, not a measurement. Debounce values are rendered live from `PresenceConfig` |
 | `/engineering/architecture` | The system all of this is being built toward |
 | `/engineering/figure/<name>` | Serves one generated benchmark figure out of `results/` |
 
@@ -170,6 +172,14 @@ Use `--strict` for anything you actually publish: the pages degrade to empty
 states by design when an artifact is missing, and a silently blank benchmark
 table is a worse published artifact than a failed build.
 
+**Every route declares what it needs.** `@requires(artifacts=..., data_checks=...)`
+on each view in `demo/engineering.py` says which `results/` artifacts and which
+shaped-data conditions that page depends on, and `preflight()` walks every
+registered route to enforce them. A route carrying no declaration fails the
+build. This replaced a hand-maintained checklist that only covered the pages
+someone remembered to add — which is how `/engineering/enrollment` published an
+empty state for months while every build reported success.
+
 Before publishing, scan the output for anything that should not go public:
 
 ```bash
@@ -186,8 +196,10 @@ truth and the hosting as external setup.
 ## Face pipeline (Phase 2 groundwork)
 
 The detectors and encoders have been benchmarked and the operating points are
-locked. **The live presence service that would consume them is not built** — what
-exists today is the measurement work, the gallery builder, and the pinned config.
+locked. `tools/presence_service.py` consumes them live and publishes presence
+over MQTT (documented below); **it is standalone and unintegrated**, and has only
+been run from a video file, never a live camera. What is settled today is the
+measurement work, the gallery builder, and the pinned config.
 
 ### Locked operating points
 
@@ -244,10 +256,253 @@ log reads. The datasets themselves and `data/gallery.npz` are not committed.
 
 ---
 
+## MQTT hello-world (presence groundwork)
+
+Throwaway spike for Phase 2 item 16 (REST -> MQTT message bus), written before
+the presence service to pin down the semantics it depends on. **Nothing in
+`demo/` uses MQTT** — the assistant's request path is unchanged. The real
+consumer is `tools/presence_service.py`, documented in the next section; these
+two scripts are kept because they demonstrate each MQTT behaviour in isolation,
+which the service cannot.
+
+### Install and start the broker (Windows)
+
+```powershell
+winget install --source winget --id EclipseFoundation.Mosquitto
+```
+
+Installs to `C:\Program Files\mosquitto\` and registers a Windows service named
+`mosquitto` that **starts automatically** — after install there is usually
+nothing left to do. To check and control it:
+
+```powershell
+sc query mosquitto              # state, no admin needed
+Start-Service mosquitto         # admin
+Stop-Service mosquitto          # admin
+netstat -ano | findstr 1883     # confirm it is listening
+```
+
+To watch traffic while debugging, stop the service and run it in the foreground
+with verbose logging instead (the service already owns port 1883, so it has to
+be stopped first):
+
+```powershell
+Stop-Service mosquitto
+& "C:\Program Files\mosquitto\mosquitto.exe" -v
+```
+
+The shipped `mosquitto.conf` is **entirely comments**, so mosquitto 2.x falls
+back to its defaults: listen on `127.0.0.1:1883` only, anonymous access allowed.
+That is what makes the hello-world work with zero configuration — and it is also
+why a camera node on another machine will not be able to connect. Publishing
+presence from a Pi later means adding a real `listener` plus auth; treat this
+setup as loopback-only.
+
+### The two scripts
+
+`tools/mqtt_hello_pub.py` and `tools/mqtt_hello_sub.py`, both on topic
+`jarvis/test/hello`. Throwaway diagnostics, not imported by anything. They use
+paho-mqtt 2.x (`CallbackAPIVersion.VERSION2`) over MQTT v3.1.1.
+
+They live on `jarvis/test/` rather than under `jarvis/presence/` on purpose:
+wildcards do not honour naming conventions, so a spike parked at
+`jarvis/presence/test` would be delivered to any subscriber on
+`jarvis/presence/+` as though it were a person named "test".
+
+**QoS 0 vs QoS 1 — does a message survive the subscriber being offline?**
+
+```bash
+python tools/mqtt_hello_sub.py --scenario qos --phase register   # claim session, disconnect
+python tools/mqtt_hello_pub.py --scenario qos                    # send both, nobody listening
+python tools/mqtt_hello_sub.py --scenario qos --phase collect    # come back
+```
+
+Only the QoS 1 message is waiting. The QoS 0 one was dropped the instant it
+arrived at a broker with no connected subscriber. The queueing depends on a
+**persistent session** (`clean_session=False` plus a fixed client id) — on
+reconnect the broker reports `session_present=True`. With the default clean
+session, QoS 1 buys nothing across a disconnect, because the subscription itself
+is gone.
+
+**RETAIN — does a late subscriber learn the current state?**
+
+```bash
+python tools/mqtt_hello_pub.py --scenario retained    # publish, then exit
+python tools/mqtt_hello_sub.py --scenario retained    # start afterwards, still gets it
+```
+
+The message arrives immediately on SUBACK with `retain=True` — that flag is how
+you tell a stored state snapshot from a live event. The broker holds exactly one
+retained message per topic. This is the mechanism for "who is home right now?":
+a subscriber that boots at any time gets the answer without waiting for the next
+detection. `--scenario clear` (empty payload, `retain=True`) wipes it.
+
+**LAST WILL — does the broker announce a publisher that died?**
+
+```bash
+python tools/mqtt_hello_sub.py --scenario will --seconds 12 &   # subscriber first
+python tools/mqtt_hello_pub.py --scenario will --die-after 3    # hard-exits, no DISCONNECT
+```
+
+The subscriber sees the publisher's `hello`, then the will fires the moment the
+socket dies. The will payload is composed at **connect** time and handed to the
+broker inside the CONNECT packet, so its `sent_at` is the connect timestamp, not
+the death timestamp. `--die-after` uses `os._exit`, which looks identical to a
+`kill` from the broker's side; omit it to sit until you kill the process
+yourself. A clean `disconnect()` suppresses the will, which is the point — this
+is how a presence node will report "camera offline" instead of going silently
+stale.
+
+### Cleaning up
+
+The QoS demo leaves a persistent session on the broker that keeps queueing QoS 1
+messages for a subscriber that never returns:
+
+```bash
+python tools/mqtt_hello_sub.py --scenario wipe    # drop the session
+python tools/mqtt_hello_pub.py --scenario clear   # drop the retained message
+```
+
+---
+
+## Presence service (`tools/presence_service.py`)
+
+Reads a camera, decides who is in front of it, and publishes presence
+transitions onto the MQTT bus. This is the live consumer of the Phase 2 face
+pipeline — the first thing in the repo that actually *runs* the locked
+detection and recognition operating points rather than benchmarking them.
+
+**Status:** works end to end and has been run against a real broker, but only
+from a video file. The live-camera path (`--source 0`) is written and
+unexercised. It is not wired into `demo/` and the assistant does not consume it
+yet.
+
+```bash
+python tools/presence_service.py --stats            # default camera
+python tools/presence_service.py --dry-run --source clip.mp4 --stats
+python tools/presence_service.py --duration 60      # bounded run
+python tools/presence_service.py --preview --dry-run # watch it work
+```
+
+Needs the broker above. `--dry-run` runs the full pipeline and prints the
+transitions it *would* publish, connecting to nothing — it does not even import
+paho, so it works on a machine with no broker installed.
+
+`--preview` opens a window with the detection boxes labelled by matched
+identity and score (or `unknown` below threshold), plus the current presence
+state and the dropped-frame counter. `q` or ESC quits. It is off by default and
+costs nothing when off — no annotations are collected. When on it costs worker
+time, so it lowers throughput and raises the drop count; `--stats` prints a
+warning saying exactly that, because preview numbers are not headless numbers.
+A headless OpenCV build downgrades to running without the window rather than
+failing.
+
+### Topic layout
+
+| Topic | Retained | Payload |
+|---|---|---|
+| `jarvis/presence/<name>` | yes | `{state, name, confidence, timestamp, last_seen}` |
+| `jarvis/status/presence_service` | yes | `online` / `offline` |
+
+`jarvis/presence/+` means **people, and nothing else** — that is the whole
+reason the service's own liveness lives on `jarvis/status/` instead of at
+`jarvis/presence/_service`. A broker has no notion of a leading underscore
+meaning "internal": a wildcard subscriber would receive the service's status as
+though it were another person. Same reason the hello-world spike was moved to
+`jarvis/test/hello`.
+
+The status topic is not optional. Without it, a retained `absent` is ambiguous —
+it means either "nobody is there" or "this service died and what you are reading
+is a fossil". `offline` is registered as the MQTT **last will**, so the broker
+publishes it if the process is killed; a clean shutdown suppresses the will, so
+the service also publishes `offline` itself before disconnecting.
+
+Everything is retained, so a subscriber that starts at any time immediately
+learns the current state without waiting for the next detection.
+
+### What it reads, and from where
+
+Nothing about the pipeline is hardcoded — the service prints the provenance of
+every value at startup:
+
+| Value | Source |
+|---|---|
+| detection confidence `0.57` | `pipeline_config.DETECTION_CONFIDENCE_THRESHOLD` |
+| detection min box `20px` | `pipeline_config.DETECTION_THRESHOLD_PROVENANCE` |
+| detector + weights | `pipeline_config.DETECTION_DETECTOR` / `_WEIGHTS` |
+| recognition threshold `0.342` | `data/gallery.npz` metadata |
+| encoder + aggregation | `data/gallery.npz` metadata |
+
+The gallery also *chooses* the encoder, so a cosine threshold can never be
+applied to embeddings from a different model than the one that produced it.
+
+### Frame handling
+
+A capture thread reads at the camera's native rate into a **single-slot buffer
+that overwrites**. The worker takes whatever is in the slot when it is free;
+frames arriving while it is busy are dropped, not queued.
+
+This is deliberately not "process every Nth frame". Processing time varies with
+how many faces are in shot and drifts with load, so any fixed N is wrong
+somewhere — and a queue would let the service fall progressively further behind
+real time while still looking healthy. A presence answer computed from a frame
+twelve seconds old is not a late answer, it is a wrong one. Dropping bounds
+staleness at one frame no matter how slow the pipeline gets, and the drop count
+is reported rather than hidden. Video files are paced to their recorded FPS so
+they behave like a camera instead of arriving as one enormous burst.
+
+### State machine
+
+Per identity, independently:
+
+- **absent → present:** `N=3` hits within the last `M=5` processed frames
+- **present → absent:** `T=10.0` seconds with no hit
+
+Only transitions are published — somebody who stays put generates no traffic.
+A fourth constant, `max_observation_age=5.0`, caps how old an observation may be
+and still count toward arrival: `M` counts *frames*, and frames are not a unit
+of time, so if throughput collapses the same five frames can span a minute and
+the rule quietly degrades into "3 hits some time recently". All four live in
+`PresenceConfig` and are deliberately **not** CLI flags — they are a locked
+operating point, pinned by `tests/test_presence_service.py`.
+
+### Instrumentation
+
+`--stats` prints counters and per-stage mean/p95 on exit. This service is the
+only source of real end-to-end latency numbers in the project. Measured on CPU
+at 960x540:
+
+| stage | unit | mean | p95 |
+|---|---|---|---|
+| capture_decode | per frame | 2.0ms | 2.6ms |
+| slot_wait | per frame | 32.0ms | 62.4ms |
+| detect | per frame | 109.8ms | 156.0ms |
+| crop_align | per face | 0.1ms | 0.1ms |
+| embed | per face | 164.5ms | 195.8ms |
+| match | per face | 0.3ms | 0.6ms |
+| **END-TO-END** | per frame | **165.5ms** | **295.0ms** |
+
+Capture ran at 13.7 fps, the worker kept up with 7.0 fps, and ~45% of frames
+were dropped. Detection and embedding are essentially all of the cost; matching
+a probe against 133 gallery vectors is free.
+
+These are one run, not a benchmark — they move a lot with machine load. A second
+run on a busier machine gave detect 149ms / embed 284ms and only 5.4 fps
+processed, with 64% of frames dropped. That spread is the reason the arrival
+window has a wall-clock ceiling as well as a frame count.
+
+**The rows do not sum.** Per-frame stages are sampled once per processed frame,
+per-face stages once per face found, and most frames contain no face — so
+`embed`'s mean is an average over a much smaller population and adding it to a
+per-frame mean can exceed the end-to-end figure. The table prints `n` and the
+unit per row for exactly this reason.
+
+---
+
 ## Development
 
 ```bash
-python -m pytest tests/      # 265 tests
+python -m pytest tests/      # 340 tests
 ./run_lint.sh                # ruff + ESLint (configs: ruff.toml, eslint.config.mjs)
 ```
 
@@ -350,7 +605,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for the full plan.
 | Phase | What | Status |
 |-------|------|--------|
 | **1 — Voice + Home Control** | Voice pipeline, device control, orchestrator | 🟡 Demo done, needs hardware |
-| 2 — Identity + Vision | Face recognition, activity detection, speaker ID | 🟡 Pipeline benchmarked + locked; presence service not built |
+| 2 — Identity + Vision | Face recognition, activity detection, speaker ID | 🟡 Pipeline benchmarked + locked; presence service built but unintegrated |
 | 3 — Calendar + Intelligence | Google Calendar, habits, Notion, web search | ⬜ Planned |
 | 4 — Data Warehouse | Sleep, screen time, location, spending tracking | ⬜ Planned |
 | 5 — Coaching | Daily check-ins, pattern recognition, RAG | ⬜ Planned |
@@ -389,13 +644,17 @@ jarvis/
 │   ├── plot_recognition_curves.py  # ROC / PR figures -> results/
 │   ├── sanity_check_detectors.py   # Spot-check helper
 │   ├── rerun_detection.sh     # Re-run helper
+│   ├── mqtt_hello_pub.py      # MQTT spike - publisher (throwaway)
+│   ├── mqtt_hello_sub.py      # MQTT spike - subscriber (throwaway)
+│   ├── presence_service.py    # Live face presence -> MQTT (Phase 2)
 │   ├── freeze_engineering.py  # /engineering -> static site
 │   └── scan_public_output.py  # Leak scan before publishing
 ├── results/                   # Benchmark artifacts, committed — the log reads these
+│   ├── enrollment_summary.json  # Anonymised curation summary (no names/paths)
 │   ├── benchmarks_detection.json, benchmarks_recognition.json
 │   ├── benchmarks_intent.json, benchmarks_caching.json
 │   └── recognition_pr.svg, recognition_roc.svg
-├── tests/                     # 265 tests
+├── tests/                     # 340 tests
 │   └── eval/                  # Routing + conversation eval corpus, 4 scenario suites
 ├── docs/
 │   ├── ROADMAP.md
@@ -441,4 +700,4 @@ These are informal milestones — the repo carries no git tags.
 | v0.1.0 | Terminal demo with Claude + device state tracking |
 | v0.2.0 | Web UI, streaming, server-side edge-tts |
 | v0.3.0 | Browser-native TTS/STT, screensaver, themes |
-| Unreleased | Local intent cascade + voice mode + filler phrases; ruff/ESLint; 265-test suite; routing eval corpus; intent and prompt-caching benchmarks; the face pipeline (detection + recognition benchmarks, gallery builder, locked operating points); the `/engineering` log and its static-site freezer |
+| Unreleased | Local intent cascade + voice mode + filler phrases; ruff/ESLint; 340-test suite; routing eval corpus; intent and prompt-caching benchmarks; the face pipeline (detection + recognition benchmarks, gallery builder, locked operating points); the `/engineering` log and its static-site freezer |

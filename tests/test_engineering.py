@@ -477,81 +477,106 @@ def test_sweeps_are_only_reported_when_present():
 # Enrollment curation.
 # ══════════════════════════════════════════════════════════════════
 
-def _curation_manifest():
-    """Two people photographed inside one person's folder, plus a stranger.
+def _summary(**overrides):
+    """A minimal enrollment_summary.json, already anonymised.
 
-    Shaped like the real bucket: folder "alice" holds photos of Alice AND of
-    Bob, so a folder-derived label would merge them.
+    The shaping tests for how this is DERIVED live in tests/test_collect_faces.py,
+    beside the code that handles the real folder names. These tests are about
+    what the page does with the artifact once it exists.
     """
-    def crop(cluster, folder, photo):
-        return {"cluster": cluster, "source_folder": folder,
-                "source_photo": photo, "filename": f"{photo}_{cluster}.jpg"}
-
-    return {
+    summary = {
         "generated_at": "2026-01-01T00:00:00",
-        "settings": {"min_cluster_size": 6, "encoder": "arcface"},
-        "counts": {"photos_read": 4, "crops_kept": 13},
-        "crops": (
-            [crop(0, "alice", f"a{i}") for i in range(7)]        # Alice
-            + [crop(1, "alice", f"a{i}") for i in range(3)]      # Bob, in her photos
-            + [crop(2, "bob", f"b{i}") for i in range(2)]        # Bob's own folder
-            + [crop(-1, "alice", "a9")]                          # a passer-by
-        ),
+        "clusters": 2,
+        "cluster_sizes": [7, 3],
+        "clusters_detail": [
+            {"id": 0, "crops": 7, "folders": [["folder A", 7]],
+             "sole_folder": "folder A", "majority_folder": "folder A"},
+            {"id": 1, "crops": 3, "folders": [["folder A", 3]],
+             "sole_folder": "folder A", "majority_folder": "folder A"},
+        ],
+        "folders": [{"label": "folder A", "crops": 10, "photos": 8}],
+        "source_folders": 1,
+        "collisions": [{"folder": "folder A", "clusters": [0, 1],
+                        "identities": 2, "keeps": 7, "absorbed": 3}],
+        "mislabelled_if_voted": 3,
+        "clustered_crops": 10,
+        "noise_crops": 1,
+        "smallest_cluster": 3,
+        "largest_cluster": 7,
+        "headroom": 1,
+        "at_risk": [1],
+        "rejects": {"low_confidence": 7},
+        "counts": {"photos_read": 4, "crops_kept": 11},
+        "settings": {"min_cluster_size": 2, "encoder": "arcface"},
+        "blur_distribution": None,
     }
+    summary.update(overrides)
+    return summary
 
 
-def test_curation_clusters_counts_noise_separately():
-    clusters, noise = data.curation_clusters(_curation_manifest())
-    assert noise == 1
-    assert [c["id"] for c in clusters] == [0, 1, 2]
-    assert [c["crops"] for c in clusters] == [7, 3, 2]
+def test_curation_page_data_shapes_the_artifact_for_the_template(monkeypatch):
+    monkeypatch.setattr(data, "load_document", lambda path: _summary())
+    curation = data.curation_page_data()["curation"]
+
+    assert curation["people"] == 2
+    assert curation["noise"] == 1
+    assert curation["source_folders"] == 1
+    assert curation["mislabelled_if_voted"] == 3
+    assert curation["min_cluster_size"] == 2
+    # rejects is top-level in the artifact but counts.rejects to the template.
+    assert curation["counts"]["rejects"] == {"low_confidence": 7}
+    # at_risk arrives as ids and is resolved to the cluster dicts the page renders.
+    assert [c["id"] for c in curation["at_risk"]] == [1]
 
 
-def test_curation_never_exposes_real_folder_names():
-    """The manifest holds people's names; the page's argument never needs them."""
-    clusters, _ = data.curation_clusters(_curation_manifest())
-    rendered = str(clusters)
-    assert "alice" not in rendered and "bob" not in rendered
-    assert "folder A" in rendered
+def test_curation_folders_arrive_as_pairs_the_template_can_unpack(monkeypatch):
+    """JSON has no tuples, so the [label, count] lists must survive the trip."""
+    monkeypatch.setattr(data, "load_document", lambda path: _summary())
+    clusters = data.curation_page_data()["curation"]["clusters"]
+    for cluster in clusters:
+        for entry in cluster["folders"]:
+            label, count = entry          # the template does exactly this
+            assert isinstance(label, str) and isinstance(count, int)
 
 
-def test_folder_labels_would_have_merged_two_identities():
-    """The load-bearing claim of the flat-bucket decision.
-
-    Clusters 0 and 1 are different people but every crop of both came out of
-    the same folder, so a majority vote would file one under the other's name.
-    """
-    clusters, _ = data.curation_clusters(_curation_manifest())
-    collisions, mislabelled = data.folder_label_collisions(clusters)
-
-    assert len(collisions) == 1
-    assert collisions[0]["identities"] == 2
-    assert collisions[0]["keeps"] == 7        # the larger keeps the name
-    assert mislabelled == 3                   # the smaller is absorbed
-
-
-def test_no_collision_when_each_folder_owns_one_identity():
-    clusters, _ = data.curation_clusters({
-        "crops": [{"cluster": 0, "source_folder": "x", "source_photo": "p1"},
-                  {"cluster": 1, "source_folder": "y", "source_photo": "p2"}],
-    })
-    collisions, mislabelled = data.folder_label_collisions(clusters)
-    assert collisions == [] and mislabelled == 0
-
-
-def test_curation_page_says_nothing_when_the_manifest_is_absent(monkeypatch):
-    """data/ is gitignored, so a fresh clone has no run to describe."""
-    monkeypatch.setattr(data, "CURATION_MANIFEST", data.REPO_ROOT / "nope.json")
+def test_curation_page_data_is_none_without_the_artifact(monkeypatch):
+    """results/enrollment_summary.json is committed, so absent means broken."""
+    monkeypatch.setattr(data, "ENROLLMENT_SUMMARY", data.REPO_ROOT / "nope.json")
     assert data.curation_page_data()["curation"] is None
 
 
-def test_the_rendered_curation_page_leaks_no_real_folder_names(client):
-    """Guards the anonymisation end-to-end, on this machine's actual manifest.
+def test_curation_page_data_is_none_for_an_artifact_with_no_clusters(monkeypatch):
+    """A summary that parsed but describes nothing is still nothing to render."""
+    monkeypatch.setattr(data, "load_document",
+                        lambda path: _summary(clusters_detail=[]))
+    assert data.curation_page_data()["curation"] is None
 
-    The source folders are named after real people. If the page ever prints one
-    of them, that is a privacy regression, not a formatting one.
+
+def test_missing_artifact_renders_a_visible_marker_not_a_quiet_empty_state(
+        client, monkeypatch):
+    """The regression this whole artifact exists to prevent.
+
+    The page shipped a polite "no curation run on this machine" to production
+    for months. An absent COMMITTED artifact is a broken build, and the page has
+    to say so in a way a reader cannot mistake for "nothing to report yet".
     """
-    manifest = data.load_document(data.CURATION_MANIFEST)
+    monkeypatch.setattr(data, "ENROLLMENT_SUMMARY", data.REPO_ROOT / "nope.json")
+    html = client.get("/engineering/enrollment").get_data(as_text=True)
+
+    assert "Enrollment summary unavailable" in html
+    assert "this page is incomplete" in html
+    assert "eng-unavailable" in html
+
+
+def test_the_rendered_curation_page_leaks_no_real_folder_names(client):
+    """Guards the anonymisation end-to-end against this machine's real manifest.
+
+    The source folders are named after real people. The page now renders from
+    the derived artifact rather than the manifest, so this asserts the split
+    actually holds: nothing from the private file reaches the published page.
+    """
+    manifest_path = data.REPO_ROOT / "data" / "reference_faces" / "manifest.json"
+    manifest = data.load_document(manifest_path)
     if not manifest.get("crops"):
         pytest.skip("no curation manifest on this machine")
 
@@ -561,10 +586,18 @@ def test_the_rendered_curation_page_leaks_no_real_folder_names(client):
             assert folder not in html, f"source folder {folder!r} reached the page"
 
 
-def test_curation_page_renders_the_empty_state(client, monkeypatch):
-    monkeypatch.setattr(data, "CURATION_MANIFEST", data.REPO_ROOT / "nope.json")
-    html = client.get("/engineering/enrollment").get_data(as_text=True)
-    assert "No curation run on this machine" in html
+def test_the_committed_artifact_itself_carries_no_real_folder_names():
+    """The artifact is committed and published, so it is checked directly too."""
+    manifest = data.load_document(
+        data.REPO_ROOT / "data" / "reference_faces" / "manifest.json")
+    summary = data.load_document(data.ENROLLMENT_SUMMARY)
+    if not manifest.get("crops") or not summary:
+        pytest.skip("needs both the private manifest and the built artifact")
+
+    blob = json.dumps(summary)
+    for folder in {c.get("source_folder") for c in manifest["crops"]}:
+        if folder and folder != ".":
+            assert folder not in blob, f"{folder!r} reached results/"
 
 
 # ══════════════════════════════════════════════════════════════════

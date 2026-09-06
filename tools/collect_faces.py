@@ -54,6 +54,11 @@ import face_utils  # same directory
 _HERE = Path(__file__).resolve().parent
 _REPO_ROOT = _HERE.parent
 
+# Committed, published, and safe to be: aggregates and anonymised folder labels
+# only. Its private twin is manifest.json beside the crops in the gitignored
+# data/ tree.
+ENROLLMENT_SUMMARY_FILE = _REPO_ROOT / "results" / "enrollment_summary.json"
+
 DEFAULT_INPUT_DIR = _REPO_ROOT / "data" / "enrollment_photos"
 DEFAULT_OUTPUT_DIR = _REPO_ROOT / "data" / "reference_faces"
 DEFAULT_YOLO_WEIGHTS = _HERE / "weights" / "yolov8n-face.pt"
@@ -63,6 +68,10 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 # Output folders this tool OWNS and may delete on --overwrite. Anything else in
 # the output dir (i.e. a cluster folder you renamed to a person) is left alone.
 NOISE_DIR_NAME = "_noise"
+# HDBSCAN's label for a point it refused to cluster. Named because the derived
+# summary has to exclude it from the cluster count, and a bare -1 in that
+# arithmetic reads as an index rather than a sentinel.
+NOISE_LABEL = -1
 # Quality-rejected crops are copied here, under a per-reason subfolder, purely so
 # you can eyeball what the filter discarded and confirm no good faces are lost
 # (see save_rejected_crop). Tool-owned, so --overwrite clears it. Only too_blurry
@@ -675,6 +684,232 @@ def write_manifest(path, written, args, stats, blur_summary):
     }
 
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Returned so the publishable summary is derived from exactly the rows that
+    # were written, rather than re-walking `written` and risking a divergence.
+    return records
+
+
+def anonymise_folders(crops):
+    """Map each source folder to a neutral label, biggest contributor first.
+
+    THIS IS WHERE THE NAMES STOP. The source folders are Google Photos album
+    names, which in this dataset are people's full names. The enrollment page's
+    argument needs to know how many distinct folders there were and how the
+    clusters fell across them; it never needs to know whose they are. Every
+    downstream consumer sees "folder A", "folder B", ...
+
+    Ordering is by contribution, ties broken by name, so the labelling is
+    deterministic — the same run always produces the same letters.
+
+    Inputs:
+        crops (list[dict]): manifest crop records.
+    Returns:
+        dict[str, str]: real folder name -> "folder A", "folder B", ...
+    """
+    totals = {}
+    for crop in crops:
+        folder = crop.get("source_folder", ".")
+        totals[folder] = totals.get(folder, 0) + 1
+    ordered = sorted(totals, key=lambda name: (-totals[name], name))
+    return {name: "folder " + chr(ord("A") + index)
+            for index, name in enumerate(ordered)}
+
+
+def summarize_clusters(crops):
+    """Per-cluster sizes and the anonymised source-folder breakdown.
+
+    Inputs:
+        crops (list[dict]): manifest crop records.
+    Returns:
+        tuple[list[dict], int]: one entry per real cluster (id, crops, folder
+        breakdown, sole_folder, majority_folder), plus the noise crop count.
+    """
+    labels = anonymise_folders(crops)
+    grouped, noise = {}, 0
+    for crop in crops:
+        cluster = crop.get("cluster")
+        if cluster is None or cluster < 0:
+            noise += 1
+            continue
+        folder = labels.get(crop.get("source_folder", "."), "folder ?")
+        bucket = grouped.setdefault(cluster, {})
+        bucket[folder] = bucket.get(folder, 0) + 1
+
+    clusters = []
+    for cluster in sorted(grouped):
+        folders = sorted(grouped[cluster].items(), key=lambda kv: (-kv[1], kv[0]))
+        clusters.append({
+            "id": cluster,
+            "crops": sum(count for _, count in folders),
+            "folders": folders,
+            # The interesting case: every crop of this identity came out of a
+            # single source folder, so a folder label could not tell it apart
+            # from anyone else in that folder.
+            "sole_folder": folders[0][0] if len(folders) == 1 else None,
+            "majority_folder": folders[0][0] if folders else None,
+        })
+    return clusters, noise
+
+
+def summarize_folders(crops):
+    """What each source folder contributed, anonymised.
+
+    Photos as well as crops, because the two say different things: crops is how
+    much of the gallery a folder fed, photos is how thin the person's input was
+    — and thin input is what makes min_cluster_size dangerous. Only the COUNT of
+    distinct photos is kept; the paths themselves never leave this function.
+
+    Inputs:
+        crops (list[dict]): manifest crop records.
+    Returns:
+        list[dict]: {label, photos, crops}, biggest contributor first.
+    """
+    labels = anonymise_folders(crops)
+    tally = {}
+    for crop in crops:
+        label = labels.get(crop.get("source_folder", "."), "folder ?")
+        entry = tally.setdefault(label, {"label": label, "crops": 0, "photos": set()})
+        entry["crops"] += 1
+        entry["photos"].add(crop.get("source_photo"))
+    rows = [{"label": e["label"], "crops": e["crops"], "photos": len(e["photos"])}
+            for e in tally.values()]
+    return sorted(rows, key=lambda r: (-r["crops"], r["label"]))
+
+
+def folder_label_collisions(clusters):
+    """What labelling by source folder would have merged.
+
+    The rejected alternative was to trust the folder a photo sits in and take a
+    majority vote per pile. This computes what that would actually have done to
+    THIS bucket: any folder that is the majority for more than one cluster would
+    have had those separate identities collapse into a single name.
+
+    The largest cluster is treated as keeping the name, so the mislabelled count
+    is every crop in the smaller clusters that folder would have absorbed.
+
+    Inputs:
+        clusters (list[dict]): from summarize_clusters.
+    Returns:
+        tuple[list[dict], int]: one entry per colliding folder, and the total
+        crops that would have been filed under the wrong person.
+    """
+    by_folder = {}
+    for cluster in clusters:
+        folder = cluster["majority_folder"]
+        if folder is None:
+            continue
+        by_folder.setdefault(folder, []).append(cluster)
+
+    collisions, mislabelled = [], 0
+    for folder in sorted(by_folder):
+        members = sorted(by_folder[folder], key=lambda c: -c["crops"])
+        if len(members) < 2:
+            continue
+        absorbed = sum(c["crops"] for c in members[1:])
+        mislabelled += absorbed
+        collisions.append({
+            "folder": folder,
+            "clusters": [c["id"] for c in members],
+            "identities": len(members),
+            "keeps": members[0]["crops"],
+            "absorbed": absorbed,
+        })
+    return collisions, mislabelled
+
+
+def build_enrollment_summary(crops, args, stats, blur_summary):
+    """Derive the PUBLISHABLE shape of a curation run.
+
+    WHY THIS EXISTS SEPARATELY FROM THE MANIFEST. manifest.json is provenance
+    for photographs of real people: it carries filenames, source photo paths and
+    source folder names, so it lives in the gitignored data/ tree and must never
+    be published. But the engineering log wants to describe the run, and for
+    that it needs shape, not identity — how many clusters, how big, how much
+    noise, what the quality filter threw away. That is derivable without any of
+    the identifying parts, so it is derived here and written to results/ where
+    the rest of the committed evidence lives.
+
+    WHAT IS DELIBERATELY NOT IN HERE, and must never be added:
+        - filenames or source photo paths (crop.filename, crop.source_path)
+        - source folder names (they are a metadata hint that often IS a name)
+        - input_dir or any other filesystem path
+        - per-crop rows of any kind, boxes included: a box plus an ordering is
+          a re-identification handle back into the photo set
+        - anything a person could be recognised from
+    Cluster ids are omitted too. They are not identities, but they index the
+    folders a human later renames to real names, so publishing them creates a
+    join key to a private set for no benefit. Sizes are published as a bare
+    sorted list instead.
+
+    Inputs:
+        crops (list[dict]): the manifest crop records. Only aggregates and
+            anonymised labels derived from them reach the output.
+        args (argparse.Namespace): the run's settings.
+        stats (dict): the run's counters.
+        blur_summary (dict | None): the blur distribution (pure statistics).
+    Returns:
+        dict: JSON-serializable, safe to commit and publish.
+    """
+    clusters, noise_crops = summarize_clusters(crops)
+    collisions, mislabelled = folder_label_collisions(clusters)
+    folders = summarize_folders(crops)
+    sizes = sorted((c["crops"] for c in clusters), reverse=True)
+    min_cluster_size = args.min_cluster_size
+
+    return {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "note": "Derived from manifest.json for publication. Aggregates and "
+                "anonymised folder labels only - no names, filenames, paths or "
+                "per-crop rows. See build_enrollment_summary in collect_faces.",
+        "clusters": len(clusters),
+        "cluster_sizes": sizes,
+        "clusters_detail": clusters,
+        "folders": folders,
+        "source_folders": len(folders),
+        "collisions": collisions,
+        "mislabelled_if_voted": mislabelled,
+        "clustered_crops": sum(sizes),
+        "noise_crops": noise_crops,
+        "smallest_cluster": sizes[-1] if sizes else None,
+        "largest_cluster": sizes[0] if sizes else None,
+        # The trap the enrollment page is written around: how much slack the
+        # thinnest identity had before min_cluster_size would have dropped it.
+        "headroom": (sizes[-1] - min_cluster_size)
+                    if (sizes and min_cluster_size) else None,
+        # Clusters thin enough that a modest bump to min_cluster_size would
+        # delete a whole person.
+        "at_risk": [c["id"] for c in clusters
+                    if min_cluster_size and c["crops"] < min_cluster_size * 2],
+        "rejects": dict(stats["rejects"]),
+        "counts": {
+            "photos_read": stats["photos_read"],
+            "unreadable_photos": stats["unreadable_photos"],
+            "faces_detected": stats["faces_detected"],
+            "crops_kept": stats["crops_kept"],
+            "embed_failures": stats["embed_failures"],
+            "alignment_fallbacks": stats["alignment_fallbacks"],
+        },
+        "settings": {
+            # input_dir is deliberately absent - it is a filesystem path.
+            "detector": args.detector,
+            "encoder": args.encoder,
+            "margin": args.margin,
+            "min_box_size": args.min_box_size,
+            "min_confidence": args.min_confidence,
+            "min_blur": args.min_blur,
+            "min_cluster_size": args.min_cluster_size,
+            "min_samples": args.min_samples,
+        },
+        "blur_distribution": blur_summary,
+    }
+
+
+def write_enrollment_summary(path, crops, args, stats, blur_summary):
+    """Write the publishable summary to results/enrollment_summary.json."""
+    payload = build_enrollment_summary(crops, args, stats, blur_summary)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return payload
 
 
 def print_report(written, stats, blur_summary, args, output_dir):
@@ -927,7 +1162,12 @@ def main():
     print("=== Writing crops ===")
     written = write_clusters(crops, labels, embeddings, output_dir)
     blur_summary = summarize_distribution(stats["blur_scores"])
-    write_manifest(output_dir / MANIFEST_NAME, written, args, stats, blur_summary)
+    records = write_manifest(output_dir / MANIFEST_NAME, written, args, stats, blur_summary)
+    # The private manifest stays beside the crops; the derived, anonymised
+    # summary goes to results/ where the committed evidence lives, because the
+    # engineering log is published and data/ is not.
+    write_enrollment_summary(ENROLLMENT_SUMMARY_FILE, records, args, stats, blur_summary)
+    print(f"  Wrote {ENROLLMENT_SUMMARY_FILE.relative_to(_REPO_ROOT)} (publishable summary)")
 
     print_report(written, stats, blur_summary, args, output_dir)
 

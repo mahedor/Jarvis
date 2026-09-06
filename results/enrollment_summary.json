@@ -1,0 +1,174 @@
+{
+  "generated_at": "2026-09-05T21:15:23",
+  "note": "Derived from manifest.json for publication. Aggregates and anonymised folder labels only - no names, filenames, paths or per-crop rows. See build_enrollment_summary in collect_faces.",
+  "clusters": 6,
+  "cluster_sizes": [
+    62,
+    20,
+    18,
+    11,
+    11,
+    11
+  ],
+  "clusters_detail": [
+    {
+      "id": 0,
+      "crops": 11,
+      "folders": [
+        [
+          "folder A",
+          11
+        ]
+      ],
+      "sole_folder": "folder A",
+      "majority_folder": "folder A"
+    },
+    {
+      "id": 1,
+      "crops": 18,
+      "folders": [
+        [
+          "folder C",
+          14
+        ],
+        [
+          "folder A",
+          4
+        ]
+      ],
+      "sole_folder": null,
+      "majority_folder": "folder C"
+    },
+    {
+      "id": 2,
+      "crops": 20,
+      "folders": [
+        [
+          "folder B",
+          17
+        ],
+        [
+          "folder C",
+          2
+        ],
+        [
+          "folder A",
+          1
+        ]
+      ],
+      "sole_folder": null,
+      "majority_folder": "folder B"
+    },
+    {
+      "id": 3,
+      "crops": 11,
+      "folders": [
+        [
+          "folder A",
+          11
+        ]
+      ],
+      "sole_folder": "folder A",
+      "majority_folder": "folder A"
+    },
+    {
+      "id": 4,
+      "crops": 62,
+      "folders": [
+        [
+          "folder A",
+          62
+        ]
+      ],
+      "sole_folder": "folder A",
+      "majority_folder": "folder A"
+    },
+    {
+      "id": 5,
+      "crops": 11,
+      "folders": [
+        [
+          "folder A",
+          11
+        ]
+      ],
+      "sole_folder": "folder A",
+      "majority_folder": "folder A"
+    }
+  ],
+  "folders": [
+    {
+      "label": "folder A",
+      "crops": 147,
+      "photos": 64
+    },
+    {
+      "label": "folder B",
+      "crops": 22,
+      "photos": 17
+    },
+    {
+      "label": "folder C",
+      "crops": 17,
+      "photos": 14
+    }
+  ],
+  "source_folders": 3,
+  "collisions": [
+    {
+      "folder": "folder A",
+      "clusters": [
+        4,
+        0,
+        3,
+        5
+      ],
+      "identities": 4,
+      "keeps": 62,
+      "absorbed": 33
+    }
+  ],
+  "mislabelled_if_voted": 33,
+  "clustered_crops": 133,
+  "noise_crops": 53,
+  "smallest_cluster": 11,
+  "largest_cluster": 62,
+  "headroom": 5,
+  "at_risk": [
+    0,
+    3,
+    5
+  ],
+  "rejects": {
+    "low_confidence": 28440,
+    "too_small": 11
+  },
+  "counts": {
+    "photos_read": 96,
+    "unreadable_photos": 0,
+    "faces_detected": 28637,
+    "crops_kept": 186,
+    "embed_failures": 0,
+    "alignment_fallbacks": 2
+  },
+  "settings": {
+    "detector": "yolo",
+    "encoder": "arcface",
+    "margin": 0.35,
+    "min_box_size": 40,
+    "min_confidence": 0.5,
+    "min_blur": null,
+    "min_cluster_size": 6,
+    "min_samples": null
+  },
+  "blur_distribution": {
+    "count": 186,
+    "min": 3.001123573753612,
+    "p5": 12.825063817308461,
+    "p25": 63.121844255056295,
+    "p50": 259.762523457514,
+    "p75": 681.2387900954553,
+    "p95": 1783.4323409090923,
+    "max": 2966.306360877871
+  }
+}

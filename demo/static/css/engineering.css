@@ -273,6 +273,10 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
   color: var(--muted);
 }
 .eng-badge.measured { color: var(--deployment); border-color: rgba(58, 209, 154, 0.3); }
+/* Amber, and deliberately NOT the green of .measured. The presence stage runs
+   but has no benchmark behind it, and the badge vocabulary is the fastest way
+   a reader tells those apart while scanning. */
+.eng-badge.preliminary { color: #e0a03a; border-color: rgba(224, 160, 58, 0.35); }
 
 /* ─── Workstreams (overview) ─────────────────────────────────
    The overview's spine. Grouping is the argument: the assistant is the
@@ -1274,3 +1278,88 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
   max-width: 46ch;
   margin-bottom: 14px !important;
 }
+
+/* ─── Preliminary presence page ──────────────────────────────
+   This page reports a design that runs, not a measurement. Every other stage
+   page reports a benchmark, so a reader arrives trained to read a diagram as
+   a result. These rules exist to interrupt that assumption before the diagram
+   is read, not to decorate a caveat after it. */
+.eng-preliminary-banner {
+  margin: 0 0 28px;
+  padding: 14px 18px;
+  border: 1px solid rgba(224, 160, 58, 0.32);
+  border-left-width: 3px;
+  border-radius: 4px;
+  background: rgba(224, 160, 58, 0.06);
+  color: #cfcfda;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.eng-preliminary-banner strong { color: #e0a03a; }
+
+/* The debounce caption's own health warning: the numbers are real (read live
+   from PresenceConfig) but unvalidated, and the caption must not read as
+   evidence just because it is precise. */
+.eng-caption-warn {
+  display: block;
+  margin-top: 8px;
+  color: #e0a03a;
+  opacity: 0.92;
+}
+
+/* Shown INSTEAD of the numbers when presence_config could not be imported.
+   Loud on purpose: a caption that silently vanishes is indistinguishable from
+   a page that never had one, which is exactly the failure this replaces. */
+.eng-caption-unavailable {
+  display: block;
+  padding: 10px 12px;
+  border: 1px dashed rgba(224, 128, 58, 0.5);
+  border-radius: 4px;
+  background: rgba(224, 128, 58, 0.07);
+  color: #e8b48a;
+}
+.eng-caption-unavailable strong { color: #e0803a; }
+
+/* The dropped-frame path on the pipeline diagram: amber, and pointing at
+   nothing, because that is what happens to the frames. */
+.eng-arch-flow path.drop { stroke: #e0803a; opacity: 0.85; }
+.eng-arch-sub.drop { fill: #e0803a; opacity: 0.9; }
+
+/* Presence diagram furniture: stage numbers and the two topic pills. The
+   pills get real shapes because they are real addresses — floating text made
+   them read as annotations rather than as destinations. */
+.eng-pres-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  fill: var(--dim);
+}
+.eng-pres-pill rect {
+  fill: rgba(124, 58, 237, 0.08);
+  stroke: rgba(169, 124, 245, 0.5);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;   /* still unmeasured, same as every box */
+}
+.eng-pres-pill text.topic {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  fill: #c9a6f5;
+}
+/* The status pill is muted on purpose: liveness is plumbing, people are the
+   payload, and the colors should rank them. */
+.eng-pres-pill.status rect { fill: rgba(255, 255, 255, 0.03); stroke: rgba(255, 255, 255, 0.2); }
+.eng-pres-pill.status text.topic { fill: #b9b9c8; }
+
+/* Shown when a page's committed artifact is missing. Deliberately louder than
+   .eng-empty: an absent artifact is a broken build, not a legitimate "nothing
+   to show yet", and the enrollment page proved that a polite empty state is
+   indistinguishable from a healthy one. */
+.eng-unavailable {
+  padding: 14px 18px;
+  border: 1px dashed rgba(224, 128, 58, 0.5);
+  border-left: 3px solid #e0803a;
+  border-radius: 4px;
+  background: rgba(224, 128, 58, 0.07);
+  color: #e8b48a;
+}
+.eng-unavailable strong { color: #e0803a; }

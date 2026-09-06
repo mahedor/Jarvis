@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Install dependencies
-pip install anthropic flask python-dotenv
+pip install anthropic flask python-dotenv paho-mqtt
 
 # Set API keys (PowerShell)
 $env:ANTHROPIC_API_KEY = "sk-ant-..."
@@ -34,7 +34,7 @@ insightface 1.0.1, opencv 4.13).
 ## Tests and linting
 
 ```bash
-python -m pytest tests/    # 265 tests, ~2.5 min
+python -m pytest tests/    # 340 tests, ~2.5 min
 ./run_lint.sh              # ruff + ESLint
 ```
 
@@ -56,8 +56,9 @@ From `demo/jarvis_web.py`:
 - `POST /reset` — clear conversation history and reset device states
 
 From the `/engineering` blueprint (`demo/engineering.py`): `/engineering`,
-`/detection`, `/recognition`, `/enrollment`, `/routing`, `/architecture`,
-`/figure/<name>`, plus 301 redirects from `/decisions` and `/direction`.
+`/detection`, `/recognition`, `/enrollment`, `/routing`, `/presence`,
+`/architecture`, `/figure/<name>`, plus 301 redirects from `/decisions` and
+`/direction`.
 
 There are no other routes. In particular there is no `/notion` or `/notion/raw`.
 
@@ -126,8 +127,11 @@ derived, not classified — it is `"home_control"` when actions were produced an
 
 ## Face pipeline (Phase 2 groundwork, `tools/`)
 
-Benchmarked and locked; **the live presence service does not exist yet**. Do not
-describe this as deployed.
+Benchmarked and locked. `tools/presence_service.py` now consumes these
+operating points live (see the MQTT section below), but it is a standalone tool:
+**not deployed, not wired into `demo/`, and verified only from a video file** -
+the live-camera path is written and unexercised. Do not describe any of this as
+deployed.
 
 - **Detection** — YOLOv8n-face, confidence ≥ **0.57**, in `tools/pipeline_config.py`.
   Chosen between the F1-max thresholds of the two hard datasets (MAFA 0.5812,
@@ -143,11 +147,59 @@ describe this as deployed.
 `results/*.json` is committed and is what the engineering log reads. The datasets
 under `data/` and the model weights are not committed.
 
+`results/enrollment_summary.json` is the derived, anonymised half of a curation
+run, written by `collect_faces.py` beside the private `manifest.json`. The
+manifest holds filenames and Google Photos folder names (i.e. people's names) and
+stays in gitignored `data/`; the summary holds aggregates plus `folder A/B/C`
+labels and is committed, because the enrollment page is published and used to
+render an empty state in production for months while reading the private file.
+
+## MQTT (`tools/mqtt_hello_*.py`, `tools/presence_service.py`)
+
+**Nothing in `demo/` imports either of these** and MQTT is not part of the
+assistant's request path. Both need a local mosquitto on 127.0.0.1:1883 —
+install/start commands are in the README.
+
+`mqtt_hello_pub.py` / `mqtt_hello_sub.py` are throwaway scripts on topic
+`jarvis/test/hello` demonstrating QoS 0 vs QoS 1 across a disconnect, retained
+messages, and last-will. Groundwork for the Phase 2 REST -> MQTT migration.
+
+`presence_service.py` is the real one: camera -> YOLO -> ArcFace -> gallery
+match -> per-identity state machine -> retained MQTT transitions. It reads both
+operating points from the artifacts (detection from `pipeline_config`,
+recognition from inside `gallery.npz`) and hardcodes neither. Verified end to
+end against a real broker from a video file; **the live-camera path is
+unexercised**.
+
+TOPIC BRANCHES. `jarvis/presence/<name>` is people and only people, so that
+`jarvis/presence/+` is safe to subscribe to. Service liveness is deliberately on
+a different branch at `jarvis/status/presence_service` (retained, `offline`
+registered as the last will) — a wildcard would otherwise deliver it as if it
+were a person, since the broker has no notion of a name being "internal". The
+hello-world spike is on `jarvis/test/hello` for the same reason. Do not move
+anything back under `jarvis/presence/` that is not a person.
+
+`PresenceConfig` (N=3 hits, M=5 frames, T=10.0s, max_observation_age=5.0s) lives
+in **`tools/presence_config.py`**, not in `presence_service.py`, and the split is
+load-bearing: `presence_service` imports cv2/numpy at module level, while `demo/`
+is stdlib-only by design, so `/engineering/presence` renders those values live
+without the assistant growing a dependency on OpenCV. It is deliberately NOT in
+`pipeline_config.py` either — that file's claim is that every number is pinned to
+a benchmark run, and these are unvalidated placeholders.
+`tests/test_presence_service.py` pins the values and the state-machine behaviour
+with an injected clock.
+
 ## Engineering log
 
 `/engineering` is a build-log blueprint that shares nothing with the assistant —
 no Claude calls, no device state, no API key. `jarvis_web.py` registers it inside
 a `try/except` so a failure there can never stop the assistant booting.
+
+Every route declares what it needs via `@requires(artifacts=..., data_checks=...)`
+in `demo/engineering.py`, and `freeze_engineering.preflight()` walks every
+registered route to enforce it. **A route with no declaration is a build
+error** — the previous hand-maintained checklist is what let the enrollment page
+ship hollow. Add the decorator when you add a page.
 
 `tools/freeze_engineering.py` renders it to a static site (`--out`, `--strict`,
 `--clean`; default `_site/`). It deliberately does **not** import `jarvis_web`,
@@ -170,13 +222,14 @@ the runner and per-suite results writer are not built yet.
 See `docs/ROADMAP.md`.
 
 **Real today:** browser TTS/STT, voice mode, the local intent cascade, device
-state tracking, the screensaver UI, prompt caching, the linter, the 265-test
+state tracking, the screensaver UI, prompt caching, the linter, the 340-test
 suite, the routing eval corpus, the intent and prompt-caching benchmarks, the
-face detection/recognition benchmarks with locked operating points, and the
-`/engineering` log plus its static freezer.
+face detection/recognition benchmarks with locked operating points, the
+`/engineering` log plus its static freezer, the MQTT spike, and the standalone
+presence service (video-file verified; live camera unexercised).
 
-**Planned, not built:** Notion (Phase 3), the presence service that would consume
-the face pipeline, the eval runner, and everything needing hardware — Home
+**Planned, not built:** Notion (Phase 3), the eval runner, integrating the
+presence service into the assistant, and everything needing hardware — Home
 Assistant, Zigbee, Whisper STT, wake word, the mic array.
 
 When updating docs, verify against code rather than against other docs. This file

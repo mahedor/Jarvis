@@ -29,12 +29,19 @@ RECOGNITION_FILE = RESULTS_DIR / "benchmarks_recognition.json"
 INTENT_FILE = RESULTS_DIR / "benchmarks_intent.json"
 CACHING_FILE = RESULTS_DIR / "benchmarks_caching.json"
 EVAL_DIR = REPO_ROOT / "tests" / "eval"
-# Written by tools/collect_faces.py. NOT under results/ and NOT in git: it sits
-# beside the reference crops it describes, inside the gitignored data/ tree,
-# because it is provenance for a set of photographs of real people. The
-# curation page therefore renders from it when it is present on the machine
-# serving the log, and shows an empty state when it is not.
-CURATION_MANIFEST = REPO_ROOT / "data" / "reference_faces" / "manifest.json"
+# Written by tools/collect_faces.py alongside the private manifest, and
+# COMMITTED, because it is the derived, publishable half of a curation run:
+# aggregates plus anonymised "folder A/B/C" labels, with no names, filenames,
+# paths or per-crop rows in it.
+#
+# The page used to read data/reference_faces/manifest.json directly. That file
+# is provenance for photographs of real people, so it lives in the gitignored
+# data/ tree — which meant it was present locally and absent in every build,
+# and the published page silently rendered its empty state for months. The
+# anonymisation that used to happen here at render time now happens in
+# collect_faces at write time, so the names never leave data/ at all and the
+# thing the log reads is the thing the log can publish.
+ENROLLMENT_SUMMARY = RESULTS_DIR / "enrollment_summary.json"
 
 # The FAR the recognition benchmark ranks encoders at. Mirrors PRIMARY_FAR in
 # benchmark_recognition.py; kept as a literal to avoid importing it (see above).
@@ -837,186 +844,59 @@ def routing_page_data():
 # Enrollment curation (tools/collect_faces.py).
 # ══════════════════════════════════════════════════════════════════
 
-def _anonymise_folders(crops):
-    """Map each source folder to a neutral label, biggest contributor first.
-
-    The manifest records real Google Photos folder names, which here are
-    people's full names. The ARGUMENT the page makes needs to know how many
-    distinct folders there were and how the clusters fell across them; it never
-    needs to know whose they are. So the names stop at this function.
-
-    Inputs:
-        crops (list[dict]): manifest crop records.
-    Returns:
-        dict[str, str]: real folder name -> "folder A", "folder B", ...
-    """
-    totals = {}
-    for crop in crops:
-        folder = crop.get("source_folder", ".")
-        totals[folder] = totals.get(folder, 0) + 1
-    # Ties broken by name so the labelling is stable across reloads.
-    ordered = sorted(totals, key=lambda name: (-totals[name], name))
-    return {
-        name: "folder " + chr(ord("A") + index)
-        for index, name in enumerate(ordered)
-    }
-
-
-def curation_clusters(manifest):
-    """Per-cluster sizes and the source folders each drew from.
-
-    Inputs:
-        manifest (dict): a collect_faces manifest.
-    Returns:
-        tuple[list[dict], int]: one entry per real cluster (id, crops, the
-        anonymised folder breakdown, and the sole folder when every crop came
-        from one), plus the count of noise crops.
-    """
-    crops = manifest.get("crops") or []
-    labels = _anonymise_folders(crops)
-
-    grouped, noise = {}, 0
-    for crop in crops:
-        cluster = crop.get("cluster")
-        if cluster is None or cluster < 0:
-            noise += 1
-            continue
-        folder = labels.get(crop.get("source_folder", "."), "folder ?")
-        bucket = grouped.setdefault(cluster, {})
-        bucket[folder] = bucket.get(folder, 0) + 1
-
-    clusters = []
-    for cluster in sorted(grouped):
-        folders = sorted(grouped[cluster].items(), key=lambda kv: (-kv[1], kv[0]))
-        total = sum(count for _, count in folders)
-        clusters.append({
-            "id": cluster,
-            "crops": total,
-            "folders": folders,
-            # The interesting case: every crop of this identity came out of a
-            # single source folder, so a folder label could not tell it apart
-            # from anyone else in that folder.
-            "sole_folder": folders[0][0] if len(folders) == 1 else None,
-            "majority_folder": folders[0][0] if folders else None,
-        })
-    return clusters, noise
-
-
-def curation_folders(manifest):
-    """What each source folder actually contributed, anonymised.
-
-    Photos as well as crops, because the two say different things: crops is how
-    much of the gallery a folder fed, photos is how thin the person's input
-    was — and thin input is what makes min_cluster_size dangerous.
-
-    Inputs:
-        manifest (dict): a collect_faces manifest.
-    Returns:
-        list[dict]: {label, photos, crops}, biggest contributor first.
-    """
-    crops = manifest.get("crops") or []
-    labels = _anonymise_folders(crops)
-
-    tally = {}
-    for crop in crops:
-        label = labels.get(crop.get("source_folder", "."), "folder ?")
-        entry = tally.setdefault(label, {"label": label, "crops": 0, "photos": set()})
-        entry["crops"] += 1
-        entry["photos"].add(crop.get("source_photo"))
-
-    rows = [{"label": e["label"], "crops": e["crops"], "photos": len(e["photos"])}
-            for e in tally.values()]
-    return sorted(rows, key=lambda r: (-r["crops"], r["label"]))
-
-
-def folder_label_collisions(clusters):
-    """What labelling by source folder would have merged.
-
-    The rejected alternative was to trust the folder a photo sits in and take a
-    majority vote per pile. This computes what that would actually have done to
-    THIS bucket: any folder that is the majority for more than one cluster
-    would have had those separate identities collapse into a single name.
-
-    The largest cluster is treated as keeping the name, so the mislabelled
-    count is every crop in the smaller clusters that folder would have absorbed.
-
-    Inputs:
-        clusters (list[dict]): from curation_clusters.
-    Returns:
-        tuple[list[dict], int]: one entry per colliding folder (folder, the
-        cluster ids it would have merged, crops absorbed), and the total crops
-        that would have been filed under the wrong person.
-    """
-    by_folder = {}
-    for cluster in clusters:
-        folder = cluster["majority_folder"]
-        if folder is None:
-            continue
-        by_folder.setdefault(folder, []).append(cluster)
-
-    collisions, mislabelled = [], 0
-    for folder in sorted(by_folder):
-        members = sorted(by_folder[folder], key=lambda c: -c["crops"])
-        if len(members) < 2:
-            continue
-        absorbed = sum(c["crops"] for c in members[1:])
-        mislabelled += absorbed
-        collisions.append({
-            "folder": folder,
-            "clusters": [c["id"] for c in members],
-            "identities": len(members),
-            "keeps": members[0]["crops"],
-            "absorbed": absorbed,
-        })
-    return collisions, mislabelled
-
-
 def curation_page_data():
     """Everything the enrollment curation page renders.
 
-    Returns {"curation": None, ...} when the manifest is not on this machine —
-    it lives in the gitignored data/ tree, so a fresh clone legitimately has no
-    run to describe and the page says so rather than inventing one.
+    Reads the committed, anonymised summary rather than the private manifest.
+    The shaping that used to live here (anonymising folder names, grouping
+    clusters, computing the folder-vote collisions) now runs in
+    tools/collect_faces.py at write time, because that is the only place the
+    real names exist and the only place they should ever be handled.
+
+    Returns {"curation": None, ...} when the artifact is missing. That state is
+    rendered as a VISIBLE marker, not a blank section, and
+    freeze_engineering.preflight() fails --strict over it: a page that
+    silently says nothing is the failure this whole change exists to fix.
     """
-    manifest = load_document(CURATION_MANIFEST)
-    if not manifest or not manifest.get("crops"):
-        return {"curation": None, "curation_source": _relative(CURATION_MANIFEST)}
+    summary = load_document(ENROLLMENT_SUMMARY)
+    if not summary or not summary.get("clusters_detail"):
+        return {"curation": None, "curation_source": _relative(ENROLLMENT_SUMMARY)}
 
-    clusters, noise = curation_clusters(manifest)
-    collisions, mislabelled = folder_label_collisions(clusters)
-    settings = manifest.get("settings") or {}
-    counts = manifest.get("counts") or {}
+    clusters = summary["clusters_detail"]
+    # JSON has no tuples, so the per-cluster folder breakdown arrives as
+    # [label, count] pairs; the template unpacks them as a pair either way.
+    for cluster in clusters:
+        cluster["folders"] = [tuple(entry) for entry in cluster["folders"]]
 
-    sizes = [c["crops"] for c in clusters]
-    min_cluster_size = settings.get("min_cluster_size")
-    smallest = min(sizes) if sizes else None
-    folders = {folder for c in clusters for folder, _ in c["folders"]}
+    at_risk_ids = set(summary.get("at_risk") or [])
+    # rejects is a first-class key in the artifact (it is one of the things the
+    # summary exists to report), but the page reads it as counts.rejects, which
+    # is where it sits in the private manifest. Re-nest rather than reshape the
+    # template: the artifact's own shape should read well on its own.
+    counts = dict(summary.get("counts") or {})
+    counts["rejects"] = summary.get("rejects") or {}
 
     return {
         "curation": {
-            "generated_at": manifest.get("generated_at"),
-            "settings": settings,
+            "generated_at": summary.get("generated_at"),
+            "settings": summary.get("settings") or {},
             "counts": counts,
             "clusters": clusters,
-            "noise": noise,
-            "clustered_crops": sum(sizes),
-            "people": len(clusters),
-            "source_folders": len(folders),
-            "smallest": smallest,
-            "largest": max(sizes) if sizes else None,
-            "min_cluster_size": min_cluster_size,
-            # How many crops of slack the thinnest identity had before
-            # min_cluster_size would have deleted it. This is the trap.
-            "headroom": (smallest - min_cluster_size)
-                        if (smallest is not None and min_cluster_size) else None,
-            "at_risk": [c for c in clusters
-                        if min_cluster_size and c["crops"] < min_cluster_size * 2],
-            "collisions": collisions,
-            "mislabelled_if_voted": mislabelled,
-            "folders": curation_folders(manifest),
-            "blur": manifest.get("blur_distribution"),
+            "noise": summary.get("noise_crops"),
+            "clustered_crops": summary.get("clustered_crops"),
+            "people": summary.get("clusters"),
+            "source_folders": summary.get("source_folders"),
+            "smallest": summary.get("smallest_cluster"),
+            "largest": summary.get("largest_cluster"),
+            "min_cluster_size": (summary.get("settings") or {}).get("min_cluster_size"),
+            "headroom": summary.get("headroom"),
+            "at_risk": [c for c in clusters if c["id"] in at_risk_ids],
+            "collisions": summary.get("collisions") or [],
+            "mislabelled_if_voted": summary.get("mislabelled_if_voted"),
+            "folders": summary.get("folders") or [],
+            "blur": summary.get("blur_distribution"),
         },
-        "curation_source": _relative(CURATION_MANIFEST),
+        "curation_source": _relative(ENROLLMENT_SUMMARY),
     }
 
 

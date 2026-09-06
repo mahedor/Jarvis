@@ -55,12 +55,85 @@ except ImportError:  # tools/ missing or renamed — the log still renders
     DETECTION_DETECTOR = None
     DETECTION_THRESHOLD_PROVENANCE = None
 
+# The presence debounce constants, read live so the diagram's caption can never
+# disagree with the service. Imported from presence_config rather than
+# presence_service because that module pulls in cv2/numpy and demo/ is
+# stdlib-only by design — see the note at the top of presence_config.py.
+#
+# THE None CASE IS NOT SILENT. An unavailable config renders a visible
+# "unavailable" marker in place of the caption (never an empty gap), and
+# freeze_engineering.preflight() fails --strict over it. A missing caption that
+# still builds clean is how the enrollment page once shipped empty; the whole
+# point of reading these live is defeated if their absence looks like a design
+# choice.
+try:
+    from presence_config import PresenceConfig
+
+    PRESENCE_CONFIG = PresenceConfig()
+except ImportError:
+    PRESENCE_CONFIG = None
+
 engineering = Blueprint(
     "engineering",
     __name__,
     url_prefix="/engineering",
     template_folder="templates",
 )
+
+
+# ══════════════════════════════════════════════════════════════════
+# What each page needs in order to say anything.
+# ══════════════════════════════════════════════════════════════════
+#
+# WHY THIS EXISTS. freeze_engineering used to carry a hand-written checklist of
+# things to verify before publishing. It caught blank thresholds and empty
+# benchmark tables — for the pages someone remembered to add. The enrollment
+# page was never added, so it published an empty state for months while every
+# build reported success. A checklist maintained by memory fails silently and
+# fails late.
+#
+# Inverted: the page declares what it needs, and the freezer walks every
+# registered route and enforces those declarations. A NEW PAGE WITH NO
+# DECLARATION IS A BUILD ERROR, not a silent pass — that is the whole point,
+# because the failure being designed out is forgetting.
+#
+# Declarations are DATA, not callables: names of artifacts and of named data
+# predicates the freezer knows how to run. That keeps build-time validation
+# logic out of demo/ (which is stdlib-only and must stay importable without the
+# tools/ dependencies) while letting the page own the statement of what it
+# needs.
+
+def requires(artifacts=(), data_checks=(), nothing=None):
+    """Declare the data a view needs before its page is worth publishing.
+
+    Inputs:
+        artifacts (seq[str]): filenames under results/ that must exist and be
+            non-empty.
+        data_checks (seq[str]): names of predicates freeze_engineering knows
+            (see DATA_CHECKS there), for requirements a file's existence cannot
+            express — e.g. "a caching run must actually have engaged the cache".
+        nothing (str | None): an explicit, REASONED statement that this route
+            needs no data (a redirect, a file server). Required rather than
+            allowing a bare @requires(), so "this needs nothing" is always a
+            decision someone wrote down.
+    Returns:
+        The view function, tagged with `eng_requires`.
+    """
+    if not artifacts and not data_checks and not nothing:
+        raise ValueError(
+            "requires() with no arguments is meaningless. Name the artifacts or "
+            "data checks the page needs, or pass nothing='<why>' to state on "
+            "the record that it needs none."
+        )
+
+    def decorate(view):
+        view.eng_requires = {
+            "artifacts": tuple(artifacts),
+            "data_checks": tuple(data_checks),
+            "nothing": nothing,
+        }
+        return view
+    return decorate
 
 @engineering.context_processor
 def _shell_context():
@@ -199,10 +272,18 @@ FACE_STAGES = [
         "id": "presence",
         "title": "Presence service",
         "question": "How does a recognized face become 'Michael is home'?",
-        "status": "pending",
-        "endpoint": None,
-        "summary": "Not built yet. Will consume the locked detection threshold "
-                   "and the gallery produced by build_gallery.py.",
+        # PRELIMINARY, not measured, and the distinction is load-bearing: the
+        # code runs and has been verified end to end from a video file, but the
+        # live-camera path has never executed and the debounce constants are
+        # unvalidated placeholders. Every other stage marked "measured" earned
+        # it with a recorded benchmark run. This one has not, and must not
+        # borrow that word — freeze_engineering.preflight() enforces it.
+        "status": "preliminary",
+        "endpoint": "engineering.presence",
+        "summary": "Built and running against the locked thresholds, but shown "
+                   "as a design rather than a result: verified only from a "
+                   "video file, never a live camera, with debounce values "
+                   "chosen by argument and measured by nothing.",
     },
 ]
 
@@ -220,6 +301,8 @@ STAGES = [stage for group in WORKSTREAMS for stage in group["stages"]]
 
 
 @engineering.route("/")
+@requires(artifacts=["benchmarks_detection.json", "benchmarks_recognition.json"],
+          data_checks=["detection_threshold"])
 def index():
     """The build log: what the project is, then the judgment calls behind it.
 
@@ -246,6 +329,8 @@ def index():
 
 
 @engineering.route("/assistant")
+@requires(artifacts=["benchmarks_caching.json"],
+          data_checks=["caching_runs_engaged"])
 def assistant():
     """Phase 1: the working system every other page is in service of.
 
@@ -266,6 +351,7 @@ def assistant():
 
 
 @engineering.route("/architecture")
+@requires(data_checks=["detection_threshold"])
 def architecture():
     """The last page: the system this is all being built toward.
 
@@ -287,16 +373,20 @@ def architecture():
 # worked out. Redirect rather than 404 — a link that rots is worse than a
 # redirect that lingers.
 @engineering.route("/decisions")
+@requires(nothing="301 redirect to the index; renders no content of its own")
 def decisions():
     return redirect(url_for("engineering.index"), code=301)
 
 
 @engineering.route("/direction")
+@requires(nothing="301 redirect to /architecture; renders no content of its own")
 def direction():
     return redirect(url_for("engineering.architecture"), code=301)
 
 
 @engineering.route("/detection")
+@requires(artifacts=["benchmarks_detection.json"],
+          data_checks=["detection_threshold"])
 def detection():
     """Detection benchmark: AP, ROC AUC and latency per detector per dataset."""
     return render_template(
@@ -309,6 +399,7 @@ def detection():
 
 
 @engineering.route("/enrollment")
+@requires(artifacts=["enrollment_summary.json"])
 def enrollment():
     """Enrollment curation: how the unlabelled photo bucket became a gallery."""
     return render_template(
@@ -319,6 +410,7 @@ def enrollment():
 
 
 @engineering.route("/routing")
+@requires(artifacts=["benchmarks_intent.json"], data_checks=["routing_tables"])
 def routing():
     """Intent routing: the tiered cascade and the prompt-caching experiment."""
     return render_template(
@@ -328,7 +420,33 @@ def routing():
     )
 
 
+@engineering.route("/presence")
+@requires(data_checks=["presence_config", "presence_not_measured"])
+def presence():
+    """Presence service: the pipeline diagram and the topic layout.
+
+    PRELIMINARY. Every other stage page reports a benchmark; this one reports a
+    design that runs. The service works end to end against a real broker from a
+    video file, but no live camera has ever driven it and the debounce
+    constants have no measurement behind them. The page says so at the top
+    rather than in a footnote, because a reader arriving from a log full of
+    measured pages will otherwise assume this one is measured too.
+
+    The debounce values are passed live from PresenceConfig instead of being
+    written into the template or the SVG, so the caption cannot drift from the
+    service the way a hardcoded number silently would.
+    """
+    return render_template(
+        "engineering/presence.html",
+        stages=STAGES,
+        presence_config=PRESENCE_CONFIG,
+        detection_threshold=DETECTION_CONFIDENCE_THRESHOLD,
+        detection_detector=DETECTION_DETECTOR,
+    )
+
+
 @engineering.route("/recognition")
+@requires(artifacts=["benchmarks_recognition.json"])
 def recognition():
     """Recognition benchmark: the encoder grid plus the threshold explorer."""
     return render_template(
@@ -353,6 +471,8 @@ FIGURES = {
 
 
 @engineering.route("/figure/<path:name>")
+@requires(nothing="serves generated figures out of results/ by allow-list; the "
+                  "freezer enumerates them and reports any that are missing")
 def figure(name):
     """Serve one generated benchmark figure out of results/."""
     if name not in FIGURES:
