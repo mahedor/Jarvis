@@ -1,0 +1,263 @@
+{% extends "engineering/base.html" %}
+{% block title %}Presence service{% endblock %}
+{% block heading %}Presence service{% endblock %}
+
+{% block content %}
+
+{# PRELIMINARY BANNER — first thing on the page, deliberately.
+   Every other stage page in this log reports a benchmark. A reader arriving
+   here has been trained by five measured pages to read a diagram as a result.
+   This one is a design that runs, and saying so in a footnote would be too
+   late to change how the diagram is read. #}
+<p class="eng-preliminary-banner">
+  <strong>Preliminary.</strong> This page describes a service that runs but has
+  not been measured. It has been verified end to end against a real MQTT broker
+  <em>from a video file</em>; the live-camera path is written and has never
+  executed. The debounce values below were chosen by argument, not by
+  measurement — unlike the detection and recognition thresholds, which are
+  pinned to recorded benchmark runs. Nothing here is evidence yet.
+</p>
+
+<section class="eng-intro">
+  <p class="eng-lede">
+    Detection finds a face, recognition puts a name to it. Neither answers the
+    question a house actually asks, which is <strong>"is Michael here?"</strong>
+    — a question about a person over time, not about a frame.
+  </p>
+  <p>
+    This is the piece that turns one into the other: a camera feeding a
+    pipeline, a per-identity state machine deciding when a run of recognitions
+    has become presence, and a broker carrying the two transitions that result.
+    {# The gallery file is named in source and on the enrollment page, where the
+       path is the subject. Here it is incidental, and scan_public_output.py is
+       right that a filename on a published page describes a filesystem the
+       reader cannot see. The point is where the threshold travels, not what
+       the file is called. #}
+    It consumes both locked operating points
+    {%- if detection_threshold %} (detection at
+    <strong>{{ detection_threshold }}</strong> via
+    <code>{{ detection_detector }}</code>; recognition from inside the gallery
+    artifact itself, because a cosine threshold is only meaningful beside the
+    encoder that produced the vectors it scores){%- endif %} and hardcodes
+    neither.
+  </p>
+</section>
+
+<section>
+  <h2>The pipeline
+    <span class="eng-badge preliminary">design, unmeasured</span></h2>
+  <p>
+    Six stages. The only one that is not obvious is the second: frames arrive
+    faster than they can be processed, and what happens to the excess decides
+    whether the answer is about now or about the recent past.
+  </p>
+
+  <figure class="eng-arch-figure">
+    {# viewBox is 1060 wide, not 1000, purely to make room on the right: the
+       topic pills are wider than the broker box, and centring them on it needs
+       60px past where the pipeline row ends. The row itself already fills
+       14..986, so there is nothing to reclaim by shifting left. #}
+    <svg viewBox="0 0 1060 392" role="img"
+         aria-label="Presence pipeline diagram. Five numbered stages flow left to right: a camera feeds a single-slot buffer that overwrites, dropping excess frames rather than queueing them; the buffer feeds a worker that runs detection, cropping, embedding and gallery matching; the worker feeds a per-identity state machine; the state machine publishes only transitions to an MQTT broker. From the broker, two separate topic pills branch off: jarvis/presence/name for people, and jarvis/status/presence_service for service liveness with a last-will offline message.">
+      <defs>
+        <marker id="presArrow" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#a97cf5"/>
+        </marker>
+        <marker id="presArrowDrop" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#e0803a"/>
+        </marker>
+      </defs>
+
+      <!-- Everything is dashed: this whole page is unmeasured, and the visual
+           language should not make an exception for the part that runs. -->
+
+      <!-- Stage numbers: corner-anchored so the broker's branch elbows never
+           cross them. -->
+      <text x="16"  y="151" class="eng-pres-num">01</text>
+      <text x="200" y="151" class="eng-pres-num">02</text>
+      <text x="420" y="141" class="eng-pres-num">03</text>
+      <text x="648" y="151" class="eng-pres-num">04</text>
+      <text x="868" y="151" class="eng-pres-num">05</text>
+
+      <g class="eng-arch-box">
+        <rect x="14"  y="160" width="128" height="90"  rx="8"/>
+        <rect x="198" y="160" width="164" height="90"  rx="8" class="mem"/>
+        <rect x="418" y="150" width="172" height="110" rx="8"/>
+        <rect x="646" y="160" width="164" height="90"  rx="8" class="decide"/>
+        <rect x="866" y="160" width="120" height="90"  rx="8"/>
+      </g>
+
+      <text x="78"  y="190" text-anchor="middle" class="eng-arch-title">camera</text>
+      <text x="78"  y="212" text-anchor="middle" class="eng-arch-sub">native rate</text>
+      <text x="78"  y="228" text-anchor="middle" class="eng-arch-sub">capture thread</text>
+
+      <text x="280" y="190" text-anchor="middle" class="eng-arch-title mem">ONE-SLOT BUFFER</text>
+      <text x="280" y="212" text-anchor="middle" class="eng-arch-sub">overwrites, never queues</text>
+      <text x="280" y="228" text-anchor="middle" class="eng-arch-sub">latency bound: 1 frame</text>
+
+      <text x="504" y="184" text-anchor="middle" class="eng-arch-title">worker</text>
+      <text x="504" y="206" text-anchor="middle" class="eng-arch-sub">detect · crop</text>
+      <text x="504" y="222" text-anchor="middle" class="eng-arch-sub">embed · match</text>
+      <text x="504" y="238" text-anchor="middle" class="eng-arch-sub">one frame at a time</text>
+
+      <text x="728" y="190" text-anchor="middle" class="eng-arch-title decide">STATE MACHINE</text>
+      <text x="728" y="212" text-anchor="middle" class="eng-arch-sub">per identity</text>
+      <text x="728" y="228" text-anchor="middle" class="eng-arch-sub">transitions only</text>
+
+      <text x="926" y="190" text-anchor="middle" class="eng-arch-title">broker</text>
+      <text x="926" y="212" text-anchor="middle" class="eng-arch-sub">Mosquitto</text>
+      <text x="926" y="228" text-anchor="middle" class="eng-arch-sub">retained</text>
+
+      <g class="eng-arch-flow">
+        <path d="M 146 205 L 194 205" marker-end="url(#presArrow)"/>
+        <path d="M 366 205 L 414 205" marker-end="url(#presArrow)"/>
+        <path d="M 594 205 L 642 205" marker-end="url(#presArrow)"/>
+        <path d="M 814 205 L 862 205" marker-end="url(#presArrow)"/>
+      </g>
+
+      <!-- The dropped-frame path: the design decision this diagram exists to
+           show. Drawn leaving the buffer downward and going nowhere. -->
+      <g class="eng-arch-flow">
+        <path d="M 280 254 L 280 302" marker-end="url(#presArrowDrop)" class="drop"/>
+      </g>
+      <text x="280" y="324" text-anchor="middle" class="eng-arch-sub drop">excess frames dropped</text>
+      <text x="280" y="340" text-anchor="middle" class="eng-arch-sub drop">counted, not hidden</text>
+
+      <!-- Two topic branches as pills, deliberately far apart: the vertical
+           distance IS the point — different branches of the topic tree. Straight
+           vertical drops, not elbows: the pipeline is the horizontal axis and
+           the topic tree is the vertical one, and the geometry should say so.
+
+           ONE SHARED CENTRE LINE at x=926. The broker box, both arrows and both
+           pills are all centred on it, so the column reads as a single stack
+           rather than three things that happen to be near each other. -->
+      <g class="eng-arch-flow">
+        <path d="M 926 160 L 926 82"  marker-end="url(#presArrow)"/>
+        <path d="M 926 250 L 926 318" marker-end="url(#presArrow)"/>
+      </g>
+
+      <g class="eng-pres-pill">
+        <rect x="806" y="28" width="240" height="48" rx="24"/>
+        <text x="926" y="48" text-anchor="middle" class="topic">jarvis/presence/&lt;name&gt;</text>
+        <text x="926" y="64" text-anchor="middle" class="eng-arch-sub">retained · people only</text>
+      </g>
+
+      <g class="eng-pres-pill status">
+        <rect x="806" y="324" width="240" height="48" rx="24"/>
+        <text x="926" y="344" text-anchor="middle" class="topic">jarvis/status/presence_service</text>
+        <text x="926" y="360" text-anchor="middle" class="eng-arch-sub">online · offline (last will)</text>
+      </g>
+    </svg>
+
+    {# THE NUMBERS LIVE HERE, NOT IN THE SVG. Boxes carry labels only; every
+       value is read from PresenceConfig at request time, so the caption cannot
+       drift from the running service. A hardcoded 3 in a path element is
+       invisible to every test in the repo. #}
+    <figcaption>
+      {% if presence_config %}
+        <strong>Debounce, read live from <code>PresenceConfig</code>:</strong>
+        a person becomes <em>present</em> after
+        <strong>N&nbsp;=&nbsp;{{ presence_config.hits_required }}</strong>
+        recognitions within the last
+        <strong>M&nbsp;=&nbsp;{{ presence_config.window_frames }}</strong>
+        processed frames, counting only observations younger than
+        <strong>{{ presence_config.max_observation_age }}s</strong>; and
+        <em>absent</em> after
+        <strong>T&nbsp;=&nbsp;{{ presence_config.absent_after }}s</strong>
+        with no recognition at all.
+        <span class="eng-caption-warn">These four values are unvalidated
+        placeholders — chosen by reasoning about a camera nobody has pointed at
+        a room yet.</span>
+      {% else %}
+        {# Never an empty gap. An absent caption that still builds clean is how
+           a page ships hollow; --strict fails the build over this too. #}
+        <span class="eng-caption-unavailable">
+          <strong>Debounce configuration unavailable.</strong>
+          <code>tools/presence_config.py</code> could not be imported, so the
+          N/M/T values this caption exists to report are missing. The diagram
+          above is therefore incomplete — it labels the stages but cannot tell
+          you what the state machine actually does.
+        </span>
+      {% endif %}
+    </figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>Why the buffer overwrites</h2>
+  <p>
+    The worker cannot keep up with the camera, and it never will — detection
+    and embedding together dominate the frame budget. So something has to give,
+    and the choice is between dropping the excess and queueing it.
+  </p>
+  <p>
+    <strong>Queueing fails in the worst possible way: silently.</strong> A
+    backlog does not announce itself. The service keeps answering, every answer
+    stays well-formed, and each one is computed from a frame slightly older
+    than the last until the lag is measured in minutes. A presence answer
+    derived from a twelve-second-old frame is not a late answer — it is a wrong
+    one, and nothing in the output distinguishes it from a correct one.
+  </p>
+  <p>
+    Overwriting bounds staleness at a single frame no matter how far behind the
+    worker falls, and the cost is a number the service counts and reports
+    rather than hides. The alternative anyone reaches for first — process every
+    <em>N</em>th frame — is worse than both: it assumes a processing time that
+    is not constant, varies with how many faces are in shot, and drifts with
+    machine load.
+  </p>
+</section>
+
+<section>
+  <h2>Why two topic branches</h2>
+  <p>
+    People are published to <code>jarvis/presence/&lt;name&gt;</code>. The
+    service's own liveness is published somewhere else entirely, to
+    <code>jarvis/status/presence_service</code>, and the separation is not
+    cosmetic tidiness.
+  </p>
+  <p>
+    MQTT wildcards do not honour naming conventions. A subscriber on
+    <code>jarvis/presence/+</code> receives <em>every</em> child of that level,
+    and a broker has no notion of a leading underscore meaning "internal" — so
+    a status topic parked inside the presence branch arrives at every consumer
+    looking exactly like one more person. Moving it out is what makes
+    <code>jarvis/presence/+</code> safely mean "all people".
+  </p>
+  <p>
+    The status topic also resolves an ambiguity the presence topics cannot. A
+    retained <code>absent</code> means either "nobody is there" or "this service
+    died and what you are reading is a fossil". <code>offline</code> is
+    registered as the MQTT last will, so the broker announces it if the process
+    is killed; a clean shutdown suppresses the will, so the service publishes
+    it itself before disconnecting.
+  </p>
+</section>
+
+<section>
+  <h2>What would make this measured</h2>
+  <p>
+    Three things, none of them done:
+  </p>
+  <ul class="eng-list">
+    <li>
+      <strong>Run it on a live camera.</strong> Everything reported here came
+      from a video file. Device open, native blocking rate and driver buffering
+      are all untested.
+    </li>
+    <li>
+      <strong>Justify N, M and T against recorded footage.</strong> They
+      currently rest on an argument, and an argument is not a measurement.
+      Detection and recognition each earned their thresholds from a benchmark
+      with a timestamp; this stage has no equivalent.
+    </li>
+    <li>
+      <strong>Measure the false-transition rate.</strong> The debounce exists to
+      suppress flapping, and nobody has counted how often it flaps.
+    </li>
+  </ul>
+</section>
+
+{% endblock %}

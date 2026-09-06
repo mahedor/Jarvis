@@ -75,7 +75,7 @@ EXPECTED_ASSETS = {
 # tripwire for the opposite failure: a page silently disappearing from a build
 # because its view was renamed or removed while base.html still links it.
 EXPECTED_PAGES = ("index", "assistant", "routing", "detection", "enrollment",
-                  "recognition", "architecture")
+                  "recognition", "presence", "architecture")
 ASSISTANT_ASSETS = ("styles.css", "chat.js", "voice-engine.js", "screensaver.js")
 
 STATIC_REF = re.compile(r"/static/([A-Za-z0-9_\-./]+)")
@@ -187,57 +187,158 @@ def assert_assistant_never_imported():
 # Pre-flight checks (what --strict is willing to fail the build over).
 # ════════════════════════════════════════════════════════════════════
 
-def preflight(engineering_module, data_module):
+def _artifact_missing(name):
+    """Problem string if results/<name> is absent or empty, else None."""
+    path = RESULTS_DIR / name
+    if not path.exists():
+        return f"missing artifact: results/{name}"
+    try:
+        if path.stat().st_size == 0:
+            return f"empty artifact: results/{name}"
+    except OSError as exc:
+        return f"unreadable artifact: results/{name} ({exc})"
+    return None
+
+
+# Named predicates a page can ask for by string in @requires(data_checks=...).
+# These are the requirements a file's existence cannot express: the artifact is
+# present and parses, but what it holds would still render a page that says
+# nothing. Each returns a problem string, or None when satisfied.
+#
+# They live HERE and not in demo/ on purpose. demo/ is stdlib-only and must
+# import without the tools/ dependencies; build-time validation is the freezer's
+# job. The page names what it needs; the freezer knows how to check it.
+
+def _check_detection_threshold(eng, data_module):
+    if eng.DETECTION_CONFIDENCE_THRESHOLD is None:
+        return ("pipeline_config did not import: the locked detection threshold "
+                "and its provenance table will render blank")
+    return None
+
+
+def _check_routing_tables(eng, data_module):
+    try:
+        if data_module.routing_tables() is None:
+            return "engineering_data.routing_tables() returned None"
+    except Exception as exc:  # a documentation build should report, not traceback
+        return f"engineering_data.routing_tables() raised: {exc}"
+    return None
+
+
+def _check_caching_runs_engaged(eng, data_module):
+    """The assistant page's one measured decision is the caching experiment.
+
+    With no runs it renders an empty table under a heading promising six
+    attempts and a reversal - the single most misleading way that page can fail,
+    and it fails silently because an empty for-loop is valid.
+    """
+    try:
+        caching = data_module.assistant_page_data().get("caching") or []
+    except Exception as exc:
+        return f"engineering_data.assistant_page_data() raised: {exc}"
+    if not caching:
+        return ("assistant page has no caching runs: the prompt-caching table "
+                "renders empty under a heading that promises six of them")
+    if not any(run.get("engaged") for run in caching):
+        return ("no caching run ever engaged the cache: the assistant page's "
+                "'the last run is the real measurement' section will be omitted")
+    return None
+
+
+def _check_presence_config(eng, data_module):
+    if getattr(eng, "PRESENCE_CONFIG", None) is None:
+        return ("presence_config did not import: the presence page's debounce "
+                "caption (N/M/T) will render as 'unavailable'")
+    return None
+
+
+def _check_presence_not_measured(eng, data_module):
+    """The presence stage must never claim to be measured.
+
+    It runs, but it has been verified only from a video file, the live-camera
+    path has never executed, and its debounce constants rest on an argument
+    rather than a recorded benchmark. Every other stage carrying "measured"
+    earned it from an artifact in results/; this one would be borrowing the
+    word. Cheap to assert, and the kind of claim that inflates during a tidy-up.
+    """
+    for stage in getattr(eng, "STAGES", []):
+        if stage.get("id") == "presence" and stage.get("status") == "measured":
+            return ("presence stage claims status 'measured', but no live camera "
+                    "has ever driven it and N/M/T have no benchmark behind them")
+    return None
+
+
+DATA_CHECKS = {
+    "detection_threshold": _check_detection_threshold,
+    "routing_tables": _check_routing_tables,
+    "caching_runs_engaged": _check_caching_runs_engaged,
+    "presence_config": _check_presence_config,
+    "presence_not_measured": _check_presence_not_measured,
+}
+
+
+def preflight(app, engineering_module, data_module):
     """Conditions that produce a technically-valid but hollow site.
 
     Each of these renders a page that looks fine and says nothing: blank
-    thresholds, empty benchmark tables, a missing scale argument. None of them
-    raises on its own, which is the whole reason they are checked here.
+    thresholds, empty benchmark tables, a missing artifact. None of them raises
+    on its own, which is the whole reason they are checked here.
 
+    THE CHECKLIST IS NOT HAND-MAINTAINED. Every registered route is walked and
+    must carry an @requires(...) declaration saying what it needs; an undeclared
+    route is itself a failure. The previous version was a list of checks someone
+    had to remember to extend, and the enrollment page proved what that costs:
+    it shipped an empty state to production for months while every build
+    reported success, because nobody had added a line for it.
+
+    Inputs:
+        app (Flask): the app the blueprint is registered on, walked for routes.
+        engineering_module: the blueprint module (declarations sit on its views).
+        data_module: engineering_data, for the shaped-data predicates.
     Returns:
         list[str]: human-readable problems, empty when everything is present.
     """
     problems = []
+    seen_artifacts = set()
 
-    for name in REQUIRED_ARTIFACTS:
-        if not (RESULTS_DIR / name).exists():
-            problems.append(f"missing artifact: results/{name}")
+    rules = sorted((r for r in app.url_map.iter_rules()
+                    if r.endpoint.startswith("engineering.")),
+                   key=lambda r: str(r))
+    for rule in rules:
+        view = app.view_functions.get(rule.endpoint)
+        declaration = getattr(view, "eng_requires", None)
 
-    # engineering.py degrades to None when tools/pipeline_config.py cannot be
-    # imported, and every locked-threshold figure on the overview renders blank.
-    if engineering_module.DETECTION_CONFIDENCE_THRESHOLD is None:
-        problems.append(
-            "pipeline_config did not import: the locked detection threshold and "
-            "its provenance table will render blank"
-        )
-
-    # Counted live from the classifier; None means the import failed and the
-    # routing page loses the numbers its argument is built on.
-    try:
-        if data_module.routing_tables() is None:
-            problems.append("engineering_data.routing_tables() returned None")
-    except Exception as exc:  # a documentation build should report, not traceback
-        problems.append(f"engineering_data.routing_tables() raised: {exc}")
-
-    # The assistant page's one measured decision is the caching experiment. With
-    # no runs it renders an empty table under a heading promising six attempts
-    # and a reversal — the single most misleading way this page can fail, and it
-    # fails silently because an empty {% for %} is valid.
-    try:
-        caching = data_module.assistant_page_data().get("caching") or []
-        if not caching:
+        if declaration is None:
+            # The failure this whole mechanism exists to prevent: a page nobody
+            # said anything about, publishing whatever it happens to render.
+            # Loud, and not skippable.
             problems.append(
-                "assistant page has no caching runs: the prompt-caching table "
-                "renders empty under a heading that promises six of them"
+                f"{rule.endpoint} ({rule}) declares no data requirements. Add "
+                f"@requires(...) to its view in demo/engineering.py - or "
+                f"@requires(nothing='<why>') if it genuinely needs none."
             )
-        elif not any(run.get("engaged") for run in caching):
-            problems.append(
-                "no caching run ever engaged the cache: the assistant page's "
-                "'the last run is the real measurement' section will be omitted"
-            )
-    except Exception as exc:
-        problems.append(f"engineering_data.assistant_page_data() raised: {exc}")
+            continue
 
+        for name in declaration["artifacts"]:
+            seen_artifacts.add(name)
+            problem = _artifact_missing(name)
+            if problem:
+                problems.append(f"{problem}  (required by {rule.endpoint})")
+
+        for check_name in declaration["data_checks"]:
+            check = DATA_CHECKS.get(check_name)
+            if check is None:
+                problems.append(
+                    f"{rule.endpoint} requires unknown data check "
+                    f"{check_name!r}; known checks: {sorted(DATA_CHECKS)}"
+                )
+                continue
+            problem = check(engineering_module, data_module)
+            if problem:
+                problems.append(f"{problem}  (required by {rule.endpoint})")
+
+    # Structural checks: about the log's shape rather than any one page's data.
+    #
     # Every page the shared nav links must exist as a view. A nav entry pointing
     # at a missing endpoint raises BuildError mid-render on EVERY page, so this
     # turns a site-wide 500 into one line of build output.
@@ -251,6 +352,16 @@ def preflight(engineering_module, data_module):
     for group in getattr(engineering_module, "WORKSTREAMS", []):
         if not group.get("stages"):
             problems.append(f"workstream {group.get('id')!r} has no stages")
+
+    # A committed benchmark artifact that no page claims is either dead weight
+    # or, far more likely, a page that forgot to declare it. This is the check
+    # that keeps the declarations honest as the log grows.
+    for name in REQUIRED_ARTIFACTS:
+        if name not in seen_artifacts:
+            problems.append(
+                f"results/{name} is required by no page: either a declaration "
+                f"is missing or the artifact is no longer used"
+            )
 
     return problems
 
@@ -428,7 +539,7 @@ def main():
     print(f"  commit {info['commit']} · built {info['built_at']} · "
           f"artifacts {info['artifacts_mtime']}")
 
-    problems = preflight(engineering_module, data_module)
+    problems = preflight(app, engineering_module, data_module)
     for problem in problems:
         print(f"  ! {problem}")
 

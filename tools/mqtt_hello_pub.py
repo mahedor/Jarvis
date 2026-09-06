@@ -1,5 +1,5 @@
 """
-MQTT hello-world publisher - jarvis/presence/test
+MQTT hello-world publisher - jarvis/test/hello
 =================================================
 THROWAWAY DIAGNOSTIC - not production code, and deliberately not wired into
 anything. The sending half of the pair; see tools/mqtt_hello_sub.py for the
@@ -31,7 +31,7 @@ import time
 
 import paho.mqtt.client as mqtt
 
-TOPIC = "jarvis/presence/test"
+TOPIC = "jarvis/test/hello"
 
 
 def stamp():

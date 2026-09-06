@@ -20,12 +20,19 @@
 </section>
 
 {% if not curation %}
-  <p class="eng-empty">
-    No curation run on this machine. The manifest lives at
-    <code>{{ curation_source }}</code>, beside the reference crops it
-    describes — inside the gitignored <code>data/</code> tree, because it is
-    provenance for photographs of real people. Run
-    <code>python tools/collect_faces.py</code> to produce one.
+  {# A VISIBLE MARKER, not a quiet empty state. This page rendered a polite
+     "nothing here" in production for months while looking healthy, because the
+     artifact it needed was gitignored and nobody could tell the difference
+     between "no run" and "the data never shipped". It now names the missing
+     file and says the page is incomplete. freeze_engineering.preflight() also
+     fails --strict on this, so a build can no longer publish it silently. #}
+  <p class="eng-unavailable">
+    <strong>Enrollment summary unavailable — this page is incomplete.</strong>
+    It renders from <code>{{ curation_source }}</code>, which is committed to
+    the repo, and that file is missing from this checkout. Everything below the
+    decisions is therefore absent: the cluster distribution, the folder-vote
+    collision analysis, and the quality-filter counts.
+    Run <code>python tools/collect_faces.py</code> to regenerate it.
   </p>
 {% else %}
 

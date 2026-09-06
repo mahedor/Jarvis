@@ -1,5 +1,5 @@
 """
-MQTT hello-world subscriber - jarvis/presence/test
+MQTT hello-world subscriber - jarvis/test/hello
 ==================================================
 THROWAWAY DIAGNOSTIC - not production code, and deliberately not wired into
 anything. This is the receiving half of a two-script pair used to prove out the
@@ -27,7 +27,7 @@ import time
 
 import paho.mqtt.client as mqtt
 
-TOPIC = "jarvis/presence/test"
+TOPIC = "jarvis/test/hello"
 
 # The QoS demo needs the broker to hold a session for us while we are offline,
 # and a session is keyed by client id - so that one scenario gets a FIXED id.

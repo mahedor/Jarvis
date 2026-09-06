@@ -38,6 +38,8 @@
          class="{% if request.endpoint == 'engineering.enrollment' %}active{% endif %}">enrollment</a>
       <a href="{{ url_for('engineering.recognition') }}"
          class="{% if request.endpoint == 'engineering.recognition' %}active{% endif %}">recognition</a>
+      <a href="{{ url_for('engineering.presence') }}"
+         class="{% if request.endpoint == 'engineering.presence' %}active{% endif %}">presence</a>
       <span class="eng-nav-sep"></span>
       <a href="{{ url_for('engineering.architecture') }}"
          class="eng-nav-goal {% if request.endpoint == 'engineering.architecture' %}active{% endif %}">architecture</a>
