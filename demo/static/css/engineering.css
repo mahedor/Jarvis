@@ -1363,3 +1363,13 @@ code { font-size: 12px; color: #b9b9cc; background: var(--surface-2);
   color: #e8b48a;
 }
 .eng-unavailable strong { color: #e0803a; }
+/* The implementation slug beside a layer's human name on /routing — present
+   so the table can still be matched against matched_layer in the logs, dim
+   enough that it is not what the eye reads first. */
+.eng-layer-slug {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0.65;
+  margin-left: 6px;
+}

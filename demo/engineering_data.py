@@ -636,6 +636,33 @@ def detection_page_data():
 # Intent routing + prompt caching (the non-vision half of the log).
 # ══════════════════════════════════════════════════════════════════
 
+# The benchmark records the slug the classifier stamps on a result
+# (matched_layer, e.g. "tier2_spacy"). That slug is an implementation
+# identifier, not an explanation — the page was rendering it raw beside a tier
+# column of bare integers, which only reads to someone who has already read
+# intent_classifier.py. The gloss lives here rather than in the template so an
+# unglossed slug falls back to itself and sorts last, visibly, instead of
+# rendering as a blank cell.
+LAYER_GLOSS = {
+    "tier1_keyword":   ("keyword match", "literal phrase list"),
+    "tier1_embedding": ("embedding similarity", "cosine vs. labelled examples"),
+    "tier2_keyword":   ("keyword match", "literal phrase list"),
+    "tier2_spacy":     ("dependency parse", "spaCy verb + object extraction"),
+    "tier2_embedding": ("embedding similarity", "cosine vs. labelled examples"),
+    "tier3_claude":    ("escalate", "no local layer decided"),
+}
+
+# Control-flow order — the sequence the rungs are actually tried in, which is
+# NOT the cheapest-first order intent_layers() returns. A cascade's whole
+# argument is that the cheap rungs run first and stop; sorted by cost the table
+# reads as a ranking and the sequencing disappears. The page sorts by this.
+LAYER_ORDER = [
+    "tier1_keyword", "tier1_embedding",
+    "tier2_keyword", "tier2_spacy", "tier2_embedding",
+    "tier3_claude",
+]
+
+
 def intent_layers(run):
     """Per-layer routing latency, aggregated across the commands measured.
 
@@ -646,9 +673,14 @@ def intent_layers(run):
     Inputs:
         run (dict): an intent benchmark payload with a "results" list of
             {label, command, tier, layer, avg_ms, p95_ms, p99_ms}.
+    Each row also carries the human gloss the page renders — "name" and
+    "mechanism" from LAYER_GLOSS, and "order", the position in the cascade — so
+    the template never has to translate a slug itself.
+
     Returns:
-        list[dict]: {"layer", "tier", "commands", "avg_ms", "p95_ms"}, cheapest
-        first. Empty for a missing or malformed run.
+        list[dict]: {"layer", "name", "mechanism", "order", "tier", "commands",
+        "avg_ms", "p95_ms"}, cheapest first. Empty for a missing or malformed
+        run.
     """
     grouped = {}
     for row in (run or {}).get("results", []):
@@ -662,6 +694,10 @@ def intent_layers(run):
 
     layers = [{
         "layer": e["layer"],
+        "name": LAYER_GLOSS.get(e["layer"], (e["layer"], ""))[0],
+        "mechanism": LAYER_GLOSS.get(e["layer"], (e["layer"], ""))[1],
+        "order": LAYER_ORDER.index(e["layer"]) if e["layer"] in LAYER_ORDER
+                 else len(LAYER_ORDER),
         "tier": e["tier"],
         "commands": len(e["avg"]),
         "avg_ms": sum(e["avg"]) / len(e["avg"]),
@@ -830,7 +866,9 @@ def routing_page_data():
     return {
         "intent_run": latest_intent,
         "intent_runs": len(intent_runs),
-        "layers": layers,
+        # Table in cascade order; cheapest/dearest still come off the
+        # cost-sorted list intent_layers() returns.
+        "layers": sorted(layers, key=lambda e: e["order"]),
         "cheapest": layers[0] if layers else None,
         "dearest": layers[-1] if layers else None,
         "claude_ms": claude_call_ms(caching_runs(load_runs(CACHING_FILE))),
