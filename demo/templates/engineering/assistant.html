@@ -200,7 +200,8 @@
     <div class="eng-decision-body">
       <h3>The wait is covered by speaking first, not by streaming harder</h3>
       <p class="eng-claim">
-        A Tier&nbsp;3 answer costs
+        A <a class="eng-link" href="{{ url_for('engineering.routing') }}#tiers">Tier&nbsp;3</a>
+        answer &mdash; one no local layer could resolve, so it goes to the model &mdash; costs
         {% if claude_ms %}about {{ '%.1f'|format(claude_ms / 1000) }} seconds{% else %}a couple of seconds{% endif %}
         of silence. The frontend fills it by asking a second endpoint for
         something to say.

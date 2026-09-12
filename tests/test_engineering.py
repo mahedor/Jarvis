@@ -27,6 +27,10 @@ sys.path.insert(0, str(REPO_ROOT / "demo"))
 
 import engineering_data as data  # noqa: E402
 
+# Read as text, not imported: intent_classifier pulls in spaCy and
+# sentence-transformers at import, and this suite is meant to stay cheap.
+INTENT_CLASSIFIER = REPO_ROOT / "demo" / "intent_classifier.py"
+
 
 # ══════════════════════════════════════════════════════════════════
 # Pure shaping.
@@ -352,6 +356,39 @@ def test_layers_are_grouped_and_ordered_cheapest_first():
     assert layers[0]["commands"] == 2
     assert layers[0]["avg_ms"] == pytest.approx(0.02)
     assert layers[0]["p95_ms"] == pytest.approx(0.05)  # worst p95, not averaged
+
+
+def test_every_layer_the_classifier_can_emit_has_a_gloss():
+    """A new cascade rung cannot ship onto the page unexplained.
+
+    The routing table renders LAYER_GLOSS, not the raw slug. A layer the
+    classifier stamps but nobody described would render as its own slug and
+    sort last — survivable, but it is exactly how the page shipped a column of
+    bare integers in the first place. Pin it instead.
+    """
+    emitted = set(re.findall(r'"(tier\d_[a-z]+)"', INTENT_CLASSIFIER.read_text(encoding="utf-8")))
+    assert emitted, "no matched_layer slugs found — did the classifier stop stamping them?"
+    assert emitted <= set(data.LAYER_GLOSS), f"unglossed: {emitted - set(data.LAYER_GLOSS)}"
+    assert emitted <= set(data.LAYER_ORDER), f"unordered: {emitted - set(data.LAYER_ORDER)}"
+
+
+def test_layers_carry_their_gloss_and_cascade_order():
+    run = {"results": [
+        {"layer": "tier2_spacy", "tier": 2, "avg_ms": 18.0, "p95_ms": 24.0},
+        {"layer": "tier1_keyword", "tier": 1, "avg_ms": 0.01, "p95_ms": 0.02},
+        {"layer": "made_up", "tier": 9, "avg_ms": 1.0, "p95_ms": 1.0},
+    ]}
+    by_slug = {l["layer"]: l for l in data.intent_layers(run)}
+    assert by_slug["tier2_spacy"]["name"] == "dependency parse"
+    assert by_slug["tier1_keyword"]["order"] < by_slug["tier2_spacy"]["order"]
+    # Unknown slug degrades to itself and sorts last rather than rendering blank.
+    assert by_slug["made_up"]["name"] == "made_up"
+    assert by_slug["made_up"]["order"] == len(data.LAYER_ORDER)
+
+
+def test_routing_page_orders_the_table_by_cascade_not_by_cost():
+    layers = data.routing_page_data()["layers"]
+    assert [l["order"] for l in layers] == sorted(l["order"] for l in layers)
 
 
 def test_layers_of_an_empty_run():

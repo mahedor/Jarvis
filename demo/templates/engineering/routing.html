@@ -145,30 +145,286 @@
   <h2>Current implementation <span class="eng-badge provisional">up for redesign</span></h2>
 
   <p>
-    Routing is currently a hand-written cascade: keyword matching first, then
-    spaCy parsing, then embedding similarity, escalating to Claude only when
-    none of them can decide. It works and it is fast. It is listed here as the
-    <em>current</em> answer rather than the settled one, because it does not
-    scale.
+    Routing is currently a hand-written cascade: normalize the phrasing, then
+    keyword matching, then spaCy parsing, then embedding similarity, escalating
+    to Claude only when none of them can decide. It works and it is fast. It is
+    listed here as the <em>current</em> answer rather than the settled one,
+    because it does not scale.
   </p>
+
+  <!-- This legend exists because the table below used to render raw slugs
+       (tier2_spacy) against a column of bare integers, and nothing anywhere on
+       the site said what a tier was. Two different things are stacked here and
+       both have to be named: a TIER is what the command turned out to be, a
+       LAYER is the mechanism that worked it out. -->
+  <div class="eng-subblock" id="tiers">
+    <div class="eng-subhead">Tiers &mdash; what the command turned out to be
+      <span class="eng-note">the vertical axis: how far down it had to go</span>
+    </div>
+    <table class="eng-table compact">
+      <thead>
+        <tr><th class="num">tier</th><th>covers</th><th>answered from</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="num">1</td>
+          <td>time and date questions</td>
+          <td>the system clock &mdash; no device state, no model</td>
+        </tr>
+        <tr>
+          <td class="num">2</td>
+          <td>device commands and status, plus the "good morning" / "good night" scenes</td>
+          <td>in-memory device state, returned with its own <code>[ACTION:&nbsp;...]</code> list</td>
+        </tr>
+        <tr>
+          <td class="num">3</td>
+          <td>everything else &mdash; conversation, ambiguity, anything unrecognised</td>
+          <td><strong>Claude</strong>. This is the only tier that leaves the machine</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="eng-note">
+      Tiers 1 and 2 return their own response and stop; the model is never
+      called. Tier 3 is not a match, it is the absence of one &mdash; what is
+      left when no local layer could decide.
+    </p>
+  </div>
+
+  <div class="eng-subblock">
+    <div class="eng-subhead">Layers &mdash; the mechanism that decided
+      <span class="eng-note">mostly Tier 2's internals, partly borrowed by Tier 1</span>
+    </div>
+    <p>
+      Calling this a second <em>axis</em> flatters it. The full cascade belongs
+      to Tier&nbsp;2 &mdash; it is documented in the code as
+      <code>check_tier2</code>'s pipeline, and the tier list in the module header
+      attributes the layer costs to the Tier&nbsp;2 line specifically.
+      Tier&nbsp;1 borrows the two cheap rungs and skips the parse; Tier&nbsp;3
+      has no layers at all, because it is not a match. The grid is sparse, and
+      the six rows in the latency table below are all the cells that exist:
+    </p>
+    <table class="eng-table compact">
+      <thead>
+        <tr><th>rung</th><th class="num">tier 1</th><th class="num">tier 2</th><th class="num">tier 3</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>0 &middot; normalize</td><td class="num">&#10003;</td><td class="num">&#10003;</td><td class="num">&mdash;</td></tr>
+        <tr><td>1 &middot; keyword match</td><td class="num">&#10003;</td><td class="num">&#10003;</td><td class="num">&mdash;</td></tr>
+        <tr><td>2 &middot; dependency parse</td><td class="num">&mdash;</td><td class="num">&#10003;</td><td class="num">&mdash;</td></tr>
+        <tr><td>3 &middot; embedding similarity</td><td class="num">&#10003;</td><td class="num">&#10003;</td><td class="num">&mdash;</td></tr>
+      </tbody>
+    </table>
+    <p class="eng-note">
+      Within a tier the rungs really are fallbacks: each runs only because the
+      one above it declined. Across tiers they are not &mdash; Tier&nbsp;1's
+      keyword rung and Tier&nbsp;2's are different code matching different
+      tables, sharing a name and nothing else.
+    </p>
+    <ul class="eng-errors">
+      <li><strong>0 &middot; normalize</strong> &mdash; lowercases and strips
+        filler prefixes (<code>hey jarvis</code>, <code>could you please</code>)
+        before anything is matched against. It runs at the top of each tier, not
+        once at the front, and it is the one rung with no row below: it decides
+        nothing, so it is never what a result is attributed to. Bare
+        <code>can you</code> is deliberately <em>not</em> stripped &mdash; it
+        also opens questions, and removing it mid-sentence produces nonsense.</li>
+      <li><strong>1 &middot; keyword match</strong> &mdash; regex and phrase
+        lists over the normalized string. Handles the phrasings someone wrote
+        down, in microseconds. In Tier&nbsp;1 that means two narrow time/date
+        patterns; in Tier&nbsp;2, the <code>ACTION_MAP</code> and
+        <code>DEVICE_ALIASES</code> tables.</li>
+      <li><strong>2 &middot; dependency parse</strong> &mdash; spaCy recovers
+        the <em>verb</em> from novel phrasing. <strong>Tier 2 only</strong>, and
+        the one rung that is genuinely exclusive to it &mdash; there is no
+        grammar worth parsing in "what time is it". It never touches the device
+        &mdash; see the ceiling below.</li>
+      <li><strong>3 &middot; embedding similarity</strong> &mdash; cosine
+        against a labelled example set, as the last local resort before
+        escalating. Each tier has its own set: eight canonical time/date phrases
+        for Tier&nbsp;1, twenty-nine device phrasings for Tier&nbsp;2.</li>
+    </ul>
+    <p class="eng-note">
+      spaCy and sentence-transformers are <strong>optional dependencies</strong>.
+      The module sets <code>SPACY_AVAILABLE</code> and
+      <code>EMBEDDINGS_AVAILABLE</code> at import and disables those two layers
+      if the packages are missing &mdash; so on a bare install the cascade is
+      keyword-only and everything it used to catch falls through to Tier&nbsp;3.
+      That degradation is silent, which is defensible for a demo and would not
+      be for a product.
+    </p>
+  </div>
+
+  <!-- ─── How it actually works ───────────────────────────────
+       The two legends above define the vocabulary. This describes the machine.
+       It is deliberately specific about the guards and the ceiling, because
+       those are the parts that argue for the rewrite — a reader who only sees
+       "keyword, then spaCy, then embeddings" comes away thinking the cascade
+       degrades gracefully, and in one important respect it does not. -->
+
+  <div class="eng-subblock">
+    <div class="eng-subhead">How a command moves through it
+      <span class="eng-note">three probes, in order, each returning a finished answer or nothing</span>
+    </div>
+    <table class="eng-table compact">
+      <thead>
+        <tr><th class="num">#</th><th>probe</th><th>catches</th><th>on no match</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="num">1</td>
+          <td class="mono">check_tier1</td>
+          <td>time and date</td>
+          <td>returns <code>None</code>, falls through</td>
+        </tr>
+        <tr>
+          <td class="num">2</td>
+          <td class="mono">check_context_commands</td>
+          <td>"good morning" / "good night", <strong>time-gated</strong></td>
+          <td>returns <code>None</code>, falls through</td>
+        </tr>
+        <tr>
+          <td class="num">3</td>
+          <td class="mono">check_tier2</td>
+          <td>device commands and status</td>
+          <td>returns <code>None</code>, falls through</td>
+        </tr>
+        <tr class="excluded">
+          <td class="num">&mdash;</td>
+          <td class="mono">&mdash;</td>
+          <td>nothing left to try</td>
+          <td><strong>Tier 3.</strong> Claude is called</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The Tier&nbsp;3 result is an empty shell &mdash; <code>confidence 0.0</code>,
+      <code>response None</code>, <code>actions []</code> &mdash; built by falling
+      off the end rather than by deciding anything. That emptiness is the
+      interface: the orchestrator's test for "should I call the model" is simply
+      whether the classifier came back with a response, so escalation needs no
+      flag of its own.
+    </p>
+    <p class="eng-note">
+      Probe 2 is the odd one. It returns Tier&nbsp;2 and stamps
+      <code>tier2_keyword</code>, but runs <em>before</em> Tier&nbsp;2 &mdash; the
+      ordering is about its time gate, not its cost. "Good night" before 8pm and
+      "good morning" outside 5am&ndash;noon deliberately return <code>None</code>
+      and escalate, because at the wrong hour they are probably being said to a
+      person, not to the house.
+    </p>
+  </div>
+
+  <div class="eng-subblock">
+    <div class="eng-subhead">What each layer actually does</div>
+    <ul class="eng-errors">
+      <li><strong>normalize</strong> &mdash; lowercase, then strip filler
+        prefixes in a loop until none match, longest first, so stacked prefixes
+        ("hey jarvis, could you please&hellip;") come off in one pass. A
+        word-boundary guard stops a prefix eating a real word &mdash; without it
+        <code>please</code> would strip the front of "pleased to meet you".</li>
+      <li><strong>keyword</strong> &mdash; word-boundary regex, <em>longest
+        phrase first</em>, over two tables: <code>ACTION_MAP</code> for verbs and
+        <code>DEVICE_ALIASES</code> for devices. Longest-first is what makes
+        "turn on" beat "on" and "bedroom light" beat "light"; matched in any other
+        order the tables would silently mis-resolve.</li>
+      <li><strong>dependency parse</strong> &mdash; takes the sentence root, then
+        looks for a particle child (<code>prt</code>) to rebuild a phrasal verb:
+        <em>turn</em>&nbsp;+&nbsp;<em>on</em> &rarr; <code>turn on</code>. Failing
+        that it falls back to <code>root.lemma_</code>, which is what resolves
+        "dims" &rarr; dim and "the fan should be switched off" &rarr; switch off
+        &mdash; phrasings that appear nowhere in the tables.</li>
+      <li><strong>embedding similarity</strong> &mdash; MiniLM, canonical phrases
+        encoded once at import with unit norm, so the match is a plain dot
+        product. It needs cosine <strong>&ge;&nbsp;0.70</strong> and returns
+        <code>None</code> below that rather than the nearest label &mdash; a
+        classifier with no <em>I don't know</em> would turn every unrecognised
+        sentence into a device command.</li>
+    </ul>
+  </div>
+
+  <div class="eng-subblock">
+    <div class="eng-subhead">Three places it refuses on purpose</div>
+    <ul class="eng-errors">
+      <li><strong>The negation guard</strong> &mdash; any of <code>don't</code>,
+        <code>do not</code>, <code>never</code>, <code>won't</code> and
+        Tier&nbsp;2 bails to Claude. Its <em>position</em> is the load-bearing
+        part: after the status checks, so "is the fan not on?" still answers
+        locally, but before action extraction, so "don't turn on the light" can
+        never produce an action. Move it up and status queries break; move it
+        down and the system acts on commands it was told not to.</li>
+      <li><strong>Narrow Tier&nbsp;1 patterns</strong> &mdash; the time regex
+        carries a negative lookahead for a following "in", so "what's the current
+        time in London" escalates instead of being answered confidently with the
+        clock on this machine. The broad version of this pattern is the more
+        obvious thing to write and it is wrong.</li>
+      <li><strong>Entity-type validation</strong> &mdash; lights and switches
+        accept only on/off, covers only open/close. "Open the fan" parses cleanly
+        into a verb and a device and is <em>still</em> rejected, because the pair
+        is nonsense. It escalates, so the apology comes from Claude rather than
+        from a local error string.</li>
+    </ul>
+    <p class="eng-note">
+      All three refuse by returning <code>None</code> &mdash; the same thing "I
+      didn't understand" returns. The cascade has one failure mode and it is
+      always escalation; there is no path where it acts on a command it is unsure
+      about.
+    </p>
+  </div>
+
+  <div class="eng-caveat-block">
+    <h3>The ceiling: the cascade only resolves the verb</h3>
+    <p>
+      Three layers deep sounds like three chances. It is three chances at the
+      <strong>action</strong> only. Once a verb is found &mdash; by keyword, parse
+      or embedding &mdash; the device is resolved by
+      <code>_extract_device</code>, and that is a literal alias lookup with
+      <strong>no fallback rung behind it</strong>. No spaCy, no embeddings.
+    </p>
+    <p>
+      "Turn on the heater" makes the asymmetry concrete. The verb resolves
+      immediately &mdash; <code>turn on</code> is right there in
+      <code>ACTION_MAP</code> &mdash; and the command still dies one line later,
+      because <code>heater</code> is not an alias and the lookup returns
+      <code>None</code>. "Shut off the kettle" gets its verb from <em>two</em>
+      layers, keyword and parse agreeing, and dies the same way. Both escalate
+      having been most of the way understood.
+    </p>
+    <p>
+      It also means <code>matched_layer</code> names how the <em>verb</em> was
+      resolved, not how the sentence was &mdash; a row reading
+      <code>tier2_embedding</code> still had its device matched by keyword, and
+      always did.
+    </p>
+    <p>
+      This is the sharper version of the maintenance argument below.
+      <code>DEVICE_ALIASES</code> is not merely one more hand-written table; it is
+      the one table with nothing behind it, so every device phrasing nobody wrote
+      down is a hard miss that no amount of semantic matching can recover. A
+      replacement that resolves verb and device <em>together</em> is the actual
+      requirement &mdash; and no candidate should be scored on verb accuracy
+      alone.
+    </p>
+  </div>
 
   <p class="eng-note">
     Measured over
     {{ '{:,}'.format(intent_run.runs_per_command) if intent_run else '1,000' }}
-    runs per command, grouped by layer. The tier-3 row is the cost of
-    <em>deciding</em> to escalate, not the Claude call that follows.
+    runs per command, grouped by layer and listed in the order the rungs are
+    <em>tried</em> &mdash; not cheapest first, which would read as a ranking and
+    hide the sequencing. The tier-3 row is the cost of <em>deciding</em> to
+    escalate, not the Claude call that follows.
   </p>
 
   <table class="eng-table compact">
     <thead>
-      <tr><th>layer</th><th class="num">tier</th><th class="num">commands</th>
+      <tr><th class="num">tier</th><th>layer</th><th class="num">commands</th>
           <th class="num">mean</th><th class="num">p95</th></tr>
     </thead>
     <tbody>
       {% for layer in layers %}
       <tr>
-        <td class="mono">{{ layer.layer }}</td>
         <td class="num">{{ layer.tier }}</td>
+        <td>{{ layer.name }} <span class="eng-layer-slug">{{ layer.layer }}</span></td>
         <td class="num">{{ layer.commands }}</td>
         <td class="num strong">{{ '%.3f'|format(layer.avg_ms) }} ms</td>
         <td class="num">{{ '%.2f'|format(layer.p95_ms) }} ms</td>
