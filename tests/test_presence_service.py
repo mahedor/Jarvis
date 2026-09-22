@@ -359,3 +359,38 @@ def test_status_topic_is_outside_the_presence_branch():
     from presence_service import SERVICE_TOPIC, TOPIC_PREFIX
 
     assert not SERVICE_TOPIC.startswith(TOPIC_PREFIX + "/")
+
+
+def test_no_non_person_topic_is_a_direct_child_of_the_presence_branch():
+    """The people-only rule is about the branch, not just about SERVICE_TOPIC.
+
+    Checking only SERVICE_TOPIC pins the one collision we already found. A
+    sensor-level topic added later at jarvis/presence/camera would be delivered
+    to a jarvis/presence/+ subscriber as a person called "camera" and no test
+    would notice. So sweep every topic constant the module declares instead:
+    anything declared as a direct child of the presence branch fails here.
+    Deeper topics are fine — jarvis/presence/+ does not match them.
+
+    This guards one failure shape, not the invariant. Topics built at runtime
+    go through topic_for(), whose input is a gallery identity, and nothing in a
+    topic string marks it as a person — a gallery folder named "camera" would
+    produce jarvis/presence/camera legitimately. Enforcing it properly means
+    gating the publish site or moving people to jarvis/presence/person/<name>.
+    """
+    import presence_service
+
+    prefix = presence_service.TOPIC_PREFIX + "/"
+    offenders = [
+        f"{name} = {value!r}"
+        for name, value in vars(presence_service).items()
+        if name.isupper()
+        and isinstance(value, str)
+        and value.startswith(prefix)
+        and value.count("/") == 2
+    ]
+    assert offenders == [], (
+        "non-person topic(s) directly under the presence branch: "
+        + ", ".join(offenders)
+        + " — put sensor events under jarvis/sensor/ and service health under "
+        "jarvis/status/, or jarvis/presence/+ stops meaning 'all people'"
+    )

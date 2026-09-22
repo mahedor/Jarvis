@@ -411,6 +411,21 @@ meaning "internal": a wildcard subscriber would receive the service's status as
 though it were another person. Same reason the hello-world spike was moved to
 `jarvis/test/hello`.
 
+The rule covers the whole branch, not just those two. Per-sensor events — a
+camera or an mmWave radar reporting that *something* is in the room without
+saying who — would collide identically, so they belong under `jarvis/sensor/`,
+never at `jarvis/presence/camera`. Nothing publishes `jarvis/sensor/` today; the
+branch is named so the next thing that needs it has somewhere to go. Only direct
+children collide — a topic one level deeper is not matched by
+`jarvis/presence/+`.
+
+What holds this up is not the naming, though. `topic_for()` is the only thing
+that ever builds a presence topic and its input is always a gallery identity —
+nothing about the string itself marks it as a person, and a person whose gallery
+folder is `camera` produces exactly the topic the rule bans.
+`tests/test_presence_service.py` catches a non-person topic added as a module
+constant, which is the shape the `_service` bug took, and nothing beyond that.
+
 The status topic is not optional. Without it, a retained `absent` is ambiguous —
 it means either "nobody is there" or "this service died and what you are reading
 is a fossil". `offline` is registered as the MQTT **last will**, so the broker

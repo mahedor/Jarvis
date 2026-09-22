@@ -55,14 +55,34 @@ MQTT TOPICS
     jarvis/status/presence_service  retained, "online" on connect, "offline"
                                     as the LAST WILL and on clean shutdown
 
-WHY THE STATUS TOPIC IS ON A DIFFERENT BRANCH. It would be natural to park it
-at jarvis/presence/_service, and that would be a bug. Wildcards do not honour
-naming conventions: a subscriber on jarvis/presence/+ receives every child of
-that level, and the broker has no notion of a leading underscore meaning
-"internal". The service's own liveness would arrive at every presence consumer
-looking exactly like a seventh person called "_service". Hanging it off
-jarvis/status/ instead keeps jarvis/presence/+ meaning precisely "all people",
-which is what makes that wildcard safe to subscribe to.
+WHY THE STATUS TOPIC IS ON A DIFFERENT BRANCH. The rule is about the branch,
+not about this one topic: a direct child of jarvis/presence/ is a person and
+nothing else, which is what lets jarvis/presence/+ mean exactly "all people".
+Wildcards do not honour naming conventions - a subscriber on jarvis/presence/+
+receives every child of that level, and the broker has no notion of a leading
+underscore meaning "internal" - so liveness parked at jarvis/presence/_service
+would arrive at every presence consumer looking exactly like a seventh person
+called "_service". Hanging it off jarvis/status/ is what avoids that.
+
+Everything else that is not a person gets the same treatment. Service health
+goes under jarvis/status/, the hello-world spike under jarvis/test/, and
+per-sensor events - a camera or an mmWave radar reporting "something is in the
+room" without saying who - would go under jarvis/sensor/. Nothing publishes
+jarvis/sensor/ today; it is named here so the next thing that needs it does not
+reach for jarvis/presence/camera. Only direct children collide - a topic one
+level deeper is not matched by jarvis/presence/+ at all.
+
+WHAT ACTUALLY HOLDS THE RULE UP, though, is not the naming: topic_for() below
+is the only thing in the repo that ever builds a presence topic, and its input
+is always a gallery identity. Nothing about the string marks it as a person -
+to the broker jarvis/presence/camera and jarvis/presence/michael are the same
+shape, and a person whose gallery folder is "camera" produces exactly the topic
+this rule bans. Note also that topic_for() falls back to jarvis/presence/unknown
+for a name that slugs to empty, which is a direct child too.
+
+So the rule is a convention with one enforcement point, not an invariant.
+tests/test_presence_service.py catches the shape the _service bug took - a
+non-person topic added as a module constant - and nothing beyond that.
 
 The status topic is not decoration. Without it "absent" is ambiguous: it means
 either "nobody is there" or "this service died and its retained state is a
@@ -124,8 +144,10 @@ DEFAULT_GALLERY = REPO_ROOT / "data" / "gallery.npz"
 DEFAULT_WEIGHTS = _HERE / "weights" / pipeline_config.DETECTION_WEIGHTS
 
 TOPIC_PREFIX = "jarvis/presence"
-# Deliberately NOT derived from TOPIC_PREFIX - it must not sit under the
-# presence branch at all, or jarvis/presence/+ would deliver it as a person.
+# Deliberately NOT derived from TOPIC_PREFIX. Nothing that is not a person may
+# be a direct child of the presence branch, or jarvis/presence/+ delivers it as
+# a person - that goes for sensor-level topics as much as for this one. Health
+# goes under jarvis/status/, per-sensor events would go under jarvis/sensor/.
 # See "WHY THE STATUS TOPIC IS ON A DIFFERENT BRANCH" above.
 SERVICE_TOPIC = "jarvis/status/presence_service"
 STATE_PRESENT = "present"

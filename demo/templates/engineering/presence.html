@@ -211,7 +211,7 @@
 </section>
 
 <section>
-  <h2>Why two topic branches</h2>
+  <h2>Why the presence branch holds people only</h2>
   <p>
     People are published to <code>jarvis/presence/&lt;name&gt;</code>. The
     service's own liveness is published somewhere else entirely, to
@@ -225,6 +225,27 @@
     a status topic parked inside the presence branch arrives at every consumer
     looking exactly like one more person. Moving it out is what makes
     <code>jarvis/presence/+</code> safely mean "all people".
+  </p>
+  <p>
+    The rule that buys is about the branch, not about that one topic, and it is
+    easy to lose by adding the next thing carelessly. A sensor-level topic —
+    a camera or an mmWave radar reporting that <em>something</em> is in the room
+    without saying who — collides in exactly the same way, so those belong under
+    <code>jarvis/sensor/</code> rather than <code>jarvis/presence/camera</code>.
+    Nothing publishes that branch yet; it is named so the rule has somewhere to
+    point. Only direct children collide — a topic one level deeper is not
+    matched by <code>jarvis/presence/+</code> at all.
+  </p>
+  <p>
+    It is worth being honest about what enforces this, which is not the naming.
+    Nothing in a topic string marks it as a person: to the broker
+    <code>jarvis/presence/camera</code> and
+    <code>jarvis/presence/michael</code> are the same shape, and a person whose
+    gallery folder is "camera" produces exactly the topic the rule bans. What
+    holds it up is that one function builds every presence topic and its input
+    is always a gallery identity. The test guards the mistake that has actually
+    happened once — a non-person topic added as a constant — not the general
+    case.
   </p>
   <p>
     The status topic also resolves an ambiguity the presence topics cannot. A
