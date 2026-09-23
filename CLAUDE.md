@@ -176,8 +176,13 @@ TOPIC BRANCHES. `jarvis/presence/<name>` is people and only people, so that
 a different branch at `jarvis/status/presence_service` (retained, `offline`
 registered as the last will) — a wildcard would otherwise deliver it as if it
 were a person, since the broker has no notion of a name being "internal". The
-hello-world spike is on `jarvis/test/hello` for the same reason. Do not move
-anything back under `jarvis/presence/` that is not a person.
+hello-world spike is on `jarvis/test/hello` for the same reason. Do not put
+anything under `jarvis/presence/` that is not a person — per-sensor events
+(camera, mmWave) go under `jarvis/sensor/`, which nothing publishes yet. Only
+direct children collide. The rule is a convention, not an invariant: `topic_for()`
+is the only thing that builds a presence topic, nothing in the string marks it as
+a person, and `tests/test_presence_service.py` only catches a non-person topic
+added as a module constant.
 
 `PresenceConfig` (N=3 hits, M=5 frames, T=10.0s, max_observation_age=5.0s) lives
 in **`tools/presence_config.py`**, not in `presence_service.py`, and the split is
