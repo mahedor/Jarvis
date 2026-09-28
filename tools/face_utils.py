@@ -285,14 +285,20 @@ class _YOLOFaceDetector:
         # device and out of torch into plain numpy.
         xyxy = boxes.xyxy.cpu().numpy()
         confs = boxes.conf.cpu().numpy()
-        for (x1, y1, x2, y2), conf in zip(xyxy, confs):
+        # "label" is extra to the shared contract: only YOLO knows class names,
+        # and it lets view_stream.py run non-face weights through this same
+        # loader. Callers that only read box/confidence are unaffected.
+        classes = boxes.cls.cpu().numpy()
+        names = self._model.names
+        for (x1, y1, x2, y2), conf, cls in zip(xyxy, confs, classes):
             confidence = float(conf)
             if confidence < self._min_confidence:
                 continue
             box = _clamp_box([x1, y1, x2, y2], w, h)
             if box is None:
                 continue
-            detections.append({"box": box, "confidence": confidence})
+            detections.append({"box": box, "confidence": confidence,
+                               "label": names.get(int(cls), str(int(cls)))})
         return detections
 
 
