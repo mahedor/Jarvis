@@ -287,18 +287,40 @@ def test_model_fingerprint_directory_tracks_names_and_contents(tmp_path):
     assert bs.model_fingerprint(d)["sha256"] != first["sha256"]
 
 
+def make_ov_dir(parent, name, quantized=False):
+    d = parent / name
+    d.mkdir()
+    layer = '<layer id="1" type="FakeQuantize"/>' if quantized else '<layer id="1" type="Convolution"/>'
+    (d / "m.xml").write_text(f"<net><layers>{layer}</layers></net>")
+    return d
+
+
 def test_backends_only_accept_their_own_weights(tmp_path):
-    ov = tmp_path / "m_openvino_model"
-    ov.mkdir()
-    (ov / "m.xml").write_text("<net/>")
+    ov = make_ov_dir(tmp_path, "m_openvino_model")
+    q = make_ov_dir(tmp_path, "m_int8_openvino_model", quantized=True)
     pt, onnx = tmp_path / "m.pt", tmp_path / "m.onnx"
-    accepted = {name: [p for p in (pt, onnx, ov) if cls.accepts(p)] for name, cls in bs.BACKENDS.items()}
-    assert accepted == {"pytorch": [pt], "onnx": [onnx], "openvino": [ov]}
+    accepted = {name: [p for p in (pt, onnx, ov, q) if cls.accepts(p)] for name, cls in bs.BACKENDS.items()}
+    assert accepted == {"pytorch": [pt], "onnx": [onnx], "openvino": [ov], "openvino-int8": [q]}
 
 
-def test_openvino_backend_is_pinned_to_cpu():
+def test_int8_is_detected_by_contents_not_folder_name(tmp_path):
+    """A quantized IR in a folder without 'int8' in its name is still INT8, and vice versa."""
+    renamed_q = make_ov_dir(tmp_path, "plain_openvino_model", quantized=True)
+    misnamed_fp32 = make_ov_dir(tmp_path, "x_int8_openvino_model")
+    assert bs.is_quantized_ir(renamed_q) and not bs.is_quantized_ir(misnamed_fp32)
+    assert bs.OpenVINOInt8Backend.accepts(renamed_q) and not bs.OpenVINOBackend.accepts(renamed_q)
+    assert bs.OpenVINOBackend.accepts(misnamed_fp32) and not bs.OpenVINOInt8Backend.accepts(misnamed_fp32)
+
+
+def test_backend_precision_labels():
+    assert {name: cls.precision for name, cls in bs.BACKENDS.items()} == {
+        "pytorch": "fp32", "onnx": "fp32", "openvino": "fp32", "openvino-int8": "int8"}
+
+
+def test_openvino_backends_are_pinned_to_cpu():
     """AUTO could hand inference to the RTX 3050 / iGPU; see OpenVINOBackend."""
     assert bs.OpenVINOBackend.device == "intel:cpu"
+    assert bs.OpenVINOInt8Backend.device == "intel:cpu"
 
 
 def test_entry_records_runtime():

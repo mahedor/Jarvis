@@ -76,5 +76,426 @@
       "map50": 0.29702,
       "map50_95": 0.1665
     }
+  },
+  {
+    "timestamp": "2026-10-06T05:00:07Z",
+    "dataset": {
+      "name": "visdrone-val",
+      "num_images": 548,
+      "names_sha256": "1dd2011d6584aea7ae415ea17e4ac9b2c798453a1876eab94c7c182ce99ee448"
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.001,
+    "iou": 0.7,
+    "max_det": 300,
+    "tolerance": 0.005,
+    "class_drop_flag": 0.02,
+    "results": [
+      {
+        "backend": "pytorch",
+        "dtype": "fp32",
+        "model": {
+          "path": "data/models/yolov8n_visdrone_640_e50_s42.pt",
+          "sha256": "f680dda1bbe94649bfdf52b50f374970b4bdbc952067a62b77a5a3e501c31ed5",
+          "size_bytes": 6230378
+        },
+        "map50": 0.29594,
+        "map50_95": 0.16614,
+        "precision": 0.4282,
+        "recall": 0.32276,
+        "input_shapes": {
+          "1x3x384x640": 548
+        },
+        "per_class": {
+          "pedestrian": {
+            "ap50": 0.30354,
+            "ap50_95": 0.12026,
+            "instances": 8844
+          },
+          "people": {
+            "ap50": 0.23265,
+            "ap50_95": 0.07608,
+            "instances": 5125
+          },
+          "bicycle": {
+            "ap50": 0.06302,
+            "ap50_95": 0.02249,
+            "instances": 1287
+          },
+          "car": {
+            "ap50": 0.72229,
+            "ap50_95": 0.4739,
+            "instances": 14064
+          },
+          "van": {
+            "ap50": 0.33068,
+            "ap50_95": 0.22195,
+            "instances": 1975
+          },
+          "truck": {
+            "ap50": 0.28456,
+            "ap50_95": 0.17838,
+            "instances": 750
+          },
+          "tricycle": {
+            "ap50": 0.19318,
+            "ap50_95": 0.1003,
+            "instances": 1045
+          },
+          "awning-tricycle": {
+            "ap50": 0.10509,
+            "ap50_95": 0.06491,
+            "instances": 532
+          },
+          "bus": {
+            "ap50": 0.40776,
+            "ap50_95": 0.28052,
+            "instances": 251
+          },
+          "motor": {
+            "ap50": 0.31665,
+            "ap50_95": 0.1226,
+            "instances": 4886
+          }
+        },
+        "delta_map50": 0.0,
+        "delta_map50_95": 0.0,
+        "within_tolerance": true
+      },
+      {
+        "backend": "onnx",
+        "dtype": "fp32",
+        "model": {
+          "path": "data/models/yolov8n_visdrone_640_e50_s42.onnx",
+          "sha256": "860adaefb47a0e1b07ad84d155cca2e4087e3ae7655fae9c49de91ba2c079921",
+          "size_bytes": 12205152
+        },
+        "map50": 0.29594,
+        "map50_95": 0.16614,
+        "precision": 0.4282,
+        "recall": 0.32276,
+        "input_shapes": {
+          "1x3x384x640": 548
+        },
+        "per_class": {
+          "pedestrian": {
+            "ap50": 0.30354,
+            "ap50_95": 0.12026,
+            "instances": 8844
+          },
+          "people": {
+            "ap50": 0.23265,
+            "ap50_95": 0.07608,
+            "instances": 5125
+          },
+          "bicycle": {
+            "ap50": 0.06302,
+            "ap50_95": 0.02249,
+            "instances": 1287
+          },
+          "car": {
+            "ap50": 0.72229,
+            "ap50_95": 0.4739,
+            "instances": 14064
+          },
+          "van": {
+            "ap50": 0.33068,
+            "ap50_95": 0.22195,
+            "instances": 1975
+          },
+          "truck": {
+            "ap50": 0.28456,
+            "ap50_95": 0.17838,
+            "instances": 750
+          },
+          "tricycle": {
+            "ap50": 0.19318,
+            "ap50_95": 0.1003,
+            "instances": 1045
+          },
+          "awning-tricycle": {
+            "ap50": 0.10509,
+            "ap50_95": 0.06491,
+            "instances": 532
+          },
+          "bus": {
+            "ap50": 0.40776,
+            "ap50_95": 0.28052,
+            "instances": 251
+          },
+          "motor": {
+            "ap50": 0.31665,
+            "ap50_95": 0.1226,
+            "instances": 4886
+          }
+        },
+        "delta_map50": 0.0,
+        "delta_map50_95": 0.0,
+        "within_tolerance": true
+      },
+      {
+        "backend": "openvino",
+        "dtype": "fp32",
+        "model": {
+          "path": "data/models/yolov8n_visdrone_640_e50_s42_openvino_model",
+          "sha256": "f3bff9b9b367662721e2772ed1daafe4c197959c707b3240c0f4fae0b2ee639f",
+          "size_bytes": 12322760
+        },
+        "map50": 0.29594,
+        "map50_95": 0.16614,
+        "precision": 0.4282,
+        "recall": 0.32276,
+        "input_shapes": {
+          "1x3x384x640": 548
+        },
+        "per_class": {
+          "pedestrian": {
+            "ap50": 0.30354,
+            "ap50_95": 0.12026,
+            "instances": 8844
+          },
+          "people": {
+            "ap50": 0.23265,
+            "ap50_95": 0.07608,
+            "instances": 5125
+          },
+          "bicycle": {
+            "ap50": 0.06302,
+            "ap50_95": 0.02249,
+            "instances": 1287
+          },
+          "car": {
+            "ap50": 0.72229,
+            "ap50_95": 0.4739,
+            "instances": 14064
+          },
+          "van": {
+            "ap50": 0.33068,
+            "ap50_95": 0.22195,
+            "instances": 1975
+          },
+          "truck": {
+            "ap50": 0.28456,
+            "ap50_95": 0.17838,
+            "instances": 750
+          },
+          "tricycle": {
+            "ap50": 0.19317,
+            "ap50_95": 0.1003,
+            "instances": 1045
+          },
+          "awning-tricycle": {
+            "ap50": 0.10509,
+            "ap50_95": 0.06491,
+            "instances": 532
+          },
+          "bus": {
+            "ap50": 0.40776,
+            "ap50_95": 0.28052,
+            "instances": 251
+          },
+          "motor": {
+            "ap50": 0.31665,
+            "ap50_95": 0.1226,
+            "instances": 4886
+          }
+        },
+        "delta_map50": 0.0,
+        "delta_map50_95": 0.0,
+        "within_tolerance": true
+      },
+      {
+        "backend": "openvino-int8",
+        "dtype": "int8",
+        "model": {
+          "path": "data/models/yolov8n_visdrone_640_e50_s42_int8_openvino_model",
+          "sha256": "ffaa348036b477d6779b0576b2f19e46b6b408f8b7663cb90de516074dd16348",
+          "size_bytes": 3575031
+        },
+        "map50": 0.29242,
+        "map50_95": 0.16115,
+        "precision": 0.42957,
+        "recall": 0.31935,
+        "input_shapes": {
+          "1x3x384x640": 548
+        },
+        "per_class": {
+          "pedestrian": {
+            "ap50": 0.30195,
+            "ap50_95": 0.11732,
+            "instances": 8844
+          },
+          "people": {
+            "ap50": 0.23467,
+            "ap50_95": 0.07508,
+            "instances": 5125
+          },
+          "bicycle": {
+            "ap50": 0.0659,
+            "ap50_95": 0.02297,
+            "instances": 1287
+          },
+          "car": {
+            "ap50": 0.71574,
+            "ap50_95": 0.4615,
+            "instances": 14064
+          },
+          "van": {
+            "ap50": 0.3272,
+            "ap50_95": 0.21521,
+            "instances": 1975
+          },
+          "truck": {
+            "ap50": 0.27955,
+            "ap50_95": 0.17556,
+            "instances": 750
+          },
+          "tricycle": {
+            "ap50": 0.18738,
+            "ap50_95": 0.09529,
+            "instances": 1045
+          },
+          "awning-tricycle": {
+            "ap50": 0.10228,
+            "ap50_95": 0.06109,
+            "instances": 532
+          },
+          "bus": {
+            "ap50": 0.39768,
+            "ap50_95": 0.26931,
+            "instances": 251
+          },
+          "motor": {
+            "ap50": 0.31188,
+            "ap50_95": 0.11816,
+            "instances": 4886
+          }
+        },
+        "delta_map50": -0.00352,
+        "delta_map50_95": -0.00499,
+        "within_tolerance": null
+      }
+    ],
+    "quantization": [
+      {
+        "backend": "openvino-int8",
+        "reference": "openvino",
+        "map50_drop": 0.00352,
+        "map50_95_drop": 0.00499,
+        "class_threshold": 0.02,
+        "per_class": {
+          "pedestrian": {
+            "ap50_fp32": 0.30354,
+            "ap50_quant": 0.30195,
+            "ap50_drop": 0.00159,
+            "ap50_95_fp32": 0.12026,
+            "ap50_95_quant": 0.11732,
+            "ap50_95_drop": 0.00294,
+            "instances": 8844,
+            "flagged": false
+          },
+          "people": {
+            "ap50_fp32": 0.23265,
+            "ap50_quant": 0.23467,
+            "ap50_drop": -0.00202,
+            "ap50_95_fp32": 0.07608,
+            "ap50_95_quant": 0.07508,
+            "ap50_95_drop": 0.001,
+            "instances": 5125,
+            "flagged": false
+          },
+          "bicycle": {
+            "ap50_fp32": 0.06302,
+            "ap50_quant": 0.0659,
+            "ap50_drop": -0.00288,
+            "ap50_95_fp32": 0.02249,
+            "ap50_95_quant": 0.02297,
+            "ap50_95_drop": -0.00048,
+            "instances": 1287,
+            "flagged": false
+          },
+          "car": {
+            "ap50_fp32": 0.72229,
+            "ap50_quant": 0.71574,
+            "ap50_drop": 0.00655,
+            "ap50_95_fp32": 0.4739,
+            "ap50_95_quant": 0.4615,
+            "ap50_95_drop": 0.0124,
+            "instances": 14064,
+            "flagged": false
+          },
+          "van": {
+            "ap50_fp32": 0.33068,
+            "ap50_quant": 0.3272,
+            "ap50_drop": 0.00348,
+            "ap50_95_fp32": 0.22195,
+            "ap50_95_quant": 0.21521,
+            "ap50_95_drop": 0.00674,
+            "instances": 1975,
+            "flagged": false
+          },
+          "truck": {
+            "ap50_fp32": 0.28456,
+            "ap50_quant": 0.27955,
+            "ap50_drop": 0.00501,
+            "ap50_95_fp32": 0.17838,
+            "ap50_95_quant": 0.17556,
+            "ap50_95_drop": 0.00282,
+            "instances": 750,
+            "flagged": false
+          },
+          "tricycle": {
+            "ap50_fp32": 0.19317,
+            "ap50_quant": 0.18738,
+            "ap50_drop": 0.00579,
+            "ap50_95_fp32": 0.1003,
+            "ap50_95_quant": 0.09529,
+            "ap50_95_drop": 0.00501,
+            "instances": 1045,
+            "flagged": false
+          },
+          "awning-tricycle": {
+            "ap50_fp32": 0.10509,
+            "ap50_quant": 0.10228,
+            "ap50_drop": 0.00281,
+            "ap50_95_fp32": 0.06491,
+            "ap50_95_quant": 0.06109,
+            "ap50_95_drop": 0.00382,
+            "instances": 532,
+            "flagged": false
+          },
+          "bus": {
+            "ap50_fp32": 0.40776,
+            "ap50_quant": 0.39768,
+            "ap50_drop": 0.01008,
+            "ap50_95_fp32": 0.28052,
+            "ap50_95_quant": 0.26931,
+            "ap50_95_drop": 0.01121,
+            "instances": 251,
+            "flagged": false
+          },
+          "motor": {
+            "ap50_fp32": 0.31665,
+            "ap50_quant": 0.31188,
+            "ap50_drop": 0.00477,
+            "ap50_95_fp32": 0.1226,
+            "ap50_95_quant": 0.11816,
+            "ap50_95_drop": 0.00444,
+            "instances": 4886,
+            "flagged": false
+          }
+        },
+        "flagged_classes": []
+      }
+    ],
+    "reference": {
+      "method": "ultralytics YOLO.val(imgsz=640, batch=16, rect)",
+      "model": "data/models/yolov8n_visdrone_640_e50_s42.pt",
+      "map50": 0.29702,
+      "map50_95": 0.1665
+    }
   }
 ]

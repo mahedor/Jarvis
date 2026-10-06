@@ -2010,5 +2010,2063 @@
       "mean_detections": 49.34,
       "detections_consistent": true
     }
+  },
+  {
+    "timestamp": "2026-10-06T04:54:01Z",
+    "backend": "pytorch",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42.pt",
+      "sha256": "f680dda1bbe94649bfdf52b50f374970b4bdbc952067a62b77a5a3e501c31ed5",
+      "size_bytes": 6230378
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "fp32",
+      "torch_threads": 8
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.948,
+            "p50_ms": 2.955,
+            "p95_ms": 3.732,
+            "min_ms": 1.768,
+            "max_ms": 9.76
+          },
+          "inference": {
+            "mean_ms": 48.848,
+            "p50_ms": 45.781,
+            "p95_ms": 70.246,
+            "min_ms": 36.235,
+            "max_ms": 103.707
+          },
+          "postprocess": {
+            "mean_ms": 1.12,
+            "p50_ms": 1.058,
+            "p95_ms": 1.613,
+            "min_ms": 0.756,
+            "max_ms": 1.97
+          },
+          "end_to_end": {
+            "mean_ms": 52.916,
+            "p50_ms": 49.632,
+            "p95_ms": 75.882,
+            "min_ms": 40.229,
+            "max_ms": 107.826
+          }
+        },
+        "fps": 18.9,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:53:44Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.659,
+            "p50_ms": 2.743,
+            "p95_ms": 3.348,
+            "min_ms": 1.759,
+            "max_ms": 6.883
+          },
+          "inference": {
+            "mean_ms": 43.262,
+            "p50_ms": 41.258,
+            "p95_ms": 58.633,
+            "min_ms": 35.364,
+            "max_ms": 72.671
+          },
+          "postprocess": {
+            "mean_ms": 1.004,
+            "p50_ms": 0.953,
+            "p95_ms": 1.314,
+            "min_ms": 0.743,
+            "max_ms": 1.639
+          },
+          "end_to_end": {
+            "mean_ms": 46.925,
+            "p50_ms": 44.697,
+            "p95_ms": 63.328,
+            "min_ms": 38.157,
+            "max_ms": 77.226
+          }
+        },
+        "fps": 21.31,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:53:50Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.724,
+            "p50_ms": 2.792,
+            "p95_ms": 3.47,
+            "min_ms": 1.783,
+            "max_ms": 4.1
+          },
+          "inference": {
+            "mean_ms": 46.163,
+            "p50_ms": 44.185,
+            "p95_ms": 54.044,
+            "min_ms": 37.073,
+            "max_ms": 163.493
+          },
+          "postprocess": {
+            "mean_ms": 1.037,
+            "p50_ms": 0.995,
+            "p95_ms": 1.37,
+            "min_ms": 0.74,
+            "max_ms": 1.584
+          },
+          "end_to_end": {
+            "mean_ms": 49.923,
+            "p50_ms": 47.883,
+            "p95_ms": 58.302,
+            "min_ms": 40.219,
+            "max_ms": 167.905
+          }
+        },
+        "fps": 20.03,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:53:55Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 2.724,
+            "min": 2.659,
+            "max": 2.948,
+            "spread_pct": 10.61
+          },
+          "p50": {
+            "median": 2.792,
+            "min": 2.743,
+            "max": 2.955,
+            "spread_pct": 7.59
+          },
+          "p95": {
+            "median": 3.47,
+            "min": 3.348,
+            "max": 3.732,
+            "spread_pct": 11.07
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 46.163,
+            "min": 43.262,
+            "max": 48.848,
+            "spread_pct": 12.1
+          },
+          "p50": {
+            "median": 44.185,
+            "min": 41.258,
+            "max": 45.781,
+            "spread_pct": 10.24
+          },
+          "p95": {
+            "median": 58.633,
+            "min": 54.044,
+            "max": 70.246,
+            "spread_pct": 27.63
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 1.037,
+            "min": 1.004,
+            "max": 1.12,
+            "spread_pct": 11.19
+          },
+          "p50": {
+            "median": 0.995,
+            "min": 0.953,
+            "max": 1.058,
+            "spread_pct": 10.55
+          },
+          "p95": {
+            "median": 1.37,
+            "min": 1.314,
+            "max": 1.613,
+            "spread_pct": 21.82
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 49.923,
+            "min": 46.925,
+            "max": 52.916,
+            "spread_pct": 12.0
+          },
+          "p50": {
+            "median": 47.883,
+            "min": 44.697,
+            "max": 49.632,
+            "spread_pct": 10.31
+          },
+          "p95": {
+            "median": 63.328,
+            "min": 58.302,
+            "max": 75.882,
+            "spread_pct": 27.76
+          }
+        }
+      },
+      "fps": 20.03,
+      "fps_range": [
+        18.9,
+        21.31
+      ],
+      "mean_detections": 49.34,
+      "detections_consistent": true
+    }
+  },
+  {
+    "timestamp": "2026-10-06T04:54:22Z",
+    "backend": "onnx",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42.onnx",
+      "sha256": "860adaefb47a0e1b07ad84d155cca2e4087e3ae7655fae9c49de91ba2c079921",
+      "size_bytes": 12205152
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "fp32",
+      "onnxruntime": "1.26.0",
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "intra_op_num_threads": 0,
+      "graph_optimization_level": "GraphOptimizationLevel.ORT_ENABLE_ALL"
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 4.667,
+            "p50_ms": 3.825,
+            "p95_ms": 10.016,
+            "min_ms": 3.05,
+            "max_ms": 13.409
+          },
+          "inference": {
+            "mean_ms": 27.56,
+            "p50_ms": 25.938,
+            "p95_ms": 32.514,
+            "min_ms": 23.318,
+            "max_ms": 74.444
+          },
+          "postprocess": {
+            "mean_ms": 1.795,
+            "p50_ms": 1.448,
+            "p95_ms": 3.411,
+            "min_ms": 1.113,
+            "max_ms": 9.182
+          },
+          "end_to_end": {
+            "mean_ms": 34.023,
+            "p50_ms": 31.871,
+            "p95_ms": 43.107,
+            "min_ms": 28.171,
+            "max_ms": 85.491
+          }
+        },
+        "fps": 29.39,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:54:10Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 3.924,
+            "p50_ms": 3.508,
+            "p95_ms": 4.779,
+            "min_ms": 2.993,
+            "max_ms": 28.079
+          },
+          "inference": {
+            "mean_ms": 26.177,
+            "p50_ms": 25.125,
+            "p95_ms": 32.09,
+            "min_ms": 23.365,
+            "max_ms": 62.856
+          },
+          "postprocess": {
+            "mean_ms": 1.435,
+            "p50_ms": 1.321,
+            "p95_ms": 2.103,
+            "min_ms": 1.117,
+            "max_ms": 2.581
+          },
+          "end_to_end": {
+            "mean_ms": 31.536,
+            "p50_ms": 30.001,
+            "p95_ms": 38.629,
+            "min_ms": 27.828,
+            "max_ms": 69.798
+          }
+        },
+        "fps": 31.71,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:54:13Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 6.578,
+            "p50_ms": 4.297,
+            "p95_ms": 13.362,
+            "min_ms": 3.088,
+            "max_ms": 42.582
+          },
+          "inference": {
+            "mean_ms": 33.055,
+            "p50_ms": 28.346,
+            "p95_ms": 51.729,
+            "min_ms": 23.794,
+            "max_ms": 123.095
+          },
+          "postprocess": {
+            "mean_ms": 3.499,
+            "p50_ms": 1.984,
+            "p95_ms": 12.059,
+            "min_ms": 1.142,
+            "max_ms": 23.932
+          },
+          "end_to_end": {
+            "mean_ms": 43.132,
+            "p50_ms": 35.499,
+            "p95_ms": 76.473,
+            "min_ms": 28.282,
+            "max_ms": 148.516
+          }
+        },
+        "fps": 23.18,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:54:17Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 4.667,
+            "min": 3.924,
+            "max": 6.578,
+            "spread_pct": 56.87
+          },
+          "p50": {
+            "median": 3.825,
+            "min": 3.508,
+            "max": 4.297,
+            "spread_pct": 20.63
+          },
+          "p95": {
+            "median": 10.016,
+            "min": 4.779,
+            "max": 13.362,
+            "spread_pct": 85.69
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 27.56,
+            "min": 26.177,
+            "max": 33.055,
+            "spread_pct": 24.96
+          },
+          "p50": {
+            "median": 25.938,
+            "min": 25.125,
+            "max": 28.346,
+            "spread_pct": 12.42
+          },
+          "p95": {
+            "median": 32.514,
+            "min": 32.09,
+            "max": 51.729,
+            "spread_pct": 60.4
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 1.795,
+            "min": 1.435,
+            "max": 3.499,
+            "spread_pct": 114.99
+          },
+          "p50": {
+            "median": 1.448,
+            "min": 1.321,
+            "max": 1.984,
+            "spread_pct": 45.79
+          },
+          "p95": {
+            "median": 3.411,
+            "min": 2.103,
+            "max": 12.059,
+            "spread_pct": 291.88
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 34.023,
+            "min": 31.536,
+            "max": 43.132,
+            "spread_pct": 34.08
+          },
+          "p50": {
+            "median": 31.871,
+            "min": 30.001,
+            "max": 35.499,
+            "spread_pct": 17.25
+          },
+          "p95": {
+            "median": 43.107,
+            "min": 38.629,
+            "max": 76.473,
+            "spread_pct": 87.79
+          }
+        }
+      },
+      "fps": 29.39,
+      "fps_range": [
+        23.18,
+        31.71
+      ],
+      "mean_detections": 49.34,
+      "detections_consistent": true
+    }
+  },
+  {
+    "timestamp": "2026-10-06T04:54:46Z",
+    "backend": "openvino",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42_openvino_model",
+      "sha256": "f3bff9b9b367662721e2772ed1daafe4c197959c707b3240c0f4fae0b2ee639f",
+      "size_bytes": 12322760
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "fp32",
+      "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+      "conv_precisions": {
+        "f32": 64
+      },
+      "performance_hint": "LATENCY",
+      "inference_num_threads": 8,
+      "num_streams": 1,
+      "inference_precision_hint": "<Type: 'float32'>",
+      "execution_devices": [
+        "CPU"
+      ]
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.929,
+            "p50_ms": 2.846,
+            "p95_ms": 3.829,
+            "min_ms": 1.614,
+            "max_ms": 11.944
+          },
+          "inference": {
+            "mean_ms": 44.516,
+            "p50_ms": 41.435,
+            "p95_ms": 60.215,
+            "min_ms": 22.691,
+            "max_ms": 231.796
+          },
+          "postprocess": {
+            "mean_ms": 1.415,
+            "p50_ms": 1.379,
+            "p95_ms": 1.695,
+            "min_ms": 0.971,
+            "max_ms": 4.793
+          },
+          "end_to_end": {
+            "mean_ms": 48.859,
+            "p50_ms": 45.739,
+            "p95_ms": 64.579,
+            "min_ms": 25.937,
+            "max_ms": 245.298
+          }
+        },
+        "fps": 20.47,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:54:33Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.537,
+            "p50_ms": 2.619,
+            "p95_ms": 3.244,
+            "min_ms": 1.627,
+            "max_ms": 3.351
+          },
+          "inference": {
+            "mean_ms": 32.705,
+            "p50_ms": 32.188,
+            "p95_ms": 45.113,
+            "min_ms": 21.342,
+            "max_ms": 48.748
+          },
+          "postprocess": {
+            "mean_ms": 1.291,
+            "p50_ms": 1.253,
+            "p95_ms": 1.676,
+            "min_ms": 0.972,
+            "max_ms": 1.762
+          },
+          "end_to_end": {
+            "mean_ms": 36.533,
+            "p50_ms": 35.82,
+            "p95_ms": 48.621,
+            "min_ms": 25.404,
+            "max_ms": 52.795
+          }
+        },
+        "fps": 27.37,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:54:38Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.421,
+            "p50_ms": 2.467,
+            "p95_ms": 3.043,
+            "min_ms": 1.655,
+            "max_ms": 3.452
+          },
+          "inference": {
+            "mean_ms": 31.833,
+            "p50_ms": 31.149,
+            "p95_ms": 41.108,
+            "min_ms": 18.466,
+            "max_ms": 74.681
+          },
+          "postprocess": {
+            "mean_ms": 1.279,
+            "p50_ms": 1.239,
+            "p95_ms": 1.564,
+            "min_ms": 0.966,
+            "max_ms": 1.769
+          },
+          "end_to_end": {
+            "mean_ms": 35.532,
+            "p50_ms": 34.869,
+            "p95_ms": 45.023,
+            "min_ms": 22.219,
+            "max_ms": 78.674
+          }
+        },
+        "fps": 28.14,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:54:42Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 2.537,
+            "min": 2.421,
+            "max": 2.929,
+            "spread_pct": 20.02
+          },
+          "p50": {
+            "median": 2.619,
+            "min": 2.467,
+            "max": 2.846,
+            "spread_pct": 14.47
+          },
+          "p95": {
+            "median": 3.244,
+            "min": 3.043,
+            "max": 3.829,
+            "spread_pct": 24.23
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 32.705,
+            "min": 31.833,
+            "max": 44.516,
+            "spread_pct": 38.78
+          },
+          "p50": {
+            "median": 32.188,
+            "min": 31.149,
+            "max": 41.435,
+            "spread_pct": 31.96
+          },
+          "p95": {
+            "median": 45.113,
+            "min": 41.108,
+            "max": 60.215,
+            "spread_pct": 42.35
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 1.291,
+            "min": 1.279,
+            "max": 1.415,
+            "spread_pct": 10.53
+          },
+          "p50": {
+            "median": 1.253,
+            "min": 1.239,
+            "max": 1.379,
+            "spread_pct": 11.17
+          },
+          "p95": {
+            "median": 1.676,
+            "min": 1.564,
+            "max": 1.695,
+            "spread_pct": 7.82
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 36.533,
+            "min": 35.532,
+            "max": 48.859,
+            "spread_pct": 36.48
+          },
+          "p50": {
+            "median": 35.82,
+            "min": 34.869,
+            "max": 45.739,
+            "spread_pct": 30.35
+          },
+          "p95": {
+            "median": 48.621,
+            "min": 45.023,
+            "max": 64.579,
+            "spread_pct": 40.22
+          }
+        }
+      },
+      "fps": 27.37,
+      "fps_range": [
+        20.47,
+        28.14
+      ],
+      "mean_detections": 49.34,
+      "detections_consistent": true
+    }
+  },
+  {
+    "timestamp": "2026-10-06T04:55:06Z",
+    "backend": "openvino-int8",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42_int8_openvino_model",
+      "sha256": "ffaa348036b477d6779b0576b2f19e46b6b408f8b7663cb90de516074dd16348",
+      "size_bytes": 3575031
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "int8",
+      "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+      "conv_precisions": {
+        "u8": 64
+      },
+      "performance_hint": "LATENCY",
+      "inference_num_threads": 8,
+      "num_streams": 1,
+      "inference_precision_hint": "<Type: 'float32'>",
+      "execution_devices": [
+        "CPU"
+      ]
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.441,
+            "p50_ms": 2.513,
+            "p95_ms": 3.092,
+            "min_ms": 1.656,
+            "max_ms": 3.703
+          },
+          "inference": {
+            "mean_ms": 19.785,
+            "p50_ms": 18.979,
+            "p95_ms": 27.297,
+            "min_ms": 11.558,
+            "max_ms": 31.749
+          },
+          "postprocess": {
+            "mean_ms": 1.253,
+            "p50_ms": 1.226,
+            "p95_ms": 1.577,
+            "min_ms": 0.894,
+            "max_ms": 1.994
+          },
+          "end_to_end": {
+            "mean_ms": 23.479,
+            "p50_ms": 22.698,
+            "p95_ms": 30.671,
+            "min_ms": 14.308,
+            "max_ms": 36.69
+          }
+        },
+        "fps": 42.59,
+        "mean_detections": 50.59,
+        "started": "2026-10-06T04:54:58Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.343,
+            "p50_ms": 2.419,
+            "p95_ms": 2.944,
+            "min_ms": 1.563,
+            "max_ms": 3.362
+          },
+          "inference": {
+            "mean_ms": 21.783,
+            "p50_ms": 21.367,
+            "p95_ms": 29.637,
+            "min_ms": 10.351,
+            "max_ms": 35.217
+          },
+          "postprocess": {
+            "mean_ms": 1.228,
+            "p50_ms": 1.176,
+            "p95_ms": 1.558,
+            "min_ms": 0.946,
+            "max_ms": 1.701
+          },
+          "end_to_end": {
+            "mean_ms": 25.354,
+            "p50_ms": 25.118,
+            "p95_ms": 33.563,
+            "min_ms": 13.221,
+            "max_ms": 39.015
+          }
+        },
+        "fps": 39.44,
+        "mean_detections": 50.59,
+        "started": "2026-10-06T04:55:00Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.399,
+            "p50_ms": 2.473,
+            "p95_ms": 2.99,
+            "min_ms": 1.602,
+            "max_ms": 3.423
+          },
+          "inference": {
+            "mean_ms": 22.175,
+            "p50_ms": 20.694,
+            "p95_ms": 33.297,
+            "min_ms": 11.284,
+            "max_ms": 68.739
+          },
+          "postprocess": {
+            "mean_ms": 1.273,
+            "p50_ms": 1.254,
+            "p95_ms": 1.613,
+            "min_ms": 0.937,
+            "max_ms": 1.711
+          },
+          "end_to_end": {
+            "mean_ms": 25.846,
+            "p50_ms": 24.75,
+            "p95_ms": 37.416,
+            "min_ms": 14.005,
+            "max_ms": 72.658
+          }
+        },
+        "fps": 38.69,
+        "mean_detections": 50.59,
+        "started": "2026-10-06T04:55:03Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 2.399,
+            "min": 2.343,
+            "max": 2.441,
+            "spread_pct": 4.09
+          },
+          "p50": {
+            "median": 2.473,
+            "min": 2.419,
+            "max": 2.513,
+            "spread_pct": 3.8
+          },
+          "p95": {
+            "median": 2.99,
+            "min": 2.944,
+            "max": 3.092,
+            "spread_pct": 4.95
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 21.783,
+            "min": 19.785,
+            "max": 22.175,
+            "spread_pct": 10.97
+          },
+          "p50": {
+            "median": 20.694,
+            "min": 18.979,
+            "max": 21.367,
+            "spread_pct": 11.54
+          },
+          "p95": {
+            "median": 29.637,
+            "min": 27.297,
+            "max": 33.297,
+            "spread_pct": 20.24
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 1.253,
+            "min": 1.228,
+            "max": 1.273,
+            "spread_pct": 3.59
+          },
+          "p50": {
+            "median": 1.226,
+            "min": 1.176,
+            "max": 1.254,
+            "spread_pct": 6.36
+          },
+          "p95": {
+            "median": 1.577,
+            "min": 1.558,
+            "max": 1.613,
+            "spread_pct": 3.49
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 25.354,
+            "min": 23.479,
+            "max": 25.846,
+            "spread_pct": 9.34
+          },
+          "p50": {
+            "median": 24.75,
+            "min": 22.698,
+            "max": 25.118,
+            "spread_pct": 9.78
+          },
+          "p95": {
+            "median": 33.563,
+            "min": 30.671,
+            "max": 37.416,
+            "spread_pct": 20.1
+          }
+        }
+      },
+      "fps": 39.44,
+      "fps_range": [
+        38.69,
+        42.59
+      ],
+      "mean_detections": 50.59,
+      "detections_consistent": true
+    }
+  },
+  {
+    "timestamp": "2026-10-06T04:55:26Z",
+    "backend": "openvino-int8",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42_int8_openvino_model",
+      "sha256": "ffaa348036b477d6779b0576b2f19e46b6b408f8b7663cb90de516074dd16348",
+      "size_bytes": 3575031
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "int8",
+      "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+      "conv_precisions": {
+        "u8": 64
+      },
+      "performance_hint": "LATENCY",
+      "inference_num_threads": 8,
+      "num_streams": 1,
+      "inference_precision_hint": "<Type: 'float32'>",
+      "execution_devices": [
+        "CPU"
+      ]
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.998,
+            "p50_ms": 3.059,
+            "p95_ms": 3.696,
+            "min_ms": 1.898,
+            "max_ms": 4.092
+          },
+          "inference": {
+            "mean_ms": 27.009,
+            "p50_ms": 24.319,
+            "p95_ms": 46.363,
+            "min_ms": 12.257,
+            "max_ms": 72.362
+          },
+          "postprocess": {
+            "mean_ms": 1.401,
+            "p50_ms": 1.292,
+            "p95_ms": 1.69,
+            "min_ms": 0.913,
+            "max_ms": 7.681
+          },
+          "end_to_end": {
+            "mean_ms": 31.409,
+            "p50_ms": 28.971,
+            "p95_ms": 51.4,
+            "min_ms": 16.718,
+            "max_ms": 76.728
+          }
+        },
+        "fps": 31.84,
+        "mean_detections": 50.59,
+        "started": "2026-10-06T04:55:17Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.887,
+            "p50_ms": 2.941,
+            "p95_ms": 3.69,
+            "min_ms": 1.813,
+            "max_ms": 4.111
+          },
+          "inference": {
+            "mean_ms": 21.013,
+            "p50_ms": 19.137,
+            "p95_ms": 30.433,
+            "min_ms": 10.588,
+            "max_ms": 86.975
+          },
+          "postprocess": {
+            "mean_ms": 1.293,
+            "p50_ms": 1.247,
+            "p95_ms": 1.683,
+            "min_ms": 0.893,
+            "max_ms": 2.112
+          },
+          "end_to_end": {
+            "mean_ms": 25.193,
+            "p50_ms": 23.414,
+            "p95_ms": 33.946,
+            "min_ms": 15.545,
+            "max_ms": 91.746
+          }
+        },
+        "fps": 39.69,
+        "mean_detections": 50.59,
+        "started": "2026-10-06T04:55:20Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.73,
+            "p50_ms": 2.88,
+            "p95_ms": 3.425,
+            "min_ms": 1.807,
+            "max_ms": 3.808
+          },
+          "inference": {
+            "mean_ms": 23.35,
+            "p50_ms": 20.856,
+            "p95_ms": 33.096,
+            "min_ms": 12.273,
+            "max_ms": 122.35
+          },
+          "postprocess": {
+            "mean_ms": 1.307,
+            "p50_ms": 1.262,
+            "p95_ms": 1.662,
+            "min_ms": 1.002,
+            "max_ms": 2.807
+          },
+          "end_to_end": {
+            "mean_ms": 27.387,
+            "p50_ms": 25.072,
+            "p95_ms": 37.961,
+            "min_ms": 16.354,
+            "max_ms": 127.87
+          }
+        },
+        "fps": 36.51,
+        "mean_detections": 50.59,
+        "started": "2026-10-06T04:55:23Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 2.887,
+            "min": 2.73,
+            "max": 2.998,
+            "spread_pct": 9.28
+          },
+          "p50": {
+            "median": 2.941,
+            "min": 2.88,
+            "max": 3.059,
+            "spread_pct": 6.09
+          },
+          "p95": {
+            "median": 3.69,
+            "min": 3.425,
+            "max": 3.696,
+            "spread_pct": 7.34
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 23.35,
+            "min": 21.013,
+            "max": 27.009,
+            "spread_pct": 25.68
+          },
+          "p50": {
+            "median": 20.856,
+            "min": 19.137,
+            "max": 24.319,
+            "spread_pct": 24.85
+          },
+          "p95": {
+            "median": 33.096,
+            "min": 30.433,
+            "max": 46.363,
+            "spread_pct": 48.13
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 1.307,
+            "min": 1.293,
+            "max": 1.401,
+            "spread_pct": 8.26
+          },
+          "p50": {
+            "median": 1.262,
+            "min": 1.247,
+            "max": 1.292,
+            "spread_pct": 3.57
+          },
+          "p95": {
+            "median": 1.683,
+            "min": 1.662,
+            "max": 1.69,
+            "spread_pct": 1.66
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 27.387,
+            "min": 25.193,
+            "max": 31.409,
+            "spread_pct": 22.7
+          },
+          "p50": {
+            "median": 25.072,
+            "min": 23.414,
+            "max": 28.971,
+            "spread_pct": 22.16
+          },
+          "p95": {
+            "median": 37.961,
+            "min": 33.946,
+            "max": 51.4,
+            "spread_pct": 45.98
+          }
+        }
+      },
+      "fps": 36.51,
+      "fps_range": [
+        31.84,
+        39.69
+      ],
+      "mean_detections": 50.59,
+      "detections_consistent": true
+    }
+  },
+  {
+    "timestamp": "2026-10-06T04:55:49Z",
+    "backend": "openvino",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42_openvino_model",
+      "sha256": "f3bff9b9b367662721e2772ed1daafe4c197959c707b3240c0f4fae0b2ee639f",
+      "size_bytes": 12322760
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "fp32",
+      "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+      "conv_precisions": {
+        "f32": 64
+      },
+      "performance_hint": "LATENCY",
+      "inference_num_threads": 8,
+      "num_streams": 1,
+      "inference_precision_hint": "<Type: 'float32'>",
+      "execution_devices": [
+        "CPU"
+      ]
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.549,
+            "p50_ms": 2.633,
+            "p95_ms": 3.287,
+            "min_ms": 1.721,
+            "max_ms": 3.75
+          },
+          "inference": {
+            "mean_ms": 33.239,
+            "p50_ms": 31.04,
+            "p95_ms": 45.426,
+            "min_ms": 16.57,
+            "max_ms": 89.014
+          },
+          "postprocess": {
+            "mean_ms": 1.335,
+            "p50_ms": 1.276,
+            "p95_ms": 1.712,
+            "min_ms": 0.991,
+            "max_ms": 2.651
+          },
+          "end_to_end": {
+            "mean_ms": 37.123,
+            "p50_ms": 34.719,
+            "p95_ms": 49.554,
+            "min_ms": 19.856,
+            "max_ms": 92.936
+          }
+        },
+        "fps": 26.94,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:55:37Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.478,
+            "p50_ms": 2.571,
+            "p95_ms": 3.198,
+            "min_ms": 1.644,
+            "max_ms": 3.486
+          },
+          "inference": {
+            "mean_ms": 32.585,
+            "p50_ms": 31.306,
+            "p95_ms": 43.959,
+            "min_ms": 19.077,
+            "max_ms": 56.28
+          },
+          "postprocess": {
+            "mean_ms": 1.282,
+            "p50_ms": 1.248,
+            "p95_ms": 1.606,
+            "min_ms": 0.96,
+            "max_ms": 1.851
+          },
+          "end_to_end": {
+            "mean_ms": 36.346,
+            "p50_ms": 34.903,
+            "p95_ms": 47.88,
+            "min_ms": 22.706,
+            "max_ms": 60.108
+          }
+        },
+        "fps": 27.51,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:55:41Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.431,
+            "p50_ms": 2.527,
+            "p95_ms": 2.917,
+            "min_ms": 1.642,
+            "max_ms": 3.474
+          },
+          "inference": {
+            "mean_ms": 35.941,
+            "p50_ms": 33.571,
+            "p95_ms": 52.481,
+            "min_ms": 18.445,
+            "max_ms": 66.981
+          },
+          "postprocess": {
+            "mean_ms": 1.279,
+            "p50_ms": 1.24,
+            "p95_ms": 1.553,
+            "min_ms": 0.975,
+            "max_ms": 1.875
+          },
+          "end_to_end": {
+            "mean_ms": 39.651,
+            "p50_ms": 37.134,
+            "p95_ms": 56.592,
+            "min_ms": 21.553,
+            "max_ms": 70.63
+          }
+        },
+        "fps": 25.22,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:55:45Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 2.478,
+            "min": 2.431,
+            "max": 2.549,
+            "spread_pct": 4.76
+          },
+          "p50": {
+            "median": 2.571,
+            "min": 2.527,
+            "max": 2.633,
+            "spread_pct": 4.12
+          },
+          "p95": {
+            "median": 3.198,
+            "min": 2.917,
+            "max": 3.287,
+            "spread_pct": 11.57
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 33.239,
+            "min": 32.585,
+            "max": 35.941,
+            "spread_pct": 10.1
+          },
+          "p50": {
+            "median": 31.306,
+            "min": 31.04,
+            "max": 33.571,
+            "spread_pct": 8.08
+          },
+          "p95": {
+            "median": 45.426,
+            "min": 43.959,
+            "max": 52.481,
+            "spread_pct": 18.76
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 1.282,
+            "min": 1.279,
+            "max": 1.335,
+            "spread_pct": 4.37
+          },
+          "p50": {
+            "median": 1.248,
+            "min": 1.24,
+            "max": 1.276,
+            "spread_pct": 2.88
+          },
+          "p95": {
+            "median": 1.606,
+            "min": 1.553,
+            "max": 1.712,
+            "spread_pct": 9.9
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 37.123,
+            "min": 36.346,
+            "max": 39.651,
+            "spread_pct": 8.9
+          },
+          "p50": {
+            "median": 34.903,
+            "min": 34.719,
+            "max": 37.134,
+            "spread_pct": 6.92
+          },
+          "p95": {
+            "median": 49.554,
+            "min": 47.88,
+            "max": 56.592,
+            "spread_pct": 17.58
+          }
+        }
+      },
+      "fps": 26.94,
+      "fps_range": [
+        25.22,
+        27.51
+      ],
+      "mean_detections": 49.34,
+      "detections_consistent": true
+    }
+  },
+  {
+    "timestamp": "2026-10-06T04:56:09Z",
+    "backend": "onnx",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42.onnx",
+      "sha256": "860adaefb47a0e1b07ad84d155cca2e4087e3ae7655fae9c49de91ba2c079921",
+      "size_bytes": 12205152
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "fp32",
+      "onnxruntime": "1.26.0",
+      "providers": [
+        "CPUExecutionProvider"
+      ],
+      "intra_op_num_threads": 0,
+      "graph_optimization_level": "GraphOptimizationLevel.ORT_ENABLE_ALL"
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 3.74,
+            "p50_ms": 3.121,
+            "p95_ms": 6.353,
+            "min_ms": 2.637,
+            "max_ms": 12.079
+          },
+          "inference": {
+            "mean_ms": 26.519,
+            "p50_ms": 25.17,
+            "p95_ms": 32.391,
+            "min_ms": 23.43,
+            "max_ms": 65.271
+          },
+          "postprocess": {
+            "mean_ms": 1.724,
+            "p50_ms": 1.426,
+            "p95_ms": 3.758,
+            "min_ms": 1.104,
+            "max_ms": 6.017
+          },
+          "end_to_end": {
+            "mean_ms": 31.982,
+            "p50_ms": 30.62,
+            "p95_ms": 38.802,
+            "min_ms": 27.313,
+            "max_ms": 81.401
+          }
+        },
+        "fps": 31.27,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:55:59Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 3.053,
+            "p50_ms": 2.995,
+            "p95_ms": 3.606,
+            "min_ms": 2.526,
+            "max_ms": 4.431
+          },
+          "inference": {
+            "mean_ms": 25.985,
+            "p50_ms": 24.807,
+            "p95_ms": 28.044,
+            "min_ms": 22.64,
+            "max_ms": 71.292
+          },
+          "postprocess": {
+            "mean_ms": 1.541,
+            "p50_ms": 1.322,
+            "p95_ms": 2.523,
+            "min_ms": 1.082,
+            "max_ms": 5.831
+          },
+          "end_to_end": {
+            "mean_ms": 30.579,
+            "p50_ms": 29.354,
+            "p95_ms": 33.82,
+            "min_ms": 27.272,
+            "max_ms": 79.718
+          }
+        },
+        "fps": 32.7,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:56:02Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 3.081,
+            "p50_ms": 2.94,
+            "p95_ms": 3.728,
+            "min_ms": 2.534,
+            "max_ms": 8.998
+          },
+          "inference": {
+            "mean_ms": 24.632,
+            "p50_ms": 24.384,
+            "p95_ms": 26.257,
+            "min_ms": 22.801,
+            "max_ms": 37.178
+          },
+          "postprocess": {
+            "mean_ms": 1.366,
+            "p50_ms": 1.264,
+            "p95_ms": 1.913,
+            "min_ms": 1.098,
+            "max_ms": 2.715
+          },
+          "end_to_end": {
+            "mean_ms": 29.079,
+            "p50_ms": 28.656,
+            "p95_ms": 32.169,
+            "min_ms": 26.511,
+            "max_ms": 42.215
+          }
+        },
+        "fps": 34.39,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:56:06Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 3.081,
+            "min": 3.053,
+            "max": 3.74,
+            "spread_pct": 22.3
+          },
+          "p50": {
+            "median": 2.995,
+            "min": 2.94,
+            "max": 3.121,
+            "spread_pct": 6.04
+          },
+          "p95": {
+            "median": 3.728,
+            "min": 3.606,
+            "max": 6.353,
+            "spread_pct": 73.69
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 25.985,
+            "min": 24.632,
+            "max": 26.519,
+            "spread_pct": 7.26
+          },
+          "p50": {
+            "median": 24.807,
+            "min": 24.384,
+            "max": 25.17,
+            "spread_pct": 3.17
+          },
+          "p95": {
+            "median": 28.044,
+            "min": 26.257,
+            "max": 32.391,
+            "spread_pct": 21.87
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 1.541,
+            "min": 1.366,
+            "max": 1.724,
+            "spread_pct": 23.23
+          },
+          "p50": {
+            "median": 1.322,
+            "min": 1.264,
+            "max": 1.426,
+            "spread_pct": 12.25
+          },
+          "p95": {
+            "median": 2.523,
+            "min": 1.913,
+            "max": 3.758,
+            "spread_pct": 73.13
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 30.579,
+            "min": 29.079,
+            "max": 31.982,
+            "spread_pct": 9.49
+          },
+          "p50": {
+            "median": 29.354,
+            "min": 28.656,
+            "max": 30.62,
+            "spread_pct": 6.69
+          },
+          "p95": {
+            "median": 33.82,
+            "min": 32.169,
+            "max": 38.802,
+            "spread_pct": 19.61
+          }
+        }
+      },
+      "fps": 32.7,
+      "fps_range": [
+        31.27,
+        34.39
+      ],
+      "mean_detections": 49.34,
+      "detections_consistent": true
+    }
+  },
+  {
+    "timestamp": "2026-10-06T04:56:31Z",
+    "backend": "pytorch",
+    "model": {
+      "path": "data/models/yolov8n_visdrone_640_e50_s42.pt",
+      "sha256": "f680dda1bbe94649bfdf52b50f374970b4bdbc952067a62b77a5a3e501c31ed5",
+      "size_bytes": 6230378
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.172,
+    "dataset": {
+      "name": "visdrone-val",
+      "selection": "first N by sorted filename",
+      "num_images": 100,
+      "first": "0000001_02999_d_0000005.jpg",
+      "last": "0000165_04325_d_0000105.jpg",
+      "names_sha256": "6ed5dcb932a818b571ddb2091ea025834383013dc96c88ccb337d076af6c71c0"
+    },
+    "warmup_images": 10,
+    "num_repeats": 3,
+    "input_shapes": {
+      "1x3x384x640": 100
+    },
+    "runtime": {
+      "precision": "fp32",
+      "torch_threads": 8
+    },
+    "environment": {
+      "cpu": "AMD Ryzen 7 7735HS with Radeon Graphics",
+      "os": "Windows-11-10.0.22631-SP0",
+      "python": "3.12.3",
+      "logical_cpus": 16,
+      "physical_cores": 8,
+      "torch_threads": 8,
+      "power": {
+        "plugged_in": true,
+        "battery_percent": 100
+      },
+      "versions": {
+        "torch": "2.13.0+cpu",
+        "ultralytics": "8.4.60",
+        "onnxruntime": "1.26.0",
+        "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+        "numpy": "2.5.1"
+      }
+    },
+    "results": [
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.566,
+            "p50_ms": 2.676,
+            "p95_ms": 3.366,
+            "min_ms": 1.733,
+            "max_ms": 3.91
+          },
+          "inference": {
+            "mean_ms": 43.773,
+            "p50_ms": 42.409,
+            "p95_ms": 51.0,
+            "min_ms": 35.484,
+            "max_ms": 79.285
+          },
+          "postprocess": {
+            "mean_ms": 1.0,
+            "p50_ms": 1.004,
+            "p95_ms": 1.338,
+            "min_ms": 0.75,
+            "max_ms": 1.401
+          },
+          "end_to_end": {
+            "mean_ms": 47.338,
+            "p50_ms": 45.991,
+            "p95_ms": 54.987,
+            "min_ms": 38.922,
+            "max_ms": 83.162
+          }
+        },
+        "fps": 21.12,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:56:16Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.521,
+            "p50_ms": 2.624,
+            "p95_ms": 3.25,
+            "min_ms": 1.729,
+            "max_ms": 3.908
+          },
+          "inference": {
+            "mean_ms": 41.424,
+            "p50_ms": 40.62,
+            "p95_ms": 48.22,
+            "min_ms": 33.085,
+            "max_ms": 58.323
+          },
+          "postprocess": {
+            "mean_ms": 0.979,
+            "p50_ms": 0.951,
+            "p95_ms": 1.347,
+            "min_ms": 0.731,
+            "max_ms": 1.825
+          },
+          "end_to_end": {
+            "mean_ms": 44.924,
+            "p50_ms": 44.262,
+            "p95_ms": 53.076,
+            "min_ms": 35.586,
+            "max_ms": 62.253
+          }
+        },
+        "fps": 22.26,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:56:21Z"
+      },
+      {
+        "num_images": 100,
+        "stages": {
+          "preprocess": {
+            "mean_ms": 2.524,
+            "p50_ms": 2.693,
+            "p95_ms": 3.259,
+            "min_ms": 1.664,
+            "max_ms": 3.8
+          },
+          "inference": {
+            "mean_ms": 43.067,
+            "p50_ms": 41.614,
+            "p95_ms": 50.072,
+            "min_ms": 36.687,
+            "max_ms": 97.457
+          },
+          "postprocess": {
+            "mean_ms": 0.981,
+            "p50_ms": 0.957,
+            "p95_ms": 1.288,
+            "min_ms": 0.718,
+            "max_ms": 1.898
+          },
+          "end_to_end": {
+            "mean_ms": 46.572,
+            "p50_ms": 45.223,
+            "p95_ms": 54.337,
+            "min_ms": 39.247,
+            "max_ms": 102.402
+          }
+        },
+        "fps": 21.47,
+        "mean_detections": 49.34,
+        "started": "2026-10-06T04:56:26Z"
+      }
+    ],
+    "summary": {
+      "stages": {
+        "preprocess": {
+          "mean": {
+            "median": 2.524,
+            "min": 2.521,
+            "max": 2.566,
+            "spread_pct": 1.78
+          },
+          "p50": {
+            "median": 2.676,
+            "min": 2.624,
+            "max": 2.693,
+            "spread_pct": 2.58
+          },
+          "p95": {
+            "median": 3.259,
+            "min": 3.25,
+            "max": 3.366,
+            "spread_pct": 3.56
+          }
+        },
+        "inference": {
+          "mean": {
+            "median": 43.067,
+            "min": 41.424,
+            "max": 43.773,
+            "spread_pct": 5.45
+          },
+          "p50": {
+            "median": 41.614,
+            "min": 40.62,
+            "max": 42.409,
+            "spread_pct": 4.3
+          },
+          "p95": {
+            "median": 50.072,
+            "min": 48.22,
+            "max": 51.0,
+            "spread_pct": 5.55
+          }
+        },
+        "postprocess": {
+          "mean": {
+            "median": 0.981,
+            "min": 0.979,
+            "max": 1.0,
+            "spread_pct": 2.14
+          },
+          "p50": {
+            "median": 0.957,
+            "min": 0.951,
+            "max": 1.004,
+            "spread_pct": 5.54
+          },
+          "p95": {
+            "median": 1.338,
+            "min": 1.288,
+            "max": 1.347,
+            "spread_pct": 4.41
+          }
+        },
+        "end_to_end": {
+          "mean": {
+            "median": 46.572,
+            "min": 44.924,
+            "max": 47.338,
+            "spread_pct": 5.18
+          },
+          "p50": {
+            "median": 45.223,
+            "min": 44.262,
+            "max": 45.991,
+            "spread_pct": 3.82
+          },
+          "p95": {
+            "median": 54.337,
+            "min": 53.076,
+            "max": 54.987,
+            "spread_pct": 3.52
+          }
+        }
+      },
+      "fps": 21.47,
+      "fps_range": [
+        21.12,
+        22.26
+      ],
+      "mean_detections": 49.34,
+      "detections_consistent": true
+    }
   }
 ]
