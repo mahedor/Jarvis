@@ -1,0 +1,80 @@
+[
+  {
+    "timestamp": "2026-10-02T05:56:47Z",
+    "dataset": {
+      "name": "visdrone-val",
+      "num_images": 548,
+      "names_sha256": "1dd2011d6584aea7ae415ea17e4ac9b2c798453a1876eab94c7c182ce99ee448"
+    },
+    "imgsz": [
+      384,
+      640
+    ],
+    "conf": 0.001,
+    "iou": 0.7,
+    "max_det": 300,
+    "tolerance": 0.005,
+    "results": [
+      {
+        "backend": "pytorch",
+        "model": {
+          "path": "data/models/yolov8n_visdrone_640_e50_s42.pt",
+          "sha256": "f680dda1bbe94649bfdf52b50f374970b4bdbc952067a62b77a5a3e501c31ed5",
+          "size_bytes": 6230378
+        },
+        "map50": 0.29594,
+        "map50_95": 0.16614,
+        "precision": 0.4282,
+        "recall": 0.32276,
+        "input_shapes": {
+          "1x3x384x640": 548
+        },
+        "delta_map50": 0.0,
+        "delta_map50_95": 0.0,
+        "within_tolerance": true
+      },
+      {
+        "backend": "onnx",
+        "model": {
+          "path": "data/models/yolov8n_visdrone_640_e50_s42.onnx",
+          "sha256": "860adaefb47a0e1b07ad84d155cca2e4087e3ae7655fae9c49de91ba2c079921",
+          "size_bytes": 12205152
+        },
+        "map50": 0.29594,
+        "map50_95": 0.16614,
+        "precision": 0.4282,
+        "recall": 0.32276,
+        "input_shapes": {
+          "1x3x384x640": 548
+        },
+        "delta_map50": 0.0,
+        "delta_map50_95": 0.0,
+        "within_tolerance": true
+      },
+      {
+        "backend": "openvino",
+        "model": {
+          "path": "data/models/yolov8n_visdrone_640_e50_s42_openvino_model",
+          "sha256": "f3bff9b9b367662721e2772ed1daafe4c197959c707b3240c0f4fae0b2ee639f",
+          "size_bytes": 12322760
+        },
+        "map50": 0.29594,
+        "map50_95": 0.16614,
+        "precision": 0.4282,
+        "recall": 0.32276,
+        "input_shapes": {
+          "1x3x384x640": 548
+        },
+        "delta_map50": 0.0,
+        "delta_map50_95": 0.0,
+        "within_tolerance": true
+      }
+    ],
+    "reference": {
+      "method": "ultralytics YOLO.val(imgsz=640, batch=16, rect)",
+      "model": "data/models/yolov8n_visdrone_640_e50_s42.pt",
+      "map50": 0.29702,
+      "map50_95": 0.1665
+    }
+  }
+]
