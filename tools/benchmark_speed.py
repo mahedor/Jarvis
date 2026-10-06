@@ -38,12 +38,14 @@ FAIRNESS RULES
 
 BACKENDS
   A backend is a class with load() / preprocess() / infer() / postprocess() and
-  is registered in BACKENDS. "pytorch", "onnx" and "openvino" all subclass
-  UltralyticsBackend: AutoBackend picks the runtime from the weights (.pt,
-  .onnx, *_openvino_model/), so preprocess and postprocess are the SAME code
-  for all three and only infer() differs. That is the point — a speedup in the
-  table is then attributable to the runtime alone. Everything else — timing,
-  stats, persistence — is backend-agnostic and must stay that way.
+  is registered in BACKENDS. "pytorch", "onnx", "openvino" and
+  "openvino-int8" all subclass UltralyticsBackend: AutoBackend picks the
+  runtime from the weights (.pt, .onnx, *_openvino_model/), so preprocess and
+  postprocess are the SAME code for all of them and only infer() differs. That
+  is the point — a speedup in the table is then attributable to the runtime
+  (and, for int8, the precision) alone. Everything else — timing, stats,
+  persistence — is backend-agnostic and must stay that way. Each entry records
+  its precision under runtime.precision.
 
   Exports are static-shape. Pass the shape they were exported at as
   --imgsz H,W (e.g. 384,640) so the letterbox produces exactly that tensor; the
@@ -420,6 +422,7 @@ class Backend:
     """
 
     name = "abstract"
+    precision = "fp32"
 
     def load(self, model_path, imgsz, conf):
         raise NotImplementedError
@@ -545,14 +548,31 @@ class OpenVINOBackend(UltralyticsBackend):
 
     @staticmethod
     def accepts(model_path):
-        p = Path(model_path)
-        return p.is_dir() and any(p.glob("*.xml"))
+        return is_openvino_dir(model_path) and not is_quantized_ir(model_path)
+
+    def conv_precisions(self):
+        """{runtime precision: count} over the convolutions the CPU plugin compiled.
+
+        The compiled graph, not the IR: this is what actually executes. The
+        runtime-model references are dropped before returning — holding them
+        past the compiled model's lifetime segfaults the interpreter at exit.
+        """
+        runtime = self.predictor.model.backend.ov_compiled_model.get_runtime_model()
+        counts = {}
+        for op in runtime.get_ordered_ops():
+            rt = op.get_rt_info()
+            if "layerType" in rt and rt["layerType"].astype(str) == "Convolution":
+                prec = rt["runtimePrecision"].astype(str)
+                counts[prec] = counts.get(prec, 0) + 1
+            del rt, op
+        del runtime
+        return counts
 
     def runtime_info(self):
         import openvino
 
         compiled = self.predictor.model.backend.ov_compiled_model
-        info = {"openvino": openvino.__version__}
+        info = {"openvino": openvino.__version__, "conv_precisions": self.conv_precisions()}
         for prop in ("PERFORMANCE_HINT", "INFERENCE_NUM_THREADS", "NUM_STREAMS",
                      "INFERENCE_PRECISION_HINT", "EXECUTION_DEVICES"):
             try:
@@ -563,11 +583,45 @@ class OpenVINOBackend(UltralyticsBackend):
         return info
 
 
+class OpenVINOInt8Backend(OpenVINOBackend):
+    """OpenVINO INT8 IR (tools/export_int8.py), same CPU pinning as FP32.
+
+    Told apart from FP32 by the IR's CONTENTS (FakeQuantize ops), not its
+    folder name, so a renamed directory cannot be benchmarked under the wrong
+    precision. check_cpu_only() additionally refuses to run unless every
+    convolution the CPU plugin compiled executes in an 8-bit integer type.
+    """
+
+    name = "openvino-int8"
+    precision = "int8"
+
+    @staticmethod
+    def accepts(model_path):
+        return is_openvino_dir(model_path) and is_quantized_ir(model_path)
+
+    def check_cpu_only(self):
+        super().check_cpu_only()
+        precisions = self.conv_precisions()
+        if not precisions or set(precisions) - {"u8", "i8"}:
+            raise RuntimeError(f"INT8 IR compiled with non-int8 convolutions: {precisions}")
+
+
+def is_openvino_dir(model_path):
+    p = Path(model_path)
+    return p.is_dir() and any(p.glob("*.xml"))
+
+
+def is_quantized_ir(model_path):
+    """True when the OpenVINO IR holds FakeQuantize ops (an NNCF-quantized model)."""
+    return any('type="FakeQuantize"' in x.read_text(encoding="utf-8", errors="ignore")
+               for x in Path(model_path).glob("*.xml"))
+
+
 BACKENDS = {
     "pytorch": UltralyticsBackend,
     "onnx": OnnxBackend,
     "openvino": OpenVINOBackend,
-    # "int8": ...  — see module docstring.
+    "openvino-int8": OpenVINOInt8Backend,
 }
 
 
@@ -730,7 +784,7 @@ def main(argv=None):
         environment=environment,
         repeats=repeats,
         input_shapes=input_shapes,
-        runtime=backend.runtime_info(),
+        runtime={"precision": backend.precision, **backend.runtime_info()},
     )
     print(format_table(entry))
     if not args.no_save:
