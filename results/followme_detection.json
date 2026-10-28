@@ -1,0 +1,1112 @@
+{
+  "generated": "2026-10-28",
+  "source": "Google Drive jarvis_det/fair_scores_3w.jsonl (fair scorer, Colab T4)",
+  "scorer": "COCO-style AP over our 8 classes; an unmatched detection mostly inside an ignore box is not counted as a false positive (the VisDrone toolkit's rule).",
+  "base_model": "YOLOv8n pretrained on COCO, 640 px, batch 16, 50 epochs; only the training data changes.",
+  "test_sets": [
+    {
+      "id": "visdrone",
+      "key": "visdrone_test_3w",
+      "label": "VisDrone test-dev",
+      "note": "Drone footage, China, many heights. The headline set: seed spread is \u00b10.003."
+    },
+    {
+      "id": "mavrec",
+      "key": "mavrec_test_3w",
+      "label": "MAVREC test",
+      "note": "Drone footage, Europe, 25-45 m. Optimistic for MAVREC-trained models: its official train and test splits share the same 12 scenes. Swings ~0.07 between seeds."
+    },
+    {
+      "id": "coco",
+      "key": "coco_val",
+      "label": "COCO val (forgetting)",
+      "note": "Everyday ground-level photos. Measures how much normal vision the drone training destroyed."
+    }
+  ],
+  "excluded_test_sets": [
+    {
+      "key": "jatayu_test_3w",
+      "reason": "JATAYU labels are sparse (median 2 boxes per image in busy scenes); scores on it are not a valid measure. Dataset removed from training and testing."
+    }
+  ],
+  "recipes": [
+    {
+      "id": "stock",
+      "label": "Stock YOLOv8n (COCO only)",
+      "scored": true
+    },
+    {
+      "id": "vd_drop",
+      "label": "VisDrone, ignore regions dropped",
+      "scored": true
+    },
+    {
+      "id": "vd_gray",
+      "label": "VisDrone, ignore regions grayed",
+      "scored": true
+    },
+    {
+      "id": "vd_ign",
+      "label": "VisDrone, ignore regions masked in the loss",
+      "scored": true
+    },
+    {
+      "id": "vd_coco_s",
+      "label": "VisDrone + 1.6k COCO",
+      "scored": true
+    },
+    {
+      "id": "vd_coco_m",
+      "label": "VisDrone + 6.5k COCO",
+      "scored": true
+    },
+    {
+      "id": "vd_coco_l",
+      "label": "VisDrone + 13k COCO",
+      "scored": true
+    },
+    {
+      "id": "mav_cm",
+      "label": "MAVREC + 6.5k COCO",
+      "scored": true
+    },
+    {
+      "id": "vd_mav_cm",
+      "label": "VisDrone + MAVREC + 6.5k COCO",
+      "scored": true
+    },
+    {
+      "id": "vd_mav_cl",
+      "label": "VisDrone + MAVREC + 13k COCO",
+      "scored": false
+    },
+    {
+      "id": "vd_mav_gnd_cm",
+      "label": "VisDrone + MAVREC aerial + MAVREC ground + 6.5k COCO",
+      "scored": false
+    }
+  ],
+  "scores": {
+    "stock": {
+      "visdrone": {
+        "seeds": [],
+        "mAP50": {
+          "mean": 0.0419,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.0226,
+          "std": null,
+          "n": 1
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.0794,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.0096,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.1817,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0015,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "coco": {
+        "seeds": [],
+        "mAP50": {
+          "mean": 0.581,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.3978,
+          "std": null,
+          "n": 1
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.7367,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.639,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.5545,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.4699,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [],
+        "mAP50": {
+          "mean": 0.0299,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.0132,
+          "std": null,
+          "n": 1
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.0493,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.0981,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0,
+            "std": null,
+            "n": 1
+          }
+        }
+      }
+    },
+    "vd_drop": {
+      "visdrone": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.2798,
+          "std": 0.0003,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.159,
+          "std": 0.0008,
+          "n": 3
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.2073,
+            "std": 0.0005,
+            "n": 3
+          },
+          "motorcycle": {
+            "mean": 0.197,
+            "std": 0.0016,
+            "n": 3
+          },
+          "car": {
+            "mean": 0.6442,
+            "std": 0.0017,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0355,
+            "std": 0.0024,
+            "n": 3
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.0304,
+          "std": 0.0018,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.0161,
+          "std": 0.001,
+          "n": 3
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.0469,
+            "std": 0.0058,
+            "n": 3
+          },
+          "motorcycle": {
+            "mean": 0.0085,
+            "std": 0.0042,
+            "n": 3
+          },
+          "car": {
+            "mean": 0.0762,
+            "std": 0.0051,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0077,
+            "std": 0.0041,
+            "n": 3
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.1539,
+          "std": 0.0341,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.0676,
+          "std": 0.0156,
+          "n": 3
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.1257,
+            "std": 0.0037,
+            "n": 3
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.2492,
+            "std": 0.0267,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0082,
+            "std": 0.0032,
+            "n": 3
+          }
+        }
+      }
+    },
+    "vd_gray": {
+      "visdrone": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.2803,
+          "std": 0.0031,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.1593,
+          "std": 0.0019,
+          "n": 3
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.2063,
+            "std": 0.0013,
+            "n": 3
+          },
+          "motorcycle": {
+            "mean": 0.2006,
+            "std": 0.0004,
+            "n": 3
+          },
+          "car": {
+            "mean": 0.642,
+            "std": 0.0026,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0334,
+            "std": 0.0033,
+            "n": 3
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.0291,
+          "std": 0.0025,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.0159,
+          "std": 0.0017,
+          "n": 3
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.0406,
+            "std": 0.003,
+            "n": 3
+          },
+          "motorcycle": {
+            "mean": 0.0091,
+            "std": 0.0041,
+            "n": 3
+          },
+          "car": {
+            "mean": 0.0786,
+            "std": 0.0086,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0075,
+            "std": 0.0021,
+            "n": 3
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.1492,
+          "std": 0.0407,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.0681,
+          "std": 0.02,
+          "n": 3
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.1289,
+            "std": 0.0031,
+            "n": 3
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.2546,
+            "std": 0.0256,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.006,
+            "std": 0.0042,
+            "n": 3
+          }
+        }
+      }
+    },
+    "vd_ign": {
+      "visdrone": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.2787,
+          "std": 0.0017,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.158,
+          "std": 0.0009,
+          "n": 3
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.2085,
+            "std": 0.002,
+            "n": 3
+          },
+          "motorcycle": {
+            "mean": 0.1965,
+            "std": 0.004,
+            "n": 3
+          },
+          "car": {
+            "mean": 0.6431,
+            "std": 0.0023,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0352,
+            "std": 0.0021,
+            "n": 3
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.0303,
+          "std": 0.0028,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.0162,
+          "std": 0.0011,
+          "n": 3
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.0436,
+            "std": 0.0032,
+            "n": 3
+          },
+          "motorcycle": {
+            "mean": 0.0043,
+            "std": 0.0019,
+            "n": 3
+          },
+          "car": {
+            "mean": 0.0767,
+            "std": 0.0053,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0125,
+            "std": 0.0051,
+            "n": 3
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42,
+          43,
+          44
+        ],
+        "mAP50": {
+          "mean": 0.1392,
+          "std": 0.0453,
+          "n": 3
+        },
+        "mAP50_95": {
+          "mean": 0.0623,
+          "std": 0.0218,
+          "n": 3
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.1184,
+            "std": 0.0105,
+            "n": 3
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.2529,
+            "std": 0.0114,
+            "n": 3
+          },
+          "bicycle": {
+            "mean": 0.0108,
+            "std": 0.0005,
+            "n": 3
+          }
+        }
+      }
+    },
+    "vd_coco_s": {
+      "visdrone": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.2782,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.1577,
+          "std": null,
+          "n": 1
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.2033,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.196,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.6346,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0385,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.3185,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.1865,
+          "std": null,
+          "n": 1
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.5758,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.3076,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.3607,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.108,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.1306,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.0579,
+          "std": null,
+          "n": 1
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.117,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.2344,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0099,
+            "std": null,
+            "n": 1
+          }
+        }
+      }
+    },
+    "vd_coco_m": {
+      "visdrone": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.2812,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.161,
+          "std": null,
+          "n": 1
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.2065,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.1994,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.6481,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0311,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.4497,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.2869,
+          "std": null,
+          "n": 1
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.6527,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.4887,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.4551,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.2511,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.136,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.0632,
+          "std": null,
+          "n": 1
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.1175,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.2484,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0119,
+            "std": null,
+            "n": 1
+          }
+        }
+      }
+    },
+    "vd_coco_l": {
+      "visdrone": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.2766,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.1573,
+          "std": null,
+          "n": 1
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.2031,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.1895,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.645,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0287,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.1503,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.07,
+          "std": null,
+          "n": 1
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.1217,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.2362,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0134,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.5062,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.3291,
+          "std": null,
+          "n": 1
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.6897,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.5619,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.4971,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.344,
+            "std": null,
+            "n": 1
+          }
+        }
+      }
+    },
+    "mav_cm": {
+      "visdrone": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.0303,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.0137,
+          "std": null,
+          "n": 1
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.0612,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.0008,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.1561,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0004,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.7061,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.4693,
+          "std": null,
+          "n": 1
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.4886,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.6765,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.584,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.446,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.2826,
+          "std": null,
+          "n": 1
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.6595,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.4541,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.4463,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.266,
+            "std": null,
+            "n": 1
+          }
+        }
+      }
+    },
+    "vd_mav_cm": {
+      "visdrone": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.2729,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.1541,
+          "std": null,
+          "n": 1
+        },
+        "images": 1610,
+        "per_class": {
+          "person": {
+            "mean": 0.2152,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.2009,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.6421,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.0303,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "mavrec": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.6915,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.4484,
+          "std": null,
+          "n": 1
+        },
+        "images": 1326,
+        "per_class": {
+          "person": {
+            "mean": 0.459,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": null,
+          "car": {
+            "mean": 0.6457,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.52,
+            "std": null,
+            "n": 1
+          }
+        }
+      },
+      "coco": {
+        "seeds": [
+          42
+        ],
+        "mAP50": {
+          "mean": 0.4312,
+          "std": null,
+          "n": 1
+        },
+        "mAP50_95": {
+          "mean": 0.2722,
+          "std": null,
+          "n": 1
+        },
+        "images": 5000,
+        "per_class": {
+          "person": {
+            "mean": 0.6406,
+            "std": null,
+            "n": 1
+          },
+          "motorcycle": {
+            "mean": 0.467,
+            "std": null,
+            "n": 1
+          },
+          "car": {
+            "mean": 0.4152,
+            "std": null,
+            "n": 1
+          },
+          "bicycle": {
+            "mean": 0.2626,
+            "std": null,
+            "n": 1
+          }
+        }
+      }
+    }
+  },
+  "unrecognised_models": []
+}

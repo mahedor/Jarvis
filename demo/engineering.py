@@ -212,6 +212,29 @@ WORKSTREAMS = [
         "stages": [],  # filled from FACE_STAGES below
     },
     {
+        "id": "drone",
+        "title": "Follow-me drone",
+        "blurb": "A consumer drone that finds and follows people and vehicles, "
+                 "with detection, tracking and control on a laptop. The detector "
+                 "is measured; the final recipe and the flights are in progress.",
+        "stages": [
+            {
+                "id": "followme",
+                "title": "Follow-me detector",
+                "question": "What does it take for a detector to see people and "
+                            "vehicles from a drone?",
+                # PROVISIONAL, not measured: every bar on the page is a recorded
+                # run, but the final recipe and the model race are still running.
+                "status": "provisional",
+                "endpoint": "engineering.followme",
+                "summary": "Data ablations from one fixed YOLOv8n: domain shift, "
+                           "two datasets cut for their labels, catastrophic "
+                           "forgetting fixed with COCO, and why drone datasets "
+                           "don't transfer to each other.",
+            },
+        ],
+    },
+    {
         "id": "direction",
         "title": "Where it is going",
         "blurb": "The system the sensor work is for. Argued rather than "
@@ -396,6 +419,14 @@ def detection():
         provenance=DETECTION_THRESHOLD_PROVENANCE,
         **data.detection_page_data(),
     )
+
+
+@engineering.route("/followme")
+@requires(artifacts=["followme_detection.json"])
+def followme():
+    """Follow-me drone detector: the data ablations, one chart per decision."""
+    return render_template("engineering/followme.html", stages=STAGES,
+                           **data.followme_page_data())
 
 
 @engineering.route("/enrollment")

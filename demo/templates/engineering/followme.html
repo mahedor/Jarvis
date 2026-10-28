@@ -1,0 +1,218 @@
+{% extends "engineering/base.html" %}
+{% block title %}Follow-me detector{% endblock %}
+{% block heading %}Follow-me detector{% endblock %}
+
+{% macro chart(c) %}
+<figure class="eng-figure fm-figure" id="fig-{{ c.id }}">
+  <figcaption class="fm-title">{{ c.title }}</figcaption>
+  <svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="{{ c.title }}" class="fm-chart">
+    {% for t in c.ticks %}
+      <line x1="{{ c.plot_left }}" x2="{{ c.plot_right }}" y1="{{ t.y }}" y2="{{ t.y }}" class="fm-grid"/>
+      <text x="{{ c.plot_left - 6 }}" y="{{ t.y + 3 }}" class="fm-tick" text-anchor="end">{{ '%.1f'|format(t.v) }}</text>
+    {% endfor %}
+    {% for g in c.groups %}
+      {% for b in g.bars %}
+        {% if b.missing %}
+          <text x="{{ b.x + b.w / 2 }}" y="{{ c.base_y - 4 }}" class="fm-missing" text-anchor="middle">–</text>
+        {% else %}
+          <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.color }}" rx="2">
+            <title>{{ g.label }}: {{ '%.3f'|format(b.value) }}{% if b.std %} ± {{ '%.3f'|format(b.std) }} ({{ b.n }} seeds){% endif %}</title>
+          </rect>
+          {% if b.err_y1 is defined %}
+            <line x1="{{ b.x + b.w / 2 }}" x2="{{ b.x + b.w / 2 }}" y1="{{ b.err_y1 }}" y2="{{ b.err_y2 }}" class="fm-err"/>
+          {% endif %}
+          <text x="{{ b.x + b.w / 2 }}" y="{{ (b.err_y1 if b.err_y1 is defined else b.y) - 4 }}" class="fm-val" text-anchor="middle">{{ '%.2f'|format(b.value) }}</text>
+        {% endif %}
+      {% endfor %}
+      <text x="{{ g.x_mid }}" y="{{ c.base_y + 16 }}" class="fm-group" text-anchor="middle">{{ g.label.split(' · ')[0] }}</text>
+      <text x="{{ g.x_mid }}" y="{{ c.base_y + 30 }}" class="fm-group fm-sub" text-anchor="middle">{{ g.label.split(' · ')[1] }}</text>
+    {% endfor %}
+    <line x1="{{ c.plot_left }}" x2="{{ c.plot_right }}" y1="{{ c.base_y }}" y2="{{ c.base_y }}" class="fm-axis"/>
+  </svg>
+  <ul class="fm-legend">
+    {% for l in c.legend %}<li><span class="fm-swatch" style="background: {{ l.color }}"></span>{{ l.label }}</li>{% endfor %}
+    {% for p in c.pending %}<li class="fm-pending"><span class="fm-swatch"></span>{{ p }} — not scored yet</li>{% endfor %}
+  </ul>
+</figure>
+{% endmacro %}
+
+{% block content %}
+
+<section class="eng-intro">
+  <p class="eng-lede">
+    A follow-me drone has to find a person — and the car or motorbike they get
+    into — from the air, live, on a laptop. Off-the-shelf detectors are trained
+    on photos taken at head height and <strong>barely work from a drone</strong>.
+    This page is the record of fixing that, one controlled experiment at a time.
+  </p>
+  <p>
+    Every model below starts from the same YOLOv8n pretrained on COCO, with the
+    same recipe and seed; <strong>only the training data changes</strong>.
+    Scores are mAP50 over eight classes (person, bicycle, car, van, truck, bus,
+    motorcycle, three-wheeler) from a scorer that, like the VisDrone toolkit,
+    does not count a detection against the model when it lands in a region the
+    dataset marked as unlabeled.
+  </p>
+</section>
+
+{% if not followme %}
+  <p class="eng-unavailable">
+    <strong>Follow-me results unavailable — this page is incomplete.</strong>
+    It renders from <code>{{ followme_source }}</code>, which is committed to the
+    repo and missing from this checkout. Run
+    <code>python tools/export_followme_results.py --scores fair_scores_3w.jsonl</code>.
+  </p>
+{% else %}
+{% set v = value %}
+
+<section>
+  <h2>Decisions</h2>
+
+  <article class="eng-decision">
+    <div class="eng-decision-index">01</div>
+    <div class="eng-decision-body">
+      <h3>Stock YOLO doesn't work from the air, so the data is the project</h3>
+      <p class="eng-claim">
+        Stock YOLOv8n scores {{ '%.3f'|format(v('stock','visdrone')[0]) }} on VisDrone
+        test-dev. Fine-tuned on VisDrone it scores {{ '%.2f'|format(v('vd_gray','visdrone')[0]) }}.
+      </p>
+      <p>
+        From above, cars are roofs and people are heads and shoulders, and most
+        objects are a few pixels across. That is domain shift, and the only real
+        fix is training on footage that looks like what the drone sees. But the
+        same chart shows the price: the fine-tuned model scores
+        {{ '%.3f'|format(v('vd_gray','coco')[0]) }} on ordinary COCO photos, down from
+        {{ '%.3f'|format(v('stock','coco')[0]) }}. That is decision 03.
+      </p>
+      {{ chart(charts.domain) }}
+    </div>
+  </article>
+
+  <article class="eng-decision">
+    <div class="eng-decision-index">02</div>
+    <div class="eng-decision-body">
+      <h3>Two datasets thrown out for their labels, not their size</h3>
+      <p class="eng-claim">
+        I reviewed eleven aerial datasets and kept two. AU-AIR and JATAYU were cut
+        after I looked at their labels by hand.
+      </p>
+      <p>
+        AU-AIR leaves parked and distant cars unlabeled and boxes whole rows of
+        cars as one. JATAYU has a median of two boxes per image, including busy
+        traffic scenes with dozens of vehicles. A missing label teaches the model
+        that a real car is background, so these datasets would punish it for being
+        right — more data, worse model. The two keepers were checked the same way:
+        VisDrone has a median of 64 labels per image, MAVREC 21.
+        {% if followme.excluded_test_sets %}
+          For the same reason, JATAYU's test set is left out of every score on
+          this page: a score against missing labels doesn't measure anything.
+        {% endif %}
+      </p>
+    </div>
+  </article>
+
+  <article class="eng-decision">
+    <div class="eng-decision-index">03</div>
+    <div class="eng-decision-body">
+      <h3>The model forgot how to see normally, and COCO fixed it</h3>
+      <p class="eng-claim">
+        Mixing COCO images back into training takes COCO from
+        {{ '%.3f'|format(v('vd_gray','coco')[0]) }} to
+        {{ '%.3f'|format(v('vd_coco_l','coco')[0]) }}, while VisDrone stays between
+        {{ '%.3f'|format(v('vd_coco_l','visdrone')[0]) }} and {{ '%.3f'|format(v('vd_coco_m','visdrone')[0]) }}.
+      </p>
+      <p>
+        Fine-tuning on drone footage alone left a model that only predicted tiny
+        boxes — fatal for following someone at four metres, where a person fills
+        the frame. That's catastrophic forgetting. Retraining on a mix fixes most
+        of it at no cost to the drone score. Returns diminish: going from 1.6k to
+        6.5k COCO images gains more than going from 6.5k to 13k, which is why the
+        dataset experiments below use 6.5k and only the final model gets 13k.
+      </p>
+      {{ chart(charts.forgetting) }}
+    </div>
+  </article>
+
+  <article class="eng-decision">
+    <div class="eng-decision-index">04</div>
+    <div class="eng-decision-body">
+      <h3>How unlabeled crowds are handled turned out not to matter</h3>
+      <p class="eng-claim">
+        Dropped, grayed out, or masked in the loss: three seeds each, and the three
+        land within the seed spread of each other.
+      </p>
+      <p>
+        VisDrone marks crowds it didn't label as "ignored regions". Dropping them
+        (the default) punishes the model for finding real people there; graying
+        the pixels hides them; masking them in the loss — which Ultralytics doesn't
+        support, so I wrote and verified it — neither punishes nor rewards. The
+        textbook answer is the loss mask. On this data it makes no measurable
+        difference, so I stopped spending time on it. The error bars are the
+        spread across seeds, and they are why I ran three.
+      </p>
+      {{ chart(charts.ignore) }}
+    </div>
+  </article>
+
+  <article class="eng-decision">
+    <div class="eng-decision-index">05</div>
+    <div class="eng-decision-body">
+      <h3>Drone datasets don't transfer to each other — so train on both</h3>
+      <p class="eng-claim">
+        Trained on MAVREC alone, the model scores {{ '%.3f'|format(v('mav_cm','visdrone')[0]) }}
+        on VisDrone — worse than stock. Trained on both, it keeps nearly all of each.
+      </p>
+      <p>
+        VisDrone is Chinese cities at many heights; MAVREC is European scenes at
+        25–45 m. Each model learns its own camera height and scenery. Combining
+        them costs a little on VisDrone overall but gives the best person score of
+        any model ({{ '%.3f'|format(v('vd_mav_cm','visdrone','person')[0]) }}). My drone
+        is a third domain neither dataset has seen, so variety is the safer bet —
+        and my own footage is the test that settles it. MAVREC's own test scores
+        are optimistic: its official train and test splits share the same scenes.
+      </p>
+      {{ chart(charts.transfer) }}
+    </div>
+  </article>
+
+  <article class="eng-decision">
+    <div class="eng-decision-index">06</div>
+    <div class="eng-decision-body">
+      <h3>Final recipe: in progress</h3>
+      <p class="eng-claim">
+        The winning mix retrained with the larger COCO slice, and a variant that
+        adds MAVREC's ground-level camera view.
+      </p>
+      <p>
+        Next on the same data: a model race between YOLOv8n, YOLO26n, RF-DETR Nano
+        and DEIM-D-FINE-N, and a comparison on my own ANAFI footage.
+      </p>
+      {{ chart(charts.final) }}
+    </div>
+  </article>
+</section>
+
+<p class="eng-note">
+  Source: <code>{{ followme_source }}</code>, exported {{ followme.generated }} from
+  {{ followme.source }}. {{ followme.base_model }}
+</p>
+{% endif %}
+
+<style>
+  .fm-figure { margin: 18px 0 6px; }
+  .fm-title { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .fm-chart { width: 100%; height: auto; display: block; }
+  .fm-grid { stroke: var(--border); stroke-width: 1; }
+  .fm-axis { stroke: var(--dim); stroke-width: 1; }
+  .fm-tick, .fm-group { fill: var(--muted); font-size: 11px; }
+  .fm-sub { fill: var(--dim); font-size: 10px; }
+  .fm-val { fill: var(--text); font-size: 10px; }
+  .fm-missing { fill: var(--dim); font-size: 12px; }
+  .fm-err { stroke: var(--text); stroke-width: 1.5; }
+  .fm-legend { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px 16px;
+               font-size: 12px; color: var(--muted); }
+  .fm-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px;
+               vertical-align: -1px; border: 1px solid var(--dim); }
+  .fm-pending { color: var(--dim); }
+</style>
+{% endblock %}
