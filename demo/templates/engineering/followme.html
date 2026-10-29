@@ -36,6 +36,22 @@
 </figure>
 {% endmacro %}
 
+
+{% macro lines(c, aria) %}
+<svg viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="{{ aria }}" class="fm-chart">
+  {% for t in c.ticks %}
+    <line x1="{{ c.x0 }}" x2="{{ c.x1 }}" y1="{{ t.y }}" y2="{{ t.y }}" class="fm-grid"/>
+    <text x="{{ c.x0 - 4 }}" y="{{ t.y + 3 }}" class="fm-tick" text-anchor="end">{{ t.v }}</text>
+  {% endfor %}
+  {% if c.mosaic_x is defined %}
+    <line x1="{{ c.mosaic_x }}" x2="{{ c.mosaic_x }}" y1="{{ c.y0 }}" y2="{{ c.y1 }}" class="fm-mosaic"><title>mosaic augmentation switched off</title></line>
+  {% endif %}
+  {% for l in c.lines %}<polyline points="{{ l.points }}" class="{{ l.cls }}"><title>{{ l.label }}</title></polyline>{% endfor %}
+  <line x1="{{ c.x0 }}" x2="{{ c.x1 }}" y1="{{ c.y1 }}" y2="{{ c.y1 }}" class="fm-axis"/>
+  {% for x in c.x_labels %}<text x="{{ x.x }}" y="{{ c.y1 + 14 }}" class="fm-tick" text-anchor="middle">{{ x.v }}</text>{% endfor %}
+</svg>
+{% endmacro %}
+
 {% block content %}
 
 <section class="eng-intro">
@@ -190,6 +206,109 @@
       {{ chart(charts.final) }}
     </div>
   </article>
+
+  <article class="eng-decision" id="training-curves">
+    <div class="eng-decision-index">07</div>
+    <div class="eng-decision-body">
+      <h3>Training curves: not overfitting, a little underfit</h3>
+      {% if not curves %}
+        <p class="eng-unavailable">Training curves unavailable: <code>results/followme_training_curves.json</code>
+        is missing. Run <code>python tools/export_training_curves.py RUNS_DIR</code>.</p>
+      {% else %}
+      <p class="eng-claim">
+        In every run the validation loss keeps falling to the last epoch and ends close to the training
+        loss. That rules out overfitting and points the other way: the smallest YOLO is close to the
+        limit of what it can learn from this data.
+      </p>
+
+      <h4>What the three losses measure</h4>
+      <p>A detector is graded on three things at once, and Ultralytics logs each as its own loss:</p>
+      <ul class="fm-explain">
+        <li><strong>Box loss</strong> (CIoU): how far each predicted box is from the real one. It
+          combines how much they overlap, how far apart their centres are and how different their
+          shapes are. Lower means boxes sit tighter on objects.</li>
+        <li><strong>Class loss</strong> (binary cross-entropy): at every place the model could put a box,
+          how wrong its class scores are. That includes saying "nothing here" over plain background.
+          This is where the confidence score comes from, so it is also the loss behind the cutoff
+          question. Lower means the right class with high confidence, and low confidence on background.</li>
+        <li><strong>DFL</strong> (distribution focal loss): YOLOv8 predicts each box edge as a probability
+          spread over nearby positions instead of a single number. DFL pushes that spread to be sharp
+          around the true edge, so lower means more precise edges.</li>
+      </ul>
+      <p>
+        The total is the sum of the three, each multiplied by its weight (box 7.5, class 0.5, DFL 1.5,
+        the Ultralytics defaults). <strong>Training loss</strong> is measured on the augmented training
+        images the model is learning from. <strong>Validation loss</strong> is measured on clean images it
+        never trains on.
+      </p>
+
+      <h4>Reading the curves</h4>
+      <p>
+        <strong>Overfitting</strong> looks like validation loss bottoming out and then climbing while
+        training loss keeps falling: the model is memorising its training images. <strong>Underfitting</strong>
+        looks like both losses staying high and close together, or still falling when training stops:
+        there is more to learn, or the model is too small to learn it. These runs show three things.
+      </p>
+      <ol class="fm-explain">
+        <li><strong>No overfitting.</strong> Validation loss (dashed) falls in every run all the way to
+          epoch 50, and the best checkpoint by mAP50-95 lands at epoch
+          {% for r in curves.runs %}{{ r.best_epoch }}{% if not loop.last %}, {% endif %}{% endfor %}
+          respectively, at or near the end. A model that had started memorising would peak earlier
+          and decline.</li>
+        <li><strong>Train and validation end close together.</strong> Early on, training loss sits
+          <em>above</em> validation because mosaic augmentation (four images stitched into one, rescaled)
+          makes training images harder than the clean validation ones. The dotted line marks where mosaic
+          switches off for the last ten epochs, and training loss drops visibly there. Even after that,
+          eight of the ten runs end with validation loss within about 0.13 of training loss, and the three
+          final candidates within 0.13, 0.02 and -0.03. A model with spare capacity fits its own training data
+          far better than new data; these barely do, which is what a 3.2M-parameter nano model looking at
+          objects a few pixels across looks like. That is the "too small" kind of underfitting, and it is
+          the reason for the model race, not more epochs. Two runs pull further apart. VisDrone + 1.6k COCO
+          (0.38) is validated partly on COCO photos it saw too few of to learn. MAVREC + 6.5k COCO (0.27)
+          separates only in the last ten epochs, the closest any run comes to overfitting, though its
+          validation loss is still falling.</li>
+        <li><strong>Still improving, but flattening.</strong> Both losses are still falling slowly at
+          epoch 50, so more epochs would help a little. The mAP chart for the featured run shows how
+          little: most of the gain is in the first 20 epochs.</li>
+      </ol>
+      <p class="fm-note">
+        Two things that look odd but aren't problems. The runs with the bigger data mixes
+        ({{ curves.runs|selectattr('optimizer','equalto','MuSGD')|list|length }} of {{ curves.runs|length }})
+        were given MuSGD at learning rate 0.01 by <code>optimizer=auto</code>, and their loss bumps up
+        over epochs 2–3 while the warmup raises the learning rate. The VisDrone-only runs got AdamW at
+        about 0.0008 and have no bump. Each run is validated on its own training mix's validation set,
+        so compare the shape of the curves across runs, not their height.
+      </p>
+
+      {% if curves.featured %}
+      <h4>One run, split into its three losses: {{ curves.featured.label }}</h4>
+      <div class="fm-multiples fm-multiples-4">
+        {% for p in curves.featured.parts %}
+          <figure class="fm-small"><figcaption class="fm-title">{{ p.name }}</figcaption>{{ lines(p.chart, p.name) }}</figure>
+        {% endfor %}
+        <figure class="fm-small"><figcaption class="fm-title">Validation mAP50-95</figcaption>{{ lines(curves.featured.map_chart, 'validation mAP50-95') }}</figure>
+      </div>
+      {% endif %}
+
+      <h4>Every run: total training vs validation loss (same scale)</h4>
+      <ul class="fm-legend">
+        <li><span class="fm-key fm-key-train"></span>training</li>
+        <li><span class="fm-key fm-key-val"></span>validation</li>
+        <li><span class="fm-key fm-key-mosaic"></span>mosaic off</li>
+      </ul>
+      <div class="fm-multiples">
+        {% for r in curves.runs %}
+          <figure class="fm-small">
+            <figcaption class="fm-title">{{ r.label }}</figcaption>
+            {{ lines(r.chart, r.label ~ ' training and validation loss') }}
+            <p class="fm-meta">{{ r.optimizer }} · best epoch {{ r.best_epoch }} · val mAP50-95 {{ '%.3f'|format(r.final_map50_95) }}{% if r.hours %} · {{ '%.1f'|format(r.hours) }} h{% endif %}</p>
+          </figure>
+        {% endfor %}
+      </div>
+      <p class="fm-note">Source: <code>{{ curves.source }}</code>, exported {{ curves.generated }}. {{ curves.note }}.</p>
+      {% endif %}
+    </div>
+  </article>
 </section>
 
 <p class="eng-note">
@@ -214,5 +333,18 @@
   .fm-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px;
                vertical-align: -1px; border: 1px solid var(--dim); }
   .fm-pending { color: var(--dim); }
+  .fm-train { fill: none; stroke: #7c3aed; stroke-width: 1.6; }
+  .fm-valline { fill: none; stroke: #3ad19a; stroke-width: 1.6; stroke-dasharray: 4 3; }
+  .fm-mapline { fill: none; stroke: #d19a3a; stroke-width: 1.6; }
+  .fm-mosaic { stroke: var(--dim); stroke-width: 1; stroke-dasharray: 1 3; }
+  .fm-multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin: 10px 0; }
+  .fm-small { margin: 0; }
+  .fm-meta { font-size: 11px; color: var(--dim); margin: 2px 0 0; }
+  .fm-explain li { margin-bottom: 6px; }
+  .fm-note { font-size: 12px; color: var(--muted); }
+  .fm-key { display: inline-block; width: 18px; height: 0; margin-right: 6px; vertical-align: 3px; }
+  .fm-key-train { border-top: 2px solid #7c3aed; }
+  .fm-key-val { border-top: 2px dashed #3ad19a; }
+  .fm-key-mosaic { border-top: 1px dotted var(--dim); }
 </style>
 {% endblock %}

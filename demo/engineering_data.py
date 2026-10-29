@@ -1200,7 +1200,88 @@ def followme_page_data():
     doc = load_document(FOLLOWME_FILE)
     if not doc.get("scores"):
         return {"followme": None, "followme_source": _relative(FOLLOWME_FILE)}
+    labels = {r["id"]: r["label"] for r in doc.get("recipes", [])}
     return {"followme": doc,
+            "curves": followme_curves_data(labels),
             "charts": {f["id"]: followme_chart(f, doc) for f in FOLLOWME_FIGURES},
             "value": lambda r, t, c=None: followme_value(doc["scores"], r, t, c),
             "followme_source": _relative(FOLLOWME_FILE)}
+
+
+# Training curves, one small chart per run. Written by tools/export_training_curves.py
+# from each run's Ultralytics results.csv. Optional: the page says so when it's missing.
+FOLLOWME_CURVES_FILE = RESULTS_DIR / "followme_training_curves.json"
+CURVE_FEATURED = "vd_mav_cl"     # the run whose loss is also drawn split into its three parts
+
+
+def _polyline(xs, ys, x0, x1, y0, y1, ylo, yhi):
+    """Data points -> an SVG points string inside the box (x0..x1, y0 top .. y1 bottom)."""
+    n = max(xs[-1] - xs[0], 1)
+    pts = []
+    for x, y in zip(xs, ys):
+        px = x0 + (x1 - x0) * (x - xs[0]) / n
+        py = y1 - (y1 - y0) * (min(max(y, ylo), yhi) - ylo) / (yhi - ylo)
+        pts.append(f"{px:.1f},{py:.1f}")
+    return " ".join(pts)
+
+
+def curve_chart(epochs, series, ylo, yhi, mosaic_off=None, width=300, height=150, pad_left=34, pad_bottom=22):
+    """Line-chart geometry: series = [(label, values, css_class)]. y axis fixed by the caller, so every
+    small multiple shares one scale and their shapes can be compared by eye."""
+    x0, x1, y0, y1 = pad_left, width - 6, 8, height - pad_bottom
+    step = 0.5 if yhi - ylo > 1.5 else (0.2 if yhi - ylo > 0.6 else 0.1)
+    ticks, t = [], ylo
+    while t <= yhi + 1e-9:
+        ticks.append({"v": round(t, 2), "y": round(y1 - (y1 - y0) * (t - ylo) / (yhi - ylo), 1)})
+        t += step
+    out = {"width": width, "height": height, "x0": x0, "x1": x1, "y0": y0, "y1": y1, "ticks": ticks,
+           "lines": [{"label": lab, "cls": cls, "points": _polyline(epochs, vals, x0, x1, y0, y1, ylo, yhi)}
+                     for lab, vals, cls in series],
+           "x_labels": [{"v": e, "x": round(x0 + (x1 - x0) * (e - epochs[0]) / max(epochs[-1] - epochs[0], 1), 1)}
+                        for e in (epochs[0], epochs[len(epochs) // 2], epochs[-1])]}
+    if mosaic_off:
+        out["mosaic_x"] = round(x0 + (x1 - x0) * (mosaic_off - epochs[0]) / max(epochs[-1] - epochs[0], 1), 1)
+    return out
+
+
+def _total(run, side):
+    return [round(b + c + d, 4) for b, c, d in zip(run[f"{side}_box"], run[f"{side}_cls"], run[f"{side}_dfl"])]
+
+
+def _range(values, step):
+    return math.floor(min(values) / step) * step, math.ceil(max(values) / step) * step
+
+
+def followme_curves_data(labels):
+    """Small multiples of train vs val total loss for every run, plus the featured run split by part."""
+    doc = load_document(FOLLOWME_CURVES_FILE)
+    runs = doc.get("runs") or []
+    if not runs:
+        return None
+    totals = [v for r in runs for side in ("train", "val") for v in _total(r, side)]
+    lo, hi = _range(totals, 0.5)
+    charts = []
+    for r in runs:
+        last = r["map50_95"][-1]
+        charts.append({"recipe": r["recipe"], "label": labels.get(r["recipe"], r["recipe"]),
+                       "optimizer": r["optimizer"], "lr0": r["lr0"], "best_epoch": r["best_epoch"],
+                       "epochs": len(r["epochs"]), "final_map50_95": last, "hours": r.get("hours"),
+                       "gap": round(_total(r, "val")[-1] - _total(r, "train")[-1], 3),
+                       "chart": curve_chart(r["epochs"], [("train", _total(r, "train"), "fm-train"),
+                                                          ("validation", _total(r, "val"), "fm-valline")],
+                                            lo, hi, r.get("mosaic_off_epoch"))})
+    featured = None
+    fr = next((r for r in runs if r["recipe"] == CURVE_FEATURED), None)
+    if fr:
+        featured = {"label": labels.get(fr["recipe"], fr["recipe"]), "parts": []}
+        for part, name in (("box", "Box loss"), ("cls", "Class loss"), ("dfl", "DFL loss")):
+            a, b = _range(fr[f"train_{part}"] + fr[f"val_{part}"], 0.1)
+            featured["parts"].append({"name": name, "chart": curve_chart(
+                fr["epochs"],
+                [("train", fr[f"train_{part}"], "fm-train"), ("validation", fr[f"val_{part}"], "fm-valline")],
+                a, b, fr.get("mosaic_off_epoch"))})
+        a, b = _range(fr["map50_95"], 0.05)
+        featured["map_chart"] = curve_chart(fr["epochs"], [("val mAP50-95", fr["map50_95"], "fm-mapline")], a, b,
+                                            fr.get("mosaic_off_epoch"))
+    return {"runs": charts, "featured": featured, "source": _relative(FOLLOWME_CURVES_FILE),
+            "generated": doc.get("generated"), "note": doc.get("losses_as_logged")}

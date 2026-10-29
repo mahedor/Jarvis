@@ -83,7 +83,10 @@ def test_page_renders_from_committed_artifact(client):
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert "Follow-me detector" in html and "<svg" in html and "unavailable" not in html
-    assert html.count('class="fm-chart"') == len(data.FOLLOWME_FIGURES)
+    curves = data.followme_curves_data({})
+    assert curves, "results/followme_training_curves.json is committed and must load"
+    n_curves = len(curves["runs"]) + (4 if curves["featured"] else 0)
+    assert html.count('class="fm-chart"') == len(data.FOLLOWME_FIGURES) + n_curves
 
 
 def test_page_says_so_when_artifact_missing(client, monkeypatch, tmp_path):
@@ -95,3 +98,49 @@ def test_page_says_so_when_artifact_missing(client, monkeypatch, tmp_path):
 def test_route_declares_its_artifact():
     import engineering
     assert engineering.followme.eng_requires["artifacts"] == ("followme_detection.json",)
+
+
+def fake_run(recipe, n=12, opt_lr=0.01):
+    e = list(range(1, n + 1))
+    return {"run": recipe + "_s42", "recipe": recipe, "epochs": e,
+            **{f"{side}_{p}": [round(1.0 - 0.02 * i + (0.1 if side == "val" else 0), 4) for i in e]
+               for side in ("train", "val") for p in ("box", "cls", "dfl")},
+            "map50": [0.1 + 0.01 * i for i in e], "map50_95": [0.05 + 0.005 * i for i in e],
+            "optimizer": "MuSGD" if opt_lr > 0.002 else "AdamW", "lr0": opt_lr, "best_epoch": n,
+            "mosaic_off_epoch": n - 2, "hours": 1.5}
+
+
+def test_curve_chart_maps_values_into_the_box():
+    c = data.curve_chart([1, 2, 3], [("t", [0.0, 0.5, 1.0], "x")], 0.0, 1.0, mosaic_off=2, width=100, height=60,
+                         pad_left=10, pad_bottom=10)
+    pts = [tuple(map(float, p.split(","))) for p in c["lines"][0]["points"].split()]
+    assert pts[0] == (10.0, 50.0) and pts[-1] == (94.0, 8.0)             # low-left to high-right corner
+    assert pts[1][1] == pytest.approx(29.0)                                # 0.5 sits halfway up
+    assert c["mosaic_x"] == pytest.approx(52.0)
+
+
+def test_curves_share_one_scale_and_feature_the_winner(monkeypatch, tmp_path):
+    f = tmp_path / "curves.json"
+    f.write_text(json.dumps({"generated": "2026-10-29", "runs": [fake_run("vd_gray", opt_lr=0.0008),
+                                                                 fake_run("vd_mav_cl")]}))
+    monkeypatch.setattr(data, "FOLLOWME_CURVES_FILE", f)
+    c = data.followme_curves_data({"vd_mav_cl": "VD+MAV+COCO-L"})
+    assert [r["optimizer"] for r in c["runs"]] == ["AdamW", "MuSGD"]
+    assert c["runs"][0]["chart"]["ticks"] == c["runs"][1]["chart"]["ticks"]   # small multiples, one y scale
+    assert c["runs"][1]["gap"] == pytest.approx(0.3)                            # val - train total at the end
+    assert c["featured"]["label"] == "VD+MAV+COCO-L" and len(c["featured"]["parts"]) == 3
+
+
+def test_page_says_so_when_curves_missing(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(data, "FOLLOWME_CURVES_FILE", tmp_path / "nope.json")
+    html = client.get("/engineering/followme").get_data(as_text=True)
+    assert "Training curves unavailable" in html and 'class="fm-explain"' not in html
+
+
+def test_page_renders_curves(client, monkeypatch, tmp_path):
+    f = tmp_path / "curves.json"
+    f.write_text(json.dumps({"generated": "2026-10-29", "runs": [fake_run("vd_gray"), fake_run("vd_mav_cl")]}))
+    monkeypatch.setattr(data, "FOLLOWME_CURVES_FILE", f)
+    html = client.get("/engineering/followme").get_data(as_text=True)
+    assert "What the three losses measure" in html and "Box loss" in html and "DFL" in html
+    assert html.count("<polyline") == 2 * 2 + 3 * 2 + 1      # 2 runs x (train, val) + 3 parts x 2 + mAP
