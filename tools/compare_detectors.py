@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import statistics
 import sys
 import time
@@ -75,10 +76,30 @@ def class_map(model_names):
     return {i: (n if n in OUR_CLASSES else None) for i, n in model_names.items()}
 
 
+def load_cutoffs(path, models_spec):
+    """--cutoffs JSON -> {model name: {'person': p, 'vehicle': v}}.
+
+    The file is keyed by model name or by weights file stem (thresholds_balanced.py writes stems, e.g.
+    'vd_mav_cl_s42', 'yolov8n'). A model missing from the file keeps the global --conf, and is reported."""
+    table = json.loads(Path(path).read_text())
+    out = {}
+    for name, w in models_spec:
+        row = table.get(name) or table.get(Path(w).stem)
+        if row is None:
+            print(f"  [warn] no cutoff for {name} in {path}; using --conf")
+            continue
+        out[name] = {"person": float(row["person"]), "vehicle": float(row["vehicle"])}
+    return out
+
+
 class Model:
-    def __init__(self, name, weights, conf, imgsz, device):
+    def __init__(self, name, weights, conf, imgsz, device, cut=None):
         from ultralytics import YOLO
+        self.cut = cut                       # per-group cutoffs, or None = one cutoff for everything
+        if cut:
+            conf = min(cut.values())         # ask the model for everything above the lower one, filter below
         self.name, self.conf, self.imgsz, self.device = name, conf, imgsz, device
+        self.label = f"{name}  p{cut['person']:.2f} v{cut['vehicle']:.2f}" if cut else name
         self.yolo = YOLO(str(weights))
         self.map = class_map(self.yolo.names)
         self.kind = "coco" if len(self.yolo.names) == 80 else f"{len(self.yolo.names)}-class"
@@ -93,6 +114,8 @@ class Model:
             for (x1, y1, x2, y2), c, k in zip(r.boxes.xyxy.tolist(), r.boxes.conf.tolist(),
                                              r.boxes.cls.tolist()):
                 label = self.map.get(int(k))
+                if label and self.cut and c < self.cut["person" if label == "person" else "vehicle"]:
+                    continue
                 if label:
                     dets.append((label, float(c), (int(x1), int(y1), int(x2), int(y2))))
         return dets, ms
@@ -207,7 +230,7 @@ def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_pa
                 if writer:
                     writer.writerow([seen - 1, f"{t:.3f}", segment, m.name, st["n_person"],
                                      f"{st['best_person_conf']:.4f}", st["n_vehicle"], f"{ms:.1f}"])
-                tiles.append(draw_tile(frame, m.name, dets, ms, tw))
+                tiles.append(draw_tile(frame, m.label, dets, ms, tw))
             processed += 1
             canvas = grid(tiles, min(cols, len(tiles)))
             foot = np.zeros((24, canvas.shape[1], 3), np.uint8)    # own strip, so it doesn't cover any video
@@ -253,6 +276,8 @@ def build_parser():
     p.add_argument("--models", nargs="+", required=True, metavar="NAME=WEIGHTS",
                    help="e.g. stock=yolov8n.pt visdrone=vd_gray_s42.pt cocoM=vd_coco_m_s42.pt")
     p.add_argument("--conf", type=float, default=0.25, help="min confidence for every model (0.25)")
+    p.add_argument("--cutoffs", type=Path, default=None, help="JSON of per-model person/vehicle cutoffs "
+                   "(e.g. cutoffs_balanced.json); overrides --conf for the models it lists")
     p.add_argument("--imgsz", type=int, default=640, help="inference size (640 = training size; "
                    "16:9 frames run letterboxed at 384x640)")
     p.add_argument("--device", default="cpu", help="cpu (default) or 0 for a CUDA GPU")
@@ -283,9 +308,11 @@ def main(argv=None):
     if kind == SOURCE_FILE and not Path(source).is_file():
         print(f"[error] video file not found: {source}")
         return 1
-    models = [Model(n, w, args.conf, args.imgsz, args.device) for n, w in models_spec]
+    cuts = load_cutoffs(args.cutoffs, models_spec) if args.cutoffs else {}
+    models = [Model(n, w, args.conf, args.imgsz, args.device, cuts.get(n)) for n, w in models_spec]
     for m in models:
-        print(f"  model {m.name:12s} {m.kind}")
+        how = f"person >= {m.cut['person']:.2f}, vehicle >= {m.cut['vehicle']:.2f}" if m.cut else f"all >= {m.conf:.2f}"
+        print(f"  model {m.name:12s} {m.kind:10s} {how}")
     reader = FrameReader(lambda: open_capture(kind, source, args.rtsp_transport, args.timeout),
                          live=kind != SOURCE_FILE, description=f"{kind} {source!r}",
                          raw_recorder=RawRecorder(args.record_raw) if args.record_raw else None)
