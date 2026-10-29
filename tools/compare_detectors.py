@@ -118,7 +118,7 @@ def draw_tile(frame, name, dets, ms, width):
         x1, y1, x2, y2 = (int(v * scale) for v in (x1, y1, x2, y2))
         cv2.rectangle(tile, (x1, y1), (x2, y2), col, 2)
         if c >= LABEL_CONF:                       # only label confident boxes; the rest would be clutter
-            txt = f"{'P' if lab == 'person' else lab[:3]} {c:.2f}"
+            txt = f"{lab.replace('_', '-')} {c:.2f}"     # full names: 3-letter cuts ('tru') were unreadable
             (tw, th), _ = cv2.getTextSize(txt, font, 0.45, 1)
             ty = max(th + 2, y1 - 3)
             cv2.rectangle(tile, (x1, ty - th - 2), (x1 + tw + 2, ty + 2), (0, 0, 0), -1)
