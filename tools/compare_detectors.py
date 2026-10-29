@@ -52,6 +52,7 @@ VEHICLES = {"bicycle", "car", "van", "truck", "bus", "motorcycle", "three_wheele
 WINDOW = "JARVIS detector comparison"
 COLORS = {"person": (0, 200, 255)}
 VEHICLE_COLOR = (255, 160, 0)
+LABEL_CONF = 0.35            # boxes below this are drawn without a text label
 
 
 def parse_models(items):
@@ -106,18 +107,27 @@ def frame_stats(dets):
 
 
 def draw_tile(frame, name, dets, ms, width):
-    tile = frame.copy()
+    """Shrink the frame to tile size FIRST, then draw, so text stays readable at any tile width
+    (drawing on the full 1280-px frame and shrinking afterwards made labels unreadably small)."""
+    scale = width / frame.shape[1]
+    tile = cv2.resize(frame, (width, int(round(frame.shape[0] * scale))), interpolation=cv2.INTER_AREA)
+    font = cv2.FONT_HERSHEY_SIMPLEX
     for lab, c, (x1, y1, x2, y2) in dets:
         col = COLORS.get(lab, VEHICLE_COLOR)
+        x1, y1, x2, y2 = (int(v * scale) for v in (x1, y1, x2, y2))
         cv2.rectangle(tile, (x1, y1), (x2, y2), col, 2)
-        cv2.putText(tile, f"{lab} {c:.2f}", (x1, max(12, y1 - 4)), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.45, col, 1, cv2.LINE_AA)
+        if c >= LABEL_CONF:                       # only label confident boxes; the rest would be clutter
+            txt = f"{'P' if lab == 'person' else lab[:3]} {c:.2f}"
+            (tw, th), _ = cv2.getTextSize(txt, font, 0.45, 1)
+            ty = max(th + 2, y1 - 3)
+            cv2.rectangle(tile, (x1, ty - th - 2), (x1 + tw + 2, ty + 2), (0, 0, 0), -1)
+            cv2.putText(tile, txt, (x1 + 1, ty), font, 0.45, col, 1, cv2.LINE_AA)
     s = frame_stats(dets)
-    hud = f"{name}  persons {s['n_person']}  vehicles {s['n_vehicle']}  {ms:.0f} ms"
-    cv2.rectangle(tile, (0, 0), (tile.shape[1], 26), (0, 0, 0), -1)
-    cv2.putText(tile, hud, (6, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
-    scale = width / tile.shape[1]
-    return cv2.resize(tile, (width, int(tile.shape[0] * scale)))
+    cv2.rectangle(tile, (0, 0), (tile.shape[1], 46), (0, 0, 0), -1)
+    cv2.putText(tile, name, (6, 20), font, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(tile, f"persons {s['n_person']}  vehicles {s['n_vehicle']}  {ms:.0f} ms", (6, 40), font, 0.5,
+                (200, 200, 200), 1, cv2.LINE_AA)
+    return tile
 
 
 def grid(tiles, cols):
