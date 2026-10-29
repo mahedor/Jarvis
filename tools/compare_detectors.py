@@ -282,6 +282,7 @@ def build_parser():
                    "16:9 frames run letterboxed at 384x640)")
     p.add_argument("--device", default="cpu", help="cpu (default) or 0 for a CUDA GPU")
     p.add_argument("--every", type=int, default=1, help="process every Nth frame (files)")
+    p.add_argument("--start", type=float, default=0.0, help="video files: start this many seconds in")
     p.add_argument("--max-frames", type=int, default=0, help="stop after N processed frames")
     p.add_argument("--csv", type=Path, default=None, help="per-frame, per-model CSV")
     p.add_argument("--record", type=Path, default=None, help="save the comparison grid (.mp4)")
@@ -313,7 +314,13 @@ def main(argv=None):
     for m in models:
         how = f"person >= {m.cut['person']:.2f}, vehicle >= {m.cut['vehicle']:.2f}" if m.cut else f"all >= {m.conf:.2f}"
         print(f"  model {m.name:12s} {m.kind:10s} {how}")
-    reader = FrameReader(lambda: open_capture(kind, source, args.rtsp_transport, args.timeout),
+    def opener():
+        cap = open_capture(kind, source, args.rtsp_transport, args.timeout)
+        if kind == SOURCE_FILE and args.start > 0:
+            cap.set(cv2.CAP_PROP_POS_MSEC, args.start * 1000.0)   # skip ahead in the file
+        return cap
+
+    reader = FrameReader(opener,
                          live=kind != SOURCE_FILE, description=f"{kind} {source!r}",
                          raw_recorder=RawRecorder(args.record_raw) if args.record_raw else None)
     reader.start()
