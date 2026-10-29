@@ -167,7 +167,7 @@ class Summary:
 
 
 def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_path=None,
-        display=True, tile_width=640, cols=2):
+        display=True, tile_width=640, cols=2, window_height=850):
     summary = Summary([m.name for m in models])
     writer = csv_file = video = None
     if csv_path:
@@ -210,6 +210,10 @@ def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_pa
             if display:
                 if not shown:
                     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)      # resizable: many tiles can still fit a screen
+                    h, w = canvas.shape[:2]
+                    f = min(1.0, window_height / h)                 # open no taller than the screen allows
+                    cv2.resizeWindow(WINDOW, int(w * f), int(h * f))
+                    cv2.moveWindow(WINDOW, 0, 0)
                     shown = True
                 elif cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
                     break                                           # window closed with X: stop, don't reopen it
@@ -251,6 +255,8 @@ def build_parser():
     p.add_argument("--no-display", action="store_true", help="run headless")
     p.add_argument("--cols", type=int, default=2, help="tiles per row (e.g. 4 for many models)")
     p.add_argument("--tile-width", type=int, default=640, help="pixel width of each tile")
+    p.add_argument("--window-height", type=int, default=850,
+                   help="open the window at most this tall (px) so it fits the screen; drag to resize")
     p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     p.add_argument("--rtsp-transport", choices=("udp", "tcp"), default="udp")
     return p
@@ -277,7 +283,7 @@ def main(argv=None):
     try:
         summary, n = run(models, reader, args.timeout, args.every, args.max_frames, args.csv,
                          args.record, display=not args.no_display,
-                         tile_width=args.tile_width, cols=args.cols)
+                         tile_width=args.tile_width, cols=args.cols, window_height=args.window_height)
     except (StreamTimeout, StreamError) as exc:
         print(f"[error] {exc}")
         if is_rtsp(source):
