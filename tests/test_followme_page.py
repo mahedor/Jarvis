@@ -86,7 +86,7 @@ def test_page_renders_from_committed_artifact(client):
     curves = data.followme_curves_data({})
     assert curves, "results/followme_training_curves.json is committed and must load"
     n_curves = len(curves["runs"]) + (4 if curves["featured"] else 0)
-    assert html.count('class="fm-chart"') == len(data.FOLLOWME_FIGURES) + n_curves
+    assert html.count('class="fm-chart"') == len(data.FOLLOWME_FIGURES) + len(data.UNSEEN_FIGURES) + n_curves
 
 
 def test_page_says_so_when_artifact_missing(client, monkeypatch, tmp_path):
@@ -144,3 +144,27 @@ def test_page_renders_curves(client, monkeypatch, tmp_path):
     html = client.get("/engineering/followme").get_data(as_text=True)
     assert "What the three losses measure" in html and "Box loss" in html and "DFL" in html
     assert html.count("<polyline") == 2 * 2 + 3 * 2 + 1      # 2 runs x (train, val) + 3 parts x 2 + mAP
+
+
+def test_unseen_charts_match_the_artifact():
+    labels = {r["id"]: r["label"] for r in data.load_document(data.FOLLOWME_FILE)["recipes"]}
+    u = data.followme_unseen_data(labels)
+    doc = json.loads(data.FOLLOWME_UNSEEN_FILE.read_text())
+    named = {r for f in data.UNSEEN_FIGURES for r in f["recipes"]}
+    assert named == set(doc["f1"])                                        # every model appears, once
+    for c in u["charts"]:
+        assert [g["label"].split(" · ")[1] for g in c["groups"]] == ["person", "vehicle", "person", "person"]
+        for g, t in zip(c["groups"], [t["id"] for t in doc["test_sets"]]):
+            for b in g["bars"]:
+                assert b["value"] == doc["f1"][b["recipe"]][t]             # bar height is the stored F1
+
+
+def test_page_renders_unseen_video(client):
+    html = client.get("/engineering/followme").get_data(as_text=True)
+    assert 'id="unseen-video"' in html and "MOT20" in html and "fig-unseen_final" in html
+
+
+def test_page_says_so_when_unseen_missing(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(data, "FOLLOWME_UNSEEN_FILE", tmp_path / "missing.json")
+    html = client.get("/engineering/followme").get_data(as_text=True)
+    assert "Unseen-video scores unavailable" in html

@@ -1,0 +1,27 @@
+{
+ "generated": "2026-10-29",
+ "source": "Colab: jarvis_det/mot_clips.py -> mot_scores.json (VisDrone-MOT) and jarvis_det/extra_sets.py -> extra_sets/extra_sets.json (MOT17, MOT20). F1 copied from those files; VisDrone-MOT rounded to 3 decimals.",
+ "method": {
+  "cutoffs": "Each model's own equal-weight F1-max confidence cutoff, separate for person and vehicle, picked on the three VALIDATION sets (VisDrone val, MAVREC val, COCO holdout) and never on any test set. Then frozen and applied unchanged here.",
+  "matching": "Greedy by confidence, IoU >= 0.5. A detection mostly (>= 50%) inside a region the dataset marks as ignore is not counted either way.",
+  "vehicle": "car, van, truck and bus count as one 'vehicle' group, so a 'van' on a box labeled 'car' is a hit.",
+  "single_class": "MOT17 and MOT20 label people only, so only person detections are scored there."
+ },
+ "test_sets": [
+  {"id": "vdmot_person", "label": "VisDrone-MOT · person", "frames": "17 test-dev sequences, every 5th frame"},
+  {"id": "vdmot_vehicle", "label": "VisDrone-MOT · vehicle", "frames": "17 test-dev sequences, every 5th frame"},
+  {"id": "mot17_person", "label": "MOT17 · person", "frames": "7 train sequences (public labels), every 5th frame", "unlabeled_share": 0.032},
+  {"id": "mot20_person", "label": "MOT20 · person", "frames": "4 train sequences (public labels), every 10th frame", "unlabeled_share": 0.007}
+ ],
+ "label_check": "Before scoring, YOLO11x (conf 0.5, imgsz 1280) was run on sampled frames; a confident box with no label within IoU 0.3 is a candidate missing label. MOT17: 197 of 6,135 (3.2%). MOT20: 46 of 6,811 (0.7%). Both clean enough to score on; for comparison AU-AIR and JATAYU were dropped for far worse.",
+ "f1": {
+  "stock":         {"vdmot_person": 0.321, "vdmot_vehicle": 0.399, "mot17_person": 0.5752, "mot20_person": 0.4292},
+  "vd_gray":       {"vdmot_person": 0.427, "vdmot_vehicle": 0.602, "mot17_person": 0.4233, "mot20_person": 0.5862},
+  "vd_coco_m":     {"vdmot_person": 0.441, "vdmot_vehicle": 0.602, "mot17_person": 0.6078, "mot20_person": 0.6832},
+  "vd_coco_l":     {"vdmot_person": 0.440, "vdmot_vehicle": 0.598, "mot17_person": 0.6241, "mot20_person": 0.6658},
+  "mav_cm":        {"vdmot_person": 0.263, "vdmot_vehicle": 0.344, "mot17_person": 0.5515, "mot20_person": 0.2974},
+  "vd_mav_cm":     {"vdmot_person": 0.460, "vdmot_vehicle": 0.618, "mot17_person": 0.5980, "mot20_person": 0.6348},
+  "vd_mav_cl":     {"vdmot_person": 0.452, "vdmot_vehicle": 0.606, "mot17_person": 0.6282, "mot20_person": 0.6346},
+  "vd_mav_gnd_cm": {"vdmot_person": 0.450, "vdmot_vehicle": 0.606, "mot17_person": 0.5989, "mot20_person": 0.6465}
+ }
+}

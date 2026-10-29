@@ -309,6 +309,45 @@
       {% endif %}
     </div>
   </article>
+
+  <article class="eng-decision" id="unseen-video">
+    <div class="eng-decision-index">08</div>
+    <div class="eng-decision-body">
+      <h3>Video it never saw: the drone mix wins from the air and holds up on the ground</h3>
+      {% if not unseen %}
+        <p class="eng-unavailable">Unseen-video scores unavailable: <code>results/followme_unseen_video.json</code> is missing.</p>
+      {% else %}
+      <p class="eng-claim">
+        mAP rewards a model across every confidence. A drone has to pick one
+        cutoff and live with it, so here each model is scored the way it would
+        fly: F1 at its own frozen cutoff, on video none of them trained on.
+      </p>
+      <ul class="fm-explain fm-unseen">
+        <li><strong>Cutoffs come from validation only.</strong> Each model gets the
+          person and vehicle confidence that maximizes the equal-weight average F1
+          over VisDrone val, MAVREC val and the COCO holdout. Equal weight means no
+          one altitude dominates. The cutoff is then frozen; no test set ever moves it.</li>
+        <li><strong>VisDrone-MOT</strong> is drone video from the air, people and vehicles.
+          <strong>MOT17</strong> and <strong>MOT20</strong> are street-level crowds,
+          people only. They check that the drone training didn't break the near-ground
+          view a follow-me drone also sees at low altitude.</li>
+        <li><strong>Labels checked first.</strong> {{ unseen.doc.label_check }}</li>
+      </ul>
+      {% for c in unseen.charts %}{{ chart(c) }}{% endfor %}
+      <p>
+        <strong>Reading it:</strong> off the shelf, stock YOLOv8n is fine on street crowds (MOT17
+        F1 0.58) and weak from the air (VisDrone-MOT person 0.32). VisDrone alone flips that:
+        better from the air, worse on MOT17 (0.42). Mixing COCO back in fixes the ground view, and
+        the VisDrone + MAVREC + COCO mixes are best from the air. VD+MAV+COCO-L has the best MOT17
+        score (0.63) and is within about 0.01 of the best on VisDrone-MOT, which is why it's the
+        locked recipe for the model race. It isn't best everywhere: VD + COCO-M leads on the
+        densest crowds (MOT20 0.68 vs 0.63). MAVREC + COCO alone collapses on dense crowds
+        (MOT20 0.30): MAVREC's sparse scenes don't teach crowds.
+      </p>
+      <p class="fm-note">Source: <code>results/followme_unseen_video.json</code> ({{ unseen.doc.generated }}). {{ unseen.doc.source }}</p>
+      {% endif %}
+    </div>
+  </article>
 </section>
 
 <p class="eng-note">

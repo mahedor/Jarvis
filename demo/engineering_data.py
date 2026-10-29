@@ -1195,6 +1195,35 @@ def followme_chart(figure, doc, width=640, height=220, pad_left=36, pad_bottom=4
                        for i, r in enumerate(recipes)]}
 
 
+# F1 on never-seen video (VisDrone-MOT, MOT17, MOT20) at each model's frozen
+# validation cutoff. Written by hand from the Colab outputs it names; optional.
+FOLLOWME_UNSEEN_FILE = RESULTS_DIR / "followme_unseen_video.json"
+UNSEEN_FIGURES = [
+    {"id": "unseen_final", "title": "F1 on video it never saw — the final candidates vs stock",
+     "recipes": ["stock", "vd_mav_cm", "vd_mav_cl", "vd_mav_gnd_cm"]},
+    {"id": "unseen_rest", "title": "F1 on video it never saw — the earlier recipes",
+     "recipes": ["vd_gray", "vd_coco_m", "vd_coco_l", "mav_cm"]},
+]
+
+
+def followme_unseen_data(labels):
+    """The unseen-video section: the artifact plus two bar charts, or None if it's missing.
+
+    Reuses followme_chart by reshaping F1 into the {recipe: {test: {"mAP50": {"mean"}}}}
+    layout it reads; the key name is followme_chart's, the number is F1.
+    """
+    doc = load_document(FOLLOWME_UNSEEN_FILE)
+    if not doc.get("f1"):
+        return None
+    tests = [t["id"] for t in doc["test_sets"]]
+    shaped = {"recipes": [{"id": r, "label": labels.get(r, r)} for r in doc["f1"]],
+              "test_sets": doc["test_sets"],
+              "scores": {r: {t: {"mAP50": {"mean": v[t]}} for t in tests if t in v}
+                         for r, v in doc["f1"].items()}}
+    charts = [followme_chart({**f, "measures": [(t, None) for t in tests]}, shaped) for f in UNSEEN_FIGURES]
+    return {"doc": doc, "charts": charts}
+
+
 def followme_page_data():
     """Everything the follow-me detector page renders."""
     doc = load_document(FOLLOWME_FILE)
@@ -1202,6 +1231,7 @@ def followme_page_data():
         return {"followme": None, "followme_source": _relative(FOLLOWME_FILE)}
     labels = {r["id"]: r["label"] for r in doc.get("recipes", [])}
     return {"followme": doc,
+            "unseen": followme_unseen_data(labels),
             "curves": followme_curves_data(labels),
             "charts": {f["id"]: followme_chart(f, doc) for f in FOLLOWME_FIGURES},
             "value": lambda r, t, c=None: followme_value(doc["scores"], r, t, c),
