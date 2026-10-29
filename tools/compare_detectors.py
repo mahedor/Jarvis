@@ -52,6 +52,7 @@ VEHICLES = {"bicycle", "car", "van", "truck", "bus", "motorcycle", "three_wheele
 WINDOW = "JARVIS detector comparison"
 COLORS = {"person": (0, 200, 255)}
 VEHICLE_COLOR = (255, 160, 0)
+HUD_H = 48                   # height of the name/stats strip above each tile
 LABEL_CONF = 0.35            # boxes below this are drawn without a text label
 
 
@@ -123,11 +124,11 @@ def draw_tile(frame, name, dets, ms, width):
             cv2.rectangle(tile, (x1, ty - th - 2), (x1 + tw + 2, ty + 2), (0, 0, 0), -1)
             cv2.putText(tile, txt, (x1 + 1, ty), font, 0.45, col, 1, cv2.LINE_AA)
     s = frame_stats(dets)
-    cv2.rectangle(tile, (0, 0), (tile.shape[1], 46), (0, 0, 0), -1)
-    cv2.putText(tile, name, (6, 20), font, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(tile, f"persons {s['n_person']}  vehicles {s['n_vehicle']}  {ms:.0f} ms", (6, 40), font, 0.5,
+    bar = np.zeros((HUD_H, tile.shape[1], 3), np.uint8)       # own strip ABOVE the video, so it hides nothing
+    cv2.putText(bar, name, (6, 20), font, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(bar, f"persons {s['n_person']}  vehicles {s['n_vehicle']}  {ms:.0f} ms", (6, 40), font, 0.5,
                 (200, 200, 200), 1, cv2.LINE_AA)
-    return tile
+    return np.vstack([bar, tile])
 
 
 def grid(tiles, cols):
@@ -197,8 +198,10 @@ def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_pa
                 tiles.append(draw_tile(frame, m.name, dets, ms, tile_width))
             processed += 1
             canvas = grid(tiles, min(cols, len(tiles)))
-            cv2.putText(canvas, f"segment {segment}  (k = next segment, q = quit)",
-                        (6, canvas.shape[0] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+            foot = np.zeros((24, canvas.shape[1], 3), np.uint8)    # own strip, so it doesn't cover any video
+            cv2.putText(foot, f"segment {segment}  (k = next segment, q = quit)",
+                        (6, 17), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1, cv2.LINE_AA)
+            canvas = np.vstack([canvas, foot])
             if record_path:
                 if video is None:
                     video = cv2.VideoWriter(str(record_path), cv2.VideoWriter_fourcc(*"mp4v"), 10,
