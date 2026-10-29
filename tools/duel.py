@@ -51,6 +51,20 @@ def group(label):
     return GROUPS.get(label, "vehicle")
 
 
+def parse_cutoffs(item, default):
+    """'name=w.pt@0.31' -> ('name=w.pt', {'person': .31, 'vehicle': .31}); '@0.31,0.42' = person, vehicle."""
+    spec, sep, cut = item.rpartition("@")
+    if not sep or "=" in cut or "/" in cut:
+        return item, {"person": default, "vehicle": default}
+    vals = [float(v) for v in cut.split(",")]
+    return spec, {"person": vals[0], "vehicle": vals[-1]}
+
+
+def apply_cutoffs(dets, cut):
+    """Keep detections at or above their group's cutoff."""
+    return [d for d in dets if d[1] >= cut[group(d[0])]]
+
+
 def iou(a, b):
     ix1, iy1, ix2, iy2 = max(a[0], b[0]), max(a[1], b[1]), min(a[2], b[2]), min(a[3], b[3])
     inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
@@ -140,9 +154,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Frames where two detectors disagree, side by side.",
                                  formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
     ap.add_argument("--source", required=True, help="video file")
-    ap.add_argument("--models", nargs=2, required=True, metavar="NAME=WEIGHTS")
+    ap.add_argument("--models", nargs=2, required=True, metavar="NAME=WEIGHTS[@CUT[,VEHCUT]]",
+                    help="optional per-model cutoff: name=w.pt@0.31 (both groups) or @0.31,0.42 (person,vehicle)")
     ap.add_argument("--out", type=Path, default=None, help="output folder (default duel_<A>_vs_<B>)")
-    ap.add_argument("--conf", type=float, default=0.35, help="only boxes this confident count (0.35)")
+    ap.add_argument("--conf", type=float, default=0.35, help="cutoff for models given without @CUT (0.35)")
     ap.add_argument("--every", type=int, default=3, help="process every Nth frame (3)")
     ap.add_argument("--frames", type=int, default=24, help="how many disagreeing frames to save (24)")
     ap.add_argument("--min-gap", type=int, default=15, help="min processed frames between saved frames (15)")
@@ -151,7 +166,8 @@ def main(argv=None):
     ap.add_argument("--device", default="cpu")
     args = ap.parse_args(argv)
 
-    (na, wa), (nb, wb) = parse_models(args.models)
+    (spec_a, cut_a), (spec_b, cut_b) = (parse_cutoffs(m, args.conf) for m in args.models)
+    (na, wa), (nb, wb) = parse_models([spec_a, spec_b])
     out = args.out or Path(f"duel_{na}_vs_{nb}".replace("+", "-"))
     out.mkdir(parents=True, exist_ok=True)
     cap = cv2.VideoCapture(str(args.source))
@@ -159,7 +175,10 @@ def main(argv=None):
         print(f"[error] can't open {args.source}")
         return 1
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
-    A, B = Model(na, wa, args.conf, args.imgsz, args.device), Model(nb, wb, args.conf, args.imgsz, args.device)
+    A = Model(na, wa, min(cut_a.values()), args.imgsz, args.device)
+    B = Model(nb, wb, min(cut_b.values()), args.imgsz, args.device)
+    print(f"cutoffs  {na}: person {cut_a['person']}, vehicle {cut_a['vehicle']}  |  "
+          f"{nb}: person {cut_b['person']}, vehicle {cut_b['vehicle']}")
 
     records, n = [], 0           # (frame_idx, dets_a, sa, dets_b, sb)
     with open(out / "duel.csv", "w", newline="") as f:
@@ -173,8 +192,8 @@ def main(argv=None):
             n += 1
             if (n - 1) % args.every:
                 continue
-            da, _ = A.detect(frame)
-            db, _ = B.detect(frame)
+            da = apply_cutoffs(A.detect(frame)[0], cut_a)
+            db = apply_cutoffs(B.detect(frame)[0], cut_b)
             sa, sb = match(da, db)
             oa, ob = count_only(da, sa), count_only(db, sb)
             w.writerow([n - 1, oa["person"], oa["vehicle"], ob["person"], ob["vehicle"],
@@ -197,13 +216,16 @@ def main(argv=None):
             fi += 1
             if fi in wanted:
                 _, da, sa, db, sb = wanted.pop(fi)
-                rows.append((fi, draw(frame, na, da, sa, args.width), draw(frame, nb, db, sb, args.width)))
+                rows.append((fi, draw(frame, f"{na}  (cutoff p{cut_a['person']:.2f} v{cut_a['vehicle']:.2f})", da, sa,
+                                      args.width),
+                             draw(frame, f"{nb}  (cutoff p{cut_b['person']:.2f} v{cut_b['vehicle']:.2f})", db, sb,
+                                  args.width)))
     sheets = make_sheets(rows, out)
 
     tot = {k: sum(count_only(r[1], r[2])[k] for r in records) for k in ("person", "vehicle")}
     totb = {k: sum(count_only(r[3], r[4])[k] for r in records) for k in ("person", "vehicle")}
     agree = sum(1 for s in scores if s == 0)
-    lines = [f"{len(records)} frames compared (every {args.every}th), conf >= {args.conf}",
+    lines = [f"{len(records)} frames compared (every {args.every}th); cutoffs {na} {cut_a}, {nb} {cut_b}",
              f"frames where they fully agree: {agree} ({100 * agree / max(len(records), 1):.0f}%)",
              f"{na} only: {tot['person']} person boxes, {tot['vehicle']} vehicle boxes",
              f"{nb} only: {totb['person']} person boxes, {totb['vehicle']} vehicle boxes",

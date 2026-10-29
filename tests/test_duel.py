@@ -43,3 +43,15 @@ def test_sheets_written(tmp_path):
     img = np.zeros((60, 80, 3), np.uint8)
     paths = duel.make_sheets([(i, img, img) for i in range(5)], tmp_path, per_sheet=4)
     assert [p.name for p in paths] == ["sheet_01.jpg", "sheet_02.jpg"] and all(p.exists() for p in paths)
+
+
+def test_parse_cutoffs():
+    assert duel.parse_cutoffs("a=w.pt@0.31", 0.35) == ("a=w.pt", {"person": 0.31, "vehicle": 0.31})
+    assert duel.parse_cutoffs("a=w.pt@0.3,0.45", 0.35) == ("a=w.pt", {"person": 0.3, "vehicle": 0.45})
+    assert duel.parse_cutoffs("a=w.pt", 0.35) == ("a=w.pt", {"person": 0.35, "vehicle": 0.35})
+    assert duel.parse_cutoffs("a=/home/u@x/w.pt", 0.35)[0] == "a=/home/u@x/w.pt"   # '@' inside a path is not a cutoff
+
+
+def test_apply_cutoffs_per_group():
+    dets = [("person", 0.32, (0, 0, 1, 1)), ("car", 0.32, (0, 0, 1, 1)), ("truck", 0.5, (0, 0, 1, 1))]
+    assert duel.apply_cutoffs(dets, {"person": 0.3, "vehicle": 0.4}) == [dets[0], dets[2]]
