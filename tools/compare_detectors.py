@@ -177,6 +177,7 @@ def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_pa
                          "n_vehicle", "infer_ms"])
     seen = processed = segment = 0
     shown = False
+    tile_width_fit = None
     t_start = time.perf_counter()
     try:
         while True:
@@ -187,6 +188,17 @@ def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_pa
             if (seen - 1) % every:
                 continue
             t = time.perf_counter() - t_start
+            if display and tile_width_fit is None:
+                # Pick the tile width so the whole grid fits window_height at 1:1. Scaling the finished image
+                # down to fit (the previous approach) blurred every label.
+                fh, fw = frame.shape[:2]
+                rows = (len(models) + cols - 1) // cols
+                room = window_height - 24 - rows * HUD_H
+                tile_width_fit = max(160, min(tile_width, int(room * fw / (rows * fh))))
+                if tile_width_fit < tile_width:
+                    print(f"[display] tiles {tile_width_fit}px wide so {rows} rows fit {window_height}px "
+                          f"(--window-height to change)")
+            tw = tile_width_fit or tile_width
             tiles = []
             for m in models:
                 dets, ms = m.detect(frame)
@@ -195,7 +207,7 @@ def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_pa
                 if writer:
                     writer.writerow([seen - 1, f"{t:.3f}", segment, m.name, st["n_person"],
                                      f"{st['best_person_conf']:.4f}", st["n_vehicle"], f"{ms:.1f}"])
-                tiles.append(draw_tile(frame, m.name, dets, ms, tile_width))
+                tiles.append(draw_tile(frame, m.name, dets, ms, tw))
             processed += 1
             canvas = grid(tiles, min(cols, len(tiles)))
             foot = np.zeros((24, canvas.shape[1], 3), np.uint8)    # own strip, so it doesn't cover any video
@@ -210,9 +222,7 @@ def run(models, reader, timeout, every=1, max_frames=0, csv_path=None, record_pa
             if display:
                 if not shown:
                     cv2.namedWindow(WINDOW, cv2.WINDOW_NORMAL)      # resizable: many tiles can still fit a screen
-                    h, w = canvas.shape[:2]
-                    f = min(1.0, window_height / h)                 # open no taller than the screen allows
-                    cv2.resizeWindow(WINDOW, int(w * f), int(h * f))
+                    cv2.resizeWindow(WINDOW, canvas.shape[1], canvas.shape[0])   # 1:1, no rescaling blur
                     cv2.moveWindow(WINDOW, 0, 0)
                     shown = True
                 elif cv2.getWindowProperty(WINDOW, cv2.WND_PROP_VISIBLE) < 1:
