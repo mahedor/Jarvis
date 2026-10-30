@@ -124,6 +124,18 @@
           this page: a score against missing labels doesn't measure anything.
         {% endif %}
       </p>
+      <div class="fm-table-wrap"><table class="fm-sizes">
+        <thead><tr><th>Dataset (images)</th><th>Height</th><th>Train</th><th>Val</th><th>Test</th></tr></thead>
+        <tbody>
+          <tr><td>VisDrone-DET (10,209 total; 14 Chinese cities)</td><td>varied, not published</td><td>6,471</td><td>548</td><td>1,610 (test-dev)</td></tr>
+          <tr><td>MAVREC, aerial view only (Europe)</td><td>25&ndash;45 m</td><td>7,180</td><td>451</td><td>1,326</td></tr>
+          <tr><td>COCO 2017, sampled from the 70,082 train images that contain these classes</td><td>ground level</td><td>S &asymp;1.6k / M 6,471 / L 12,942</td><td>500 (holdout)</td><td>5,000 (val)</td></tr>
+          <tr class="fm-cut"><td>AU-AIR (cut)</td><td>5&ndash;30 m</td><td colspan="3">32,823 frames, one Danish intersection</td></tr>
+          <tr class="fm-cut"><td>JATAYU (cut)</td><td>120 m, straight down</td><td colspan="3">~30K images, median 2 labels per image</td></tr>
+        </tbody>
+      </table></div>
+      <p class="fm-note">The final model trained on 6,471 + 7,180 + 12,942 = 26,593 images and validated on 548 + 451 + 500 = 1,499.
+        COCO-M is the same size as VisDrone's train split (a 50/50 mix); COCO-L is twice that.</p>
     </div>
   </article>
 
@@ -465,6 +477,11 @@
   .fm-small { margin: 0; }
   .fm-meta { font-size: 11px; color: var(--dim); margin: 2px 0 0; }
   .fm-explain li { margin-bottom: 6px; }
+  .fm-table-wrap { overflow-x: auto; }
+  .fm-sizes { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0 4px; }
+  .fm-sizes th, .fm-sizes td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .fm-sizes th { color: var(--muted); font-weight: 600; }
+  .fm-sizes .fm-cut td { color: var(--dim); }
   .fm-videos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin: 12px 0; }
   .fm-video { margin: 0; }
   .fm-video img { width: 100%; height: auto; display: block; border-radius: 6px; }
