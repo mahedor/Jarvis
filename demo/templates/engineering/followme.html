@@ -348,6 +348,52 @@
       {% endif %}
     </div>
   </article>
+
+  <article class="eng-decision" id="flight-video">
+    <div class="eng-decision-index">09</div>
+    <div class="eng-decision-body">
+      <h3>On my own drone: the winner, quantized to INT8, running at 27 FPS on a laptop</h3>
+      <p class="eng-claim">
+        Flown outside on Oct 29 with the Parrot ANAFI 4K. The winning detector, quantized to
+        INT8 with OpenVINO, plus BoT-SORT with camera-motion compensation, ran live on the
+        laptop CPU at <strong>27.4 FPS</strong> (detector 35 ms median) for 805 seconds.
+      </p>
+      <ul class="fm-explain fm-flight">
+        <li><strong>What the clips are:</strong> 30-second cuts of that flight's recording, re-run
+          through the same INT8 detector, tracker and follow controller. The banner shows the
+          controller's state (SEARCHING / LOCKED), the locked target, the estimated distance and
+          the turn / forward / tilt it would command; the bottom bar shows height, gimbal angle and
+          frame rate.</li>
+        <li><strong>INT8 cost almost nothing:</strong> calibrated on 300 training images, it lost
+          0.01 F1 and 0.004 mAP50 and ran about 3&times; faster (detector + BoT-SORT 95 ms &rarr;
+          26&ndash;29 ms per frame).</li>
+        <li><strong>The controller is deliberately simple:</strong> proportional control on three
+          axes (gimbal, yaw, forward/back to hold about 6 m), with hover on a lost or stale target
+          and any key handing control back to me. Tuning it is the next step.</li>
+      </ul>
+      <div class="fm-videos">
+        <figure class="fm-video">
+          <video controls muted playsinline preload="metadata" poster="/static/video/flight_high_botsort.jpg" src="/static/video/flight_high_botsort.mp4"></video>
+          <figcaption>About 15 m up: people and cars tracked from the air, controller searching.</figcaption>
+        </figure>
+        <figure class="fm-video">
+          <video controls muted playsinline preload="metadata" poster="/static/video/flight_low_botsort.jpg" src="/static/video/flight_low_botsort.mp4"></video>
+          <figcaption>About 2 m up: still finds and locks on to me at near ground height, where the
+            COCO mix matters.</figcaption>
+        </figure>
+        <figure class="fm-video">
+          <video controls muted playsinline preload="metadata" poster="/static/video/trackers_side_by_side.jpg" src="/static/video/trackers_side_by_side.mp4"></video>
+          <figcaption>Same 30 seconds, ByteTrack (left) vs BoT-SORT with motion compensation
+            (right). BoT-SORT ranked first on every tracking benchmark I ran.</figcaption>
+        </figure>
+        <figure class="fm-video">
+          <video controls muted playsinline preload="metadata" poster="/static/video/rfdetr_flight.jpg" src="/static/video/rfdetr_flight.mp4"></video>
+          <figcaption>RF-DETR Nano (17 of 50 epochs) on my footage: more accurate on every test
+            set, but 250&ndash;370 ms per frame on this laptop &mdash; too slow to fly.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </article>
 </section>
 
 <p class="eng-note">
@@ -380,6 +426,10 @@
   .fm-small { margin: 0; }
   .fm-meta { font-size: 11px; color: var(--dim); margin: 2px 0 0; }
   .fm-explain li { margin-bottom: 6px; }
+  .fm-videos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin: 12px 0; }
+  .fm-video { margin: 0; }
+  .fm-video video { width: 100%; height: auto; display: block; border-radius: 6px; background: #000; }
+  .fm-video figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
   .fm-note { font-size: 12px; color: var(--muted); }
   .fm-key { display: inline-block; width: 18px; height: 0; margin-right: 6px; vertical-align: 3px; }
   .fm-key-train { border-top: 2px solid #7c3aed; }
