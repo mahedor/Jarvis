@@ -67,6 +67,8 @@ EXPECTED_ASSETS = {
     "css/engineering.css",
     "js/curve-explorer.js",
     "js/detection-explorer.js",
+    "img/duel_ground_person.jpg",
+    "img/duel_hedge_as_car.jpg",
     "js/threshold-explorer.js",
     "video/flight_high_botsort.jpg",
     "video/follow_live_autonomous.jpg",

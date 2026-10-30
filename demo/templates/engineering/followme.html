@@ -401,6 +401,38 @@
       </div>
     </div>
   </article>
+
+  <article class="eng-decision" id="side-by-side">
+    <div class="eng-decision-index">10</div>
+    <div class="eng-decision-body">
+      <h3>Side by side on my own footage: what the numbers look like</h3>
+      <p class="eng-claim">
+        My own drone video has no labels, so besides the scores I compared models by eye: run two
+        models on the same frames and keep only the frames where they disagree. Red boxes were
+        found by that model only; thin gray boxes by both.
+      </p>
+      <ul class="fm-explain fm-duels">
+        <li><strong>Forgetting, made visible:</strong> with the drone near the ground, the
+          VisDrone-only model doesn't see me at all; the same model with COCO mixed back in does.</li>
+        <li><strong>False alarms:</strong> the VisDrone-only model also calls a hedge a car.
+          "More vehicles found" is not "better" &mdash; which is why the final calls were made
+          on labeled test sets, not on box counts.</li>
+        <li><strong>The cutoff lesson:</strong> these early comparisons used one shared confidence
+          cutoff for every model, which hid real detections and favored some models. That is what
+          led to giving every model its own F1-max cutoff (decision 08).</li>
+      </ul>
+      <div class="fm-videos">
+        <figure class="fm-video">
+          <img src="/static/img/duel_ground_person.jpg" alt="VisDrone-only vs VisDrone + COCO near the ground: only the COCO mix finds the person" loading="lazy">
+          <figcaption>Left: VisDrone only. Right: VisDrone + COCO-M. Near the ground, only the COCO mix finds me.</figcaption>
+        </figure>
+        <figure class="fm-video">
+          <img src="/static/img/duel_hedge_as_car.jpg" alt="VisDrone-only labels a hedge as a car" loading="lazy">
+          <figcaption>Same pair: VisDrone only boxes the hedge (bottom left, frame 1107) as a car.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </article>
 </section>
 
 <p class="eng-note">
@@ -435,6 +467,7 @@
   .fm-explain li { margin-bottom: 6px; }
   .fm-videos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin: 12px 0; }
   .fm-video { margin: 0; }
+  .fm-video img { width: 100%; height: auto; display: block; border-radius: 6px; }
   .fm-video video { width: 100%; height: auto; display: block; border-radius: 6px; background: #000; }
   .fm-video figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; }
   .fm-note { font-size: 12px; color: var(--muted); }
