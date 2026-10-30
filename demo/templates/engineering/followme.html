@@ -392,6 +392,11 @@
             from the flight log.</figcaption>
         </figure>
         <figure class="fm-video">
+          <video controls muted playsinline preload="metadata" poster="/static/video/follow_live_boxes.jpg" src="/static/video/follow_live_boxes.mp4"></video>
+          <figcaption>The same autonomous-follow stretch with boxes: the INT8 detector and BoT-SORT re-run on the
+            recording, locked target in green, the controller's turn / forward arrows drawn on top.</figcaption>
+        </figure>
+        <figure class="fm-video">
           <video controls muted playsinline preload="metadata" poster="/static/video/flight_high_botsort.jpg" src="/static/video/flight_high_botsort.mp4"></video>
           <figcaption>About 15 m up: people and cars tracked from the air, controller searching.</figcaption>
         </figure>
@@ -404,6 +409,11 @@
           <video controls muted playsinline preload="metadata" poster="/static/video/trackers_side_by_side.jpg" src="/static/video/trackers_side_by_side.mp4"></video>
           <figcaption>Same 30 seconds, ByteTrack (left) vs BoT-SORT with motion compensation
             (right). BoT-SORT ranked first on every tracking benchmark I ran.</figcaption>
+        </figure>
+        <figure class="fm-video">
+          <video controls muted playsinline preload="metadata" poster="/static/video/rfdetr_vs_yolo.jpg" src="/static/video/rfdetr_vs_yolo.mp4"></video>
+          <figcaption>Same clip, RF-DETR Nano (left, ~490 ms/frame) vs the INT8 YOLOv8n winner (right, 17 ms/frame,
+            57 FPS, each at its own cutoff). YOLO also boxes a flower bed and a bin as trucks; RF-DETR doesn't.</figcaption>
         </figure>
         <figure class="fm-video">
           <video controls muted playsinline preload="metadata" poster="/static/video/rfdetr_flight.jpg" src="/static/video/rfdetr_flight.mp4"></video>
