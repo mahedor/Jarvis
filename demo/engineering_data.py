@@ -20,6 +20,7 @@ nothing.
 """
 
 import json
+import math
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -1102,3 +1103,215 @@ def _relative(path):
         return str(Path(path).relative_to(REPO_ROOT)).replace("\\", "/")
     except ValueError:
         return str(path)
+
+
+# ══════════════════════════════════════════════════════════════════
+# Follow-me drone detector ablations.
+# ══════════════════════════════════════════════════════════════════
+
+# Written by tools/export_followme_results.py from the fair scorer's raw lines
+# on Drive. Committed: it holds only aggregate scores, no images or paths.
+FOLLOWME_FILE = RESULTS_DIR / "followme_detection.json"
+
+# Each figure on the page is one experiment: the recipes it compares and the
+# measurements it puts side by side. Declared here, not in the template, so a
+# test can check every recipe named exists in the artifact.
+FOLLOWME_FIGURES = [
+    {"id": "domain", "title": "Off the shelf vs fine-tuned on drone footage",
+     "recipes": ["stock", "vd_gray"],
+     "measures": [("visdrone", None), ("mavrec", None), ("coco", None)]},
+    {"id": "ignore", "title": "Three ways to handle unlabeled crowds (3 seeds each)",
+     "recipes": ["vd_drop", "vd_gray", "vd_ign"],
+     "measures": [("visdrone", None), ("visdrone", "person"), ("visdrone", "motorcycle")]},
+    {"id": "forgetting", "title": "How much COCO it takes to stop forgetting",
+     "recipes": ["vd_gray", "vd_coco_s", "vd_coco_m", "vd_coco_l"],
+     "measures": [("coco", None), ("coco", "person"), ("visdrone", None)]},
+    {"id": "transfer", "title": "Drone datasets don't transfer to each other",
+     "recipes": ["vd_coco_m", "mav_cm", "vd_mav_cm"],
+     "measures": [("visdrone", None), ("visdrone", "person"), ("mavrec", None), ("coco", None)]},
+    {"id": "final", "title": "Final recipe candidates",
+     "recipes": ["vd_mav_cm", "vd_mav_cl", "vd_mav_gnd_cm"],
+     "measures": [("visdrone", None), ("visdrone", "person"), ("mavrec", None), ("coco", None)]},
+]
+FOLLOWME_SERIES_COLORS = ["#8a8a99", "#7c3aed", "#3ad19a", "#d19a3a"]
+
+
+def followme_value(scores, recipe, test, cls=None):
+    """(mean, std, n) for one recipe on one test set, overall or one class; None if not scored."""
+    entry = scores.get(recipe, {}).get(test)
+    if not entry:
+        return None
+    agg = entry["mAP50"] if cls is None else entry.get("per_class", {}).get(cls)
+    if not agg or agg.get("mean") is None:
+        return None
+    return agg["mean"], agg.get("std"), agg.get("n", 1)
+
+
+def followme_chart(figure, doc, width=640, height=220, pad_left=36, pad_bottom=44):
+    """Grouped bar chart geometry for one figure: one group per measure, one bar per recipe.
+
+    Pure arithmetic so the page needs no JS and a test can check the bars match
+    the artifact. The y axis always starts at 0 (bars that don't start at zero
+    lie about ratios) and tops out at the next 0.1 above the largest value.
+    Missing scores become a labelled gap, never a zero-height bar.
+    """
+    labels = {r["id"]: r["label"] for r in doc.get("recipes", [])}
+    test_labels = {t["id"]: t["label"] for t in doc.get("test_sets", [])}
+    scores = doc.get("scores", {})
+    recipes = [r for r in figure["recipes"] if r in scores]
+    pending = [r for r in figure["recipes"] if r not in scores]
+    vals = [followme_value(scores, r, t, c) for t, c in figure["measures"] for r in recipes]
+    top = max([v[0] + (v[1] or 0) for v in vals if v] or [0.1])
+    ymax = max(0.1, math.ceil(top * 10 - 1e-9) / 10)
+    plot_w, plot_h = width - pad_left - 8, height - pad_bottom - 10
+    gw = plot_w / max(len(figure["measures"]), 1)
+    bw = gw * 0.8 / max(len(recipes), 1)
+    groups = []
+    for gi, (test, cls) in enumerate(figure["measures"]):
+        bars = []
+        for ri, r in enumerate(recipes):
+            v = followme_value(scores, r, test, cls)
+            x = pad_left + gi * gw + gw * 0.1 + ri * bw
+            if v is None:
+                bars.append({"recipe": r, "x": round(x, 1), "w": round(bw - 2, 1), "missing": True})
+                continue
+            mean, std, n = v
+            h = plot_h * mean / ymax
+            bar = {"recipe": r, "x": round(x, 1), "w": round(bw - 2, 1), "y": round(10 + plot_h - h, 1),
+                   "h": round(h, 1), "value": mean, "std": std, "n": n, "missing": False,
+                   "color": FOLLOWME_SERIES_COLORS[ri % len(FOLLOWME_SERIES_COLORS)]}
+            if std:
+                bar["err_y1"] = round(10 + plot_h - plot_h * (mean + std) / ymax, 1)
+                bar["err_y2"] = round(10 + plot_h - plot_h * max(mean - std, 0) / ymax, 1)
+            bars.append(bar)
+        name = test_labels.get(test, test) + (f" · {cls}" if cls else " · all classes")
+        groups.append({"label": name, "x_mid": round(pad_left + gi * gw + gw / 2, 1), "bars": bars})
+    ticks = [{"v": round(t / 10, 1), "y": round(10 + plot_h - plot_h * (t / 10) / ymax, 1)}
+             for t in range(0, int(round(ymax * 10)) + 1)]
+    return {"id": figure["id"], "title": figure["title"], "width": width, "height": height,
+            "plot_left": pad_left, "plot_right": width - 8, "base_y": 10 + plot_h, "ticks": ticks,
+            "groups": groups, "pending": [labels.get(r, r) for r in pending],
+            "legend": [{"label": labels.get(r, r), "color": FOLLOWME_SERIES_COLORS[i % len(FOLLOWME_SERIES_COLORS)]}
+                       for i, r in enumerate(recipes)]}
+
+
+# F1 on never-seen video (VisDrone-MOT, MOT17, MOT20) at each model's frozen
+# validation cutoff. Written by hand from the Colab outputs it names; optional.
+FOLLOWME_UNSEEN_FILE = RESULTS_DIR / "followme_unseen_video.json"
+UNSEEN_FIGURES = [
+    {"id": "unseen_final", "title": "F1 on video it never saw — the final candidates vs stock",
+     "recipes": ["stock", "vd_mav_cm", "vd_mav_cl", "vd_mav_gnd_cm"]},
+    {"id": "unseen_rest", "title": "F1 on video it never saw — the earlier recipes",
+     "recipes": ["vd_gray", "vd_coco_m", "vd_coco_l", "mav_cm"]},
+]
+
+
+def followme_unseen_data(labels):
+    """The unseen-video section: the artifact plus two bar charts, or None if it's missing.
+
+    Reuses followme_chart by reshaping F1 into the {recipe: {test: {"mAP50": {"mean"}}}}
+    layout it reads; the key name is followme_chart's, the number is F1.
+    """
+    doc = load_document(FOLLOWME_UNSEEN_FILE)
+    if not doc.get("f1"):
+        return None
+    tests = [t["id"] for t in doc["test_sets"]]
+    shaped = {"recipes": [{"id": r, "label": labels.get(r, r)} for r in doc["f1"]],
+              "test_sets": doc["test_sets"],
+              "scores": {r: {t: {"mAP50": {"mean": v[t]}} for t in tests if t in v}
+                         for r, v in doc["f1"].items()}}
+    charts = [followme_chart({**f, "measures": [(t, None) for t in tests]}, shaped) for f in UNSEEN_FIGURES]
+    return {"doc": doc, "charts": charts}
+
+
+def followme_page_data():
+    """Everything the follow-me detector page renders."""
+    doc = load_document(FOLLOWME_FILE)
+    if not doc.get("scores"):
+        return {"followme": None, "followme_source": _relative(FOLLOWME_FILE)}
+    labels = {r["id"]: r["label"] for r in doc.get("recipes", [])}
+    return {"followme": doc,
+            "unseen": followme_unseen_data(labels),
+            "curves": followme_curves_data(labels),
+            "charts": {f["id"]: followme_chart(f, doc) for f in FOLLOWME_FIGURES},
+            "value": lambda r, t, c=None: followme_value(doc["scores"], r, t, c),
+            "followme_source": _relative(FOLLOWME_FILE)}
+
+
+# Training curves, one small chart per run. Written by tools/export_training_curves.py
+# from each run's Ultralytics results.csv. Optional: the page says so when it's missing.
+FOLLOWME_CURVES_FILE = RESULTS_DIR / "followme_training_curves.json"
+CURVE_FEATURED = "vd_mav_cl"     # the run whose loss is also drawn split into its three parts
+
+
+def _polyline(xs, ys, x0, x1, y0, y1, ylo, yhi):
+    """Data points -> an SVG points string inside the box (x0..x1, y0 top .. y1 bottom)."""
+    n = max(xs[-1] - xs[0], 1)
+    pts = []
+    for x, y in zip(xs, ys):
+        px = x0 + (x1 - x0) * (x - xs[0]) / n
+        py = y1 - (y1 - y0) * (min(max(y, ylo), yhi) - ylo) / (yhi - ylo)
+        pts.append(f"{px:.1f},{py:.1f}")
+    return " ".join(pts)
+
+
+def curve_chart(epochs, series, ylo, yhi, mosaic_off=None, width=300, height=150, pad_left=34, pad_bottom=22):
+    """Line-chart geometry: series = [(label, values, css_class)]. y axis fixed by the caller, so every
+    small multiple shares one scale and their shapes can be compared by eye."""
+    x0, x1, y0, y1 = pad_left, width - 6, 8, height - pad_bottom
+    step = 0.5 if yhi - ylo > 1.5 else (0.2 if yhi - ylo > 0.6 else 0.1)
+    ticks, t = [], ylo
+    while t <= yhi + 1e-9:
+        ticks.append({"v": round(t, 2), "y": round(y1 - (y1 - y0) * (t - ylo) / (yhi - ylo), 1)})
+        t += step
+    out = {"width": width, "height": height, "x0": x0, "x1": x1, "y0": y0, "y1": y1, "ticks": ticks,
+           "lines": [{"label": lab, "cls": cls, "points": _polyline(epochs, vals, x0, x1, y0, y1, ylo, yhi)}
+                     for lab, vals, cls in series],
+           "x_labels": [{"v": e, "x": round(x0 + (x1 - x0) * (e - epochs[0]) / max(epochs[-1] - epochs[0], 1), 1)}
+                        for e in (epochs[0], epochs[len(epochs) // 2], epochs[-1])]}
+    if mosaic_off:
+        out["mosaic_x"] = round(x0 + (x1 - x0) * (mosaic_off - epochs[0]) / max(epochs[-1] - epochs[0], 1), 1)
+    return out
+
+
+def _total(run, side):
+    return [round(b + c + d, 4) for b, c, d in zip(run[f"{side}_box"], run[f"{side}_cls"], run[f"{side}_dfl"])]
+
+
+def _range(values, step):
+    return math.floor(min(values) / step) * step, math.ceil(max(values) / step) * step
+
+
+def followme_curves_data(labels):
+    """Small multiples of train vs val total loss for every run, plus the featured run split by part."""
+    doc = load_document(FOLLOWME_CURVES_FILE)
+    runs = doc.get("runs") or []
+    if not runs:
+        return None
+    totals = [v for r in runs for side in ("train", "val") for v in _total(r, side)]
+    lo, hi = _range(totals, 0.5)
+    charts = []
+    for r in runs:
+        last = r["map50_95"][-1]
+        charts.append({"recipe": r["recipe"], "label": labels.get(r["recipe"], r["recipe"]),
+                       "optimizer": r["optimizer"], "lr0": r["lr0"], "best_epoch": r["best_epoch"],
+                       "epochs": len(r["epochs"]), "final_map50_95": last, "hours": r.get("hours"),
+                       "gap": round(_total(r, "val")[-1] - _total(r, "train")[-1], 3),
+                       "chart": curve_chart(r["epochs"], [("train", _total(r, "train"), "fm-train"),
+                                                          ("validation", _total(r, "val"), "fm-valline")],
+                                            lo, hi, r.get("mosaic_off_epoch"))})
+    featured = None
+    fr = next((r for r in runs if r["recipe"] == CURVE_FEATURED), None)
+    if fr:
+        featured = {"label": labels.get(fr["recipe"], fr["recipe"]), "parts": []}
+        for part, name in (("box", "Box loss"), ("cls", "Class loss"), ("dfl", "DFL loss")):
+            a, b = _range(fr[f"train_{part}"] + fr[f"val_{part}"], 0.1)
+            featured["parts"].append({"name": name, "chart": curve_chart(
+                fr["epochs"],
+                [("train", fr[f"train_{part}"], "fm-train"), ("validation", fr[f"val_{part}"], "fm-valline")],
+                a, b, fr.get("mosaic_off_epoch"))})
+        a, b = _range(fr["map50_95"], 0.05)
+        featured["map_chart"] = curve_chart(fr["epochs"], [("val mAP50-95", fr["map50_95"], "fm-mapline")], a, b,
+                                            fr.get("mosaic_off_epoch"))
+    return {"runs": charts, "featured": featured, "source": _relative(FOLLOWME_CURVES_FILE),
+            "generated": doc.get("generated"), "note": doc.get("losses_as_logged")}

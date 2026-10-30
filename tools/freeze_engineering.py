@@ -68,6 +68,14 @@ EXPECTED_ASSETS = {
     "js/curve-explorer.js",
     "js/detection-explorer.js",
     "js/threshold-explorer.js",
+    "video/flight_high_botsort.jpg",
+    "video/flight_high_botsort.mp4",
+    "video/flight_low_botsort.jpg",
+    "video/flight_low_botsort.mp4",
+    "video/rfdetr_flight.jpg",
+    "video/rfdetr_flight.mp4",
+    "video/trackers_side_by_side.jpg",
+    "video/trackers_side_by_side.mp4",
 }
 
 # The pages the shared nav links, in reading order. Not a routing table — the

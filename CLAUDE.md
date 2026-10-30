@@ -57,7 +57,7 @@ From `demo/jarvis_web.py`:
 
 From the `/engineering` blueprint (`demo/engineering.py`): `/engineering`,
 `/detection`, `/recognition`, `/enrollment`, `/routing`, `/presence`,
-`/architecture`, `/figure/<name>`, plus 301 redirects from `/decisions` and
+`/architecture`, `/followme`, `/figure/<name>`, plus 301 redirects from `/decisions` and
 `/direction`.
 
 There are no other routes. In particular there is no `/notion` or `/notion/raw`.
