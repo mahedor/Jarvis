@@ -69,6 +69,8 @@ EXPECTED_ASSETS = {
     "js/detection-explorer.js",
     "js/threshold-explorer.js",
     "video/flight_high_botsort.jpg",
+    "video/follow_live_autonomous.jpg",
+    "video/follow_live_autonomous.mp4",
     "video/flight_high_botsort.mp4",
     "video/flight_low_botsort.jpg",
     "video/flight_low_botsort.mp4",
@@ -83,7 +85,7 @@ EXPECTED_ASSETS = {
 # tripwire for the opposite failure: a page silently disappearing from a build
 # because its view was renamed or removed while base.html still links it.
 EXPECTED_PAGES = ("index", "assistant", "routing", "detection", "enrollment",
-                  "recognition", "presence", "architecture")
+                  "recognition", "presence", "followme", "architecture")
 ASSISTANT_ASSETS = ("styles.css", "chat.js", "voice-engine.js", "screensaver.js")
 
 STATIC_REF = re.compile(r"/static/([A-Za-z0-9_\-./]+)")

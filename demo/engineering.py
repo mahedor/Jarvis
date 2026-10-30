@@ -215,8 +215,8 @@ WORKSTREAMS = [
         "id": "drone",
         "title": "Follow-me drone",
         "blurb": "A consumer drone that finds and follows people and vehicles, "
-                 "with detection, tracking and control on a laptop. The detector "
-                 "is measured; the final recipe and the flights are in progress.",
+                 "with detection, tracking and control on a laptop. Flown live: "
+                 "autonomous follow-me at about 29 FPS on the laptop CPU.",
         "stages": [
             {
                 "id": "followme",
