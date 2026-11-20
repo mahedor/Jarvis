@@ -194,6 +194,19 @@ a benchmark run, and these are unvalidated placeholders.
 `tests/test_presence_service.py` pins the values and the state-machine behaviour
 with an injected clock.
 
+## Follow-me drone (`followme/`)
+
+The live follow-me loop for a Parrot ANAFI 4K: YOLOv8n detector → BoT-SORT (+ camera-motion
+compensation) → lock-on with OSNet re-ID (`lockon.py`) → Olympe commands. Runs in WSL from its own
+uv venv (`~/jarvis-follow`), not the repo `.venv`; see `followme/README.md`. **Nothing in `demo/`
+imports it.** Flown once (2026-11-15): follow, re-ID re-locks and the two-way spin search ran on the
+real drone; map position (`geo.py`) logged numbers but is unchecked against ground truth.
+
+`followme/weights/` (detector + OSNet `.pt`) and `followme/logs/` (per-run video + `follow.csv`) are
+gitignored. Its 43 tests are run from inside the folder
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py`) and are **not** part of the
+`tests/` suite counted above. `run_lint.sh` does not lint it.
+
 ## Engineering log
 
 `/engineering` is a build-log blueprint that shares nothing with the assistant —
