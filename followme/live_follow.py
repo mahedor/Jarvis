@@ -1,0 +1,400 @@
+#!/usr/bin/env python3
+"""LIVE follow-me on the ANAFI:  video -> detector + tracker -> controller -> drone, with you as the safety pilot.
+
+Run in WSL (Olympe env + ultralytics):
+  python live_follow.py --model vd_mav_cl_s42.pt                 # real drone
+  python live_follow.py --fake --fake-detector --seconds 20      # no drone, no model: tests the loop + safety logic
+
+It starts in MANUAL (same keys as record.py). Follow mode only runs when YOU turn it on, and any movement key
+takes control back instantly.
+  T takeoff   L land   Q quit (lands first)   SPACE hover + MANUAL
+  W/S A/D R/F Z/C (or arrows) fly by hand -> always switches to MANUAL
+  M  toggle FOLLOW (locks onto the biggest person; click a box in the window to pick someone else)
+  1/2/3 manual speed 20/35/50 %    G/B gimbal up/down 5 deg
+
+Safety rules in FOLLOW (all of them make the drone HOVER, i.e. send zero sticks):
+  - target lost for more than LOST_S seconds           - detections older than STALE_S (detector stalled)
+  - no video for more than 1 s (also drops to MANUAL)  - battery below --min-battery (also drops to MANUAL)
+  - forward/back and yaw are capped at --max-speed %;  height is never changed (gaz = 0)
+Every frame + command is logged to followme/logs/<timestamp>/ (next to this file; gitignored) (video chunks + follow.csv) for replay and analysis.
+Detection runs in a background thread on the newest frame, so keys and stick commands never wait for the model.
+"""
+import argparse
+import csv
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+import record                       # connect_real / connect_fake (Olympe I/O, tested 2026-10-25)
+import replay                       # Controller, pick_target, draw (the same logic the replays use)
+import geo                          # one-drone map position: target box -> metres N/E of takeoff (2026-11-08)
+import lockon                       # lock-on: gallery of re-ID vectors, verified re-acquisition (2026-11-10)
+
+HOLD = 0.3
+STALE_S = 0.6
+SPEEDS = {ord("1"): 20, ord("2"): 35, ord("3"): 50}
+ARROWS = {65362: "up", 65364: "down", 65361: "yaw_l", 65363: "yaw_r"}
+MOVES = {"w": dict(pitch=1), "s": dict(pitch=-1), "a": dict(roll=-1), "d": dict(roll=1),
+         "r": dict(gaz=1), "f": dict(gaz=-1), "z": dict(yaw=-1), "c": dict(yaw=1)}
+ARROW_MOVES = {"up": dict(gaz=1), "down": dict(gaz=-1), "yaw_l": dict(yaw=-1), "yaw_r": dict(yaw=1)}
+GIMBAL_PERIOD_S = 0.3
+GIMBAL_MIN, GIMBAL_MAX = -90.0, 0.0
+
+
+class Detector(threading.Thread):
+    """Runs model.track on the newest frame it is given; publishes (tracks, names, frame_time, ms)."""
+    def __init__(self, model_path, tracker, imgsz, conf, fake=False, embedder=None, want_fn=None):
+        super().__init__(daemon=True)
+        self.fake = fake
+        self.embedder, self.want_fn = embedder, want_fn     # re-ID: only the crops lock-on asks for (usually 0-1)
+        self.vecs, self.embed_ms = {}, 0.0
+        self.lock, self.new = threading.Lock(), threading.Event()
+        self.frame = self.frame_t = None
+        self.result = ([], {0: "person"}, 0.0, 0.0)
+        self.stop_flag = False
+        if not fake:
+            from ultralytics import YOLO
+            self.model = YOLO(model_path)
+            self.names = self.model.names
+            self.args = dict(persist=True, tracker=tracker, imgsz=imgsz, conf=conf, verbose=False)
+        else:
+            self.names = {0: "person"}
+
+    def submit(self, frame, t):
+        with self.lock:
+            self.frame, self.frame_t = frame, t
+        self.new.set()
+
+    def latest(self):
+        with self.lock:
+            return self.result
+
+    def _fake_tracks(self, img):
+        # finds the orange ball record.FakeDrone draws and calls it person #1
+        m = cv2.inRange(img, (0, 150, 200), (60, 255, 255))
+        ys, xs = np.nonzero(m)
+        if len(xs) == 0:
+            return []
+        x1, x2, y1, y2 = xs.min(), xs.max(), ys.min(), ys.max()
+        return [(float(x1), float(y1 - 60), float(x2), float(y2 + 60), 1, 0, 0.9)]
+
+    def run(self):
+        while not self.stop_flag:
+            if not self.new.wait(0.2):
+                continue
+            self.new.clear()
+            with self.lock:
+                img, t = self.frame, self.frame_t
+            t0 = time.time()
+            if self.fake:
+                tracks = self._fake_tracks(img)
+            else:
+                r = self.model.track(img, **self.args)[0]
+                tracks = []
+                if r.boxes is not None and r.boxes.id is not None:
+                    for b, tid, cls, cf in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.id.cpu().numpy().astype(int),
+                                               r.boxes.cls.cpu().numpy().astype(int), r.boxes.conf.cpu().numpy()):
+                        tracks.append((*b.tolist(), int(tid), int(cls), float(cf)))
+            det_ms = (time.time() - t0) * 1000
+            vecs, t1 = {}, time.time()
+            if self.embedder is not None and self.want_fn is not None and tracks:
+                ids = set(self.want_fn(tracks, t, img.shape[1], img.shape[0]))
+                sel = [tr for tr in tracks if tr[4] in ids]
+                if sel:
+                    try:
+                        V = self.embedder(img, [tr[:4] for tr in sel])
+                        vecs = {tr[4]: V[i] for i, tr in enumerate(sel)}
+                    except Exception as ex:                  # noqa: BLE001 - re-ID must never kill the detector
+                        print("re-ID embed failed:", ex)
+            with self.lock:
+                self.result = (tracks, self.names, t, det_ms)
+                self.vecs, self.embed_ms = vecs, (time.time() - t1) * 1000
+
+    def latest_vecs(self):
+        with self.lock:
+            return self.vecs, self.embed_ms
+
+
+SEARCH_YAW = 50.0   # % of max yaw while searching. Michael 2026-11-14: "yaw pretty quickly... a 360 relatively quickly
+                    # but it SHOULDN'T change its coordinates" -> yaw only (roll = pitch = gaz = 0), NOT capped by
+                    # --max-speed (that cap is for following, which moves the drone; this only spins it)
+SEARCH_DEG = 360.0  # one full turn per direction, measured from drone_yaw_deg telemetry
+SEARCH_BOTH = True  # Michael 2026-11-14: spin one way (toward the side last seen), then the other way, then hover
+SEARCH_S = 40.0     # safety timeout for the whole search if telemetry is missing or turns are slow; then hover
+
+
+class FollowLogic:
+    """Decides the stick command in FOLLOW mode. Pure logic (no I/O) so the safety rules can be tested.
+
+    Target choice and re-acquisition live in lockon.TargetLock (2026-11-10): a lost target is only re-locked onto a
+    person whose re-ID vector matches the target's gallery; without a gallery it falls back to the old nearest-box rule.
+    Lost for < lost_s: hover (the tracker often gets them back under the same ID). Then spin IN PLACE toward the side
+    they were last seen, quickly, for one full 360 (or search_s at most), re-ID checking everyone who comes into view
+    (Michael 2026-11-14). Then hover until picked again. Only yaw changes while searching: no roll/pitch/gaz.
+    """
+    def __init__(self, person_ids, max_speed, lost_s=replay.LOST_S, stale_s=STALE_S, search_s=SEARCH_S,
+                 search_yaw=SEARCH_YAW, match_sim=lockon.MATCH_SIM, search_deg=SEARCH_DEG, search_both=SEARCH_BOTH):
+        self.ctrl = replay.Controller()
+        self.person_ids, self.max_speed, self.lost_s, self.stale_s = person_ids, max_speed, lost_s, stale_s
+        self.search_s, self.search_yaw, self.search_deg, self.search_both = search_s, search_yaw, search_deg, search_both
+        self._yaw_prev, self.turned_deg = None, 0.0
+        self.lock = lockon.TargetLock(person_ids, match_sim=match_sim)
+        self.last_seen = None
+        self.event = ""
+        self._fed_det_t = None
+
+    # the rest of live_follow (drawing, logging) reads these
+    target_id = property(lambda self: self.lock.target_id)
+    picked_by = property(lambda self: self.lock.picked_by)
+    last_box = property(lambda self: self.lock.last_box)
+
+    def reset(self):
+        self.ctrl = replay.Controller(); self.lock.reset(); self.last_seen = None; self.event = ""; self._fed_det_t = None
+
+    def pick(self, tid, tracks=None):
+        self.lock.pick(tid, tracks, by="you"); self.last_seen = time.time()
+
+    def wants_embedding(self, tracks, now, W=None, H=None):
+        return self.lock.wants_embedding(tracks, now, W, H)
+
+    def step(self, tracks, det_t, now, W, H, tel, vecs=None):
+        """Returns (pcmd dict, info dict). Hover = all zeros. vecs = {track_id: re-ID vector} from the detector."""
+        hover = dict(roll=0, pitch=0, yaw=0, gaz=0)
+        if det_t is None or now - det_t > self.stale_s:
+            return hover, dict(state="STALE -> HOVER", gimbal_delta=0.0, dist=None, method="stale", event="")
+        if det_t == self._fed_det_t:                    # the loop runs faster than the detector: use each
+            vecs = {}                                  # frame's re-ID vectors once, not every loop iteration
+        self._fed_det_t = det_t
+        tgt, self.event = self.lock.update(tracks, vecs or {}, det_t, W, H)
+        if tgt is None:
+            gone = 0.0 if self.last_seen is None else now - self.last_seen
+            if self.last_seen is None or gone <= self.lost_s:
+                return hover, dict(state="SEARCHING (hover)", gimbal_delta=0.0, dist=None, method="searching",
+                                   event=self.event)
+            cur = tel.get("drone_yaw_deg") if tel else None
+            if cur is not None:                            # accumulate how far we've actually turned
+                if self._yaw_prev is not None:
+                    self.turned_deg += abs((cur - self._yaw_prev + 180.0) % 360.0 - 180.0)
+                self._yaw_prev = cur
+            total = self.search_deg * (2 if self.search_both else 1)
+            if gone <= self.lost_s + self.search_s and self.search_yaw > 0 and self.turned_deg < total:
+                self.ctrl.step(None, W, H, tel)
+                first = self.lock.last_side(W)                 # first turn: toward where the target was last seen
+                direction = first if self.turned_deg < self.search_deg else -first   # second turn: the other way
+                yaw = direction * min(self.search_yaw, 100.0)
+                return dict(roll=0, pitch=0, yaw=yaw, gaz=0), dict(state=f"SEARCH (spinning {self.turned_deg:.0f}/{total:.0f} deg)",
+                                                                   gimbal_delta=0.0, dist=None, method="searching",
+                                                                   event=self.event)
+            self.ctrl.step(None, W, H, tel)
+            return hover, dict(state="LOST -> HOVER", gimbal_delta=0.0, dist=None, method="lost", event=self.event)
+        self.last_seen = now
+        self._yaw_prev, self.turned_deg = None, 0.0        # found: the next loss starts a fresh 360
+        c = self.ctrl.step(tgt[:4], W, H, tel)
+        cap = lambda v: float(np.clip(v, -self.max_speed, self.max_speed))
+        cmd = dict(roll=0, pitch=cap(c["pitch"]), yaw=cap(c["yaw"]), gaz=0)
+        return cmd, dict(state="FOLLOWING", gimbal_delta=c["gimbal_delta"], dist=c["dist"], method=c["method"],
+                         event=self.event)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ip", default="192.168.42.1")
+    ap.add_argument("--model", default="yolov8n.pt")
+    ap.add_argument("--tracker", default="botsort.yaml")
+    ap.add_argument("--imgsz", type=int, default=640)
+    ap.add_argument("--conf", type=float, default=0.25)
+    ap.add_argument("--max-speed", type=float, default=20.0, help="cap on FOLLOW yaw and forward/back, %% of max")
+    ap.add_argument("--follow-dist", type=float, default=replay.FOLLOW_DIST_M, help="metres to keep from the target")
+    ap.add_argument("--min-battery", type=float, default=25.0)
+    ap.add_argument("--calib", default="", help="camera_calib.json from calibrate_camera.py (default: next to this file)")
+    ap.add_argument("--reid", default="auto", choices=["auto", "osnet", "hist", "none"],
+                    help="lock-on appearance model: OSNet (boxmot) if installed, else colour histogram; none = old re-lock")
+    ap.add_argument("--match-sim", type=float, default=lockon.MATCH_SIM, help="re-ID similarity needed to re-lock (PLACEHOLDER)")
+    ap.add_argument("--search-s", type=float, default=SEARCH_S, help="max seconds spinning to find a lost target (0 = just hover)")
+    ap.add_argument("--search-yaw", type=float, default=SEARCH_YAW, help="%% yaw while spinning in place to search")
+    ap.add_argument("--search-deg", type=float, default=SEARCH_DEG, help="degrees per spin direction (360 = one full turn)")
+    ap.add_argument("--search-one-way", action="store_true", help="only spin one way (default: one way, then the other)")
+    ap.add_argument("--out", default=str(Path(__file__).resolve().parent / "logs"))
+    ap.add_argument("--fps", type=float, default=30.0)
+    ap.add_argument("--fake", action="store_true", help="no drone (synthetic video)")
+    ap.add_argument("--fake-detector", action="store_true", help="no model (tracks the fake video's ball)")
+    ap.add_argument("--fake-stall", type=float, nargs=2, default=(0, 0))
+    ap.add_argument("--headless", action="store_true", help="(testing) no window; --script drives the keys")
+    ap.add_argument("--script", default="", help="(testing) 't@1,m@2,w@5,m@6,q@9' = key@seconds")
+    ap.add_argument("--seconds", type=float, default=0)
+    args = ap.parse_args()
+    replay.FOLLOW_DIST_M = args.follow_dist
+
+    d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
+    embedder, reid_note = lockon.make_embedder(args.reid)
+    print(reid_note)
+    det = Detector(args.model, args.tracker, args.imgsz, args.conf, fake=args.fake_detector, embedder=embedder)
+    person_ids = {k for k, v in det.names.items() if str(v).lower() in replay.PERSON_NAMES}
+    logic = FollowLogic(person_ids, args.max_speed, search_s=args.search_s, search_yaw=args.search_yaw, search_deg=args.search_deg, search_both=not args.search_one_way,
+                        match_sim=args.match_sim)
+    det.want_fn = lambda tr, t, W, H: logic.wants_embedding(tr, t, W, H) if mode == "FOLLOW" else []
+    calib = geo.load_calib(args.calib or None)
+    mapf = geo.MapFrame(calib)
+    print('map position:', 'camera_calib.json' if calib else f'ASSUMED FOV {geo.HFOV_DEG}x{geo.VFOV_DEG} deg (run calibrate_camera.py)')
+    det.start()
+
+    out = Path(args.out) / datetime.now().strftime("%Y%m%d_%H%M%S"); out.mkdir(parents=True, exist_ok=True)
+    log_f = open(out / "follow.csv", "w", newline=""); log_w = None
+    writer, chunk, chunk_frames = None, 0, 0
+    script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
+    mode, speed, gimbal_pitch, flying = "MANUAL", 20, 0.0, False
+    held, last_key_t, last_gimbal_t = None, 0.0, 0.0
+    img, last_frame_t, t0, n = None, time.time(), time.time(), 0
+    click = {"pt": None}
+    if not args.headless:
+        cv2.namedWindow("follow", cv2.WINDOW_NORMAL)
+        cv2.setMouseCallback("follow", lambda ev, x, y, fl, p: click.__setitem__("pt", (x, y)) if ev == cv2.EVENT_LBUTTONDOWN else None)
+    print(f"Logging to {out}. MANUAL mode. T = takeoff, M = follow on/off, SPACE = hover, L = land, Q = quit.")
+    info = dict(state="MANUAL")
+    # per-step timing of the main loop (ms). The row for a frame carries this iteration's wait/record times and the
+    # PREVIOUS iteration's draw/show/key times (the row is written before this iteration draws).
+    tm = dict(wait_ms=0.0, rec_ms=0.0, draw_ms=0.0, show_ms=0.0, key_ms=0.0, loops_since_frame=0)
+    pc = time.perf_counter
+    try:
+        while True:
+            _a = pc()
+            new = d["next_frame"](timeout=0.03)                       # never block
+            tm["wait_ms"] = (pc() - _a) * 1000
+            tm["loops_since_frame"] += 1
+            now = time.time(); t = now - t0
+            if new is not None:
+                img, last_frame_t = new, now
+                det.submit(new, now)
+            elif img is None:
+                img = np.zeros((720, 1280, 3), np.uint8)
+            H, W = img.shape[:2]
+            video_ok = now - last_frame_t < 1.0
+            tel = d["telemetry"]()
+            tracks, names, det_t, det_ms = det.latest()
+            vecs, embed_ms = det.latest_vecs()
+
+            # ---- keys (window or test script) ----
+            ch, k = "", -1
+            if script and t >= script[0][0]:
+                ch = script.pop(0)[1]
+            elif not args.headless:
+                _a = pc()
+                k = cv2.waitKeyEx(1)
+                tm["key_ms"] = (pc() - _a) * 1000
+                if k != -1:
+                    kc = k & 0xFF if k < 256 else k
+                    ch = chr(kc).lower() if kc < 256 else ""
+            if ch == "q":
+                break
+            if ch == "t":
+                d["takeoff"](); flying = True
+            elif ch == "l":
+                mode = "MANUAL"; d["pcmd"](); d["land"](); flying = False
+            elif ch == " ":
+                mode, held = "MANUAL", None
+            elif ch == "m":
+                mode = "FOLLOW" if mode == "MANUAL" else "MANUAL"; held = None; logic.reset()
+                print("mode", mode)
+            elif ch == "g":
+                gimbal_pitch = min(GIMBAL_MAX, gimbal_pitch + 5); d["gimbal"](gimbal_pitch)
+            elif ch == "b":
+                gimbal_pitch = max(GIMBAL_MIN, gimbal_pitch - 5); d["gimbal"](gimbal_pitch)
+            elif k in SPEEDS:
+                speed = SPEEDS[k]
+            else:
+                mv = MOVES.get(ch) or (ARROW_MOVES.get(ARROWS.get(k)) if k in ARROWS else None)
+                if mv:
+                    if mode == "FOLLOW":
+                        print("manual key -> MANUAL")
+                    mode = "MANUAL"; held = {a: v * speed for a, v in mv.items()}; last_key_t = now
+            if click["pt"] is not None:
+                hit = replay.box_at(tracks, *click["pt"]); click["pt"] = None
+                if hit is not None:
+                    logic.pick(hit[4], tracks)
+
+            # ---- safety drops out of FOLLOW ----
+            bat = tel.get("battery_pct")
+            if mode == "FOLLOW" and not video_ok:
+                mode = "MANUAL"; print("NO VIDEO -> MANUAL (hover)")
+            if mode == "FOLLOW" and bat is not None and bat < args.min_battery:
+                mode = "MANUAL"; print(f"battery {bat}% -> MANUAL (hover)")
+
+            # ---- command ----
+            if mode == "FOLLOW":
+                cmd, info = logic.step(tracks, det_t, now, W, H, tel, vecs)
+                if info["gimbal_delta"] and now - last_gimbal_t > GIMBAL_PERIOD_S:
+                    gp = tel.get("gimbal_pitch_deg")
+                    base = gp if gp is not None else gimbal_pitch
+                    gimbal_pitch = float(np.clip(base + info["gimbal_delta"], GIMBAL_MIN, GIMBAL_MAX))
+                    d["gimbal"](gimbal_pitch); last_gimbal_t = now
+            else:
+                if held and now - last_key_t > HOLD:
+                    held = None
+                cmd = dict(roll=0, pitch=0, yaw=0, gaz=0, **{}) if not held else {**dict(roll=0, pitch=0, yaw=0, gaz=0), **held}
+                info = dict(state="MANUAL", dist=None, method="manual")
+            d["pcmd"](**cmd)
+
+            # ---- log + record ----
+            if new is not None:
+                if writer is None or chunk_frames >= int(60 * args.fps):
+                    if writer: writer.release()
+                    name = f"video_{chunk:03d}.mp4"; chunk += 1; chunk_frames = 0
+                    writer = cv2.VideoWriter(str(out / name), cv2.VideoWriter_fourcc(*"mp4v"), args.fps, (W, H))
+                _a = pc()
+                writer.write(img); chunk_frames += 1
+                tm["rec_ms"] = (pc() - _a) * 1000
+                row = dict(frame=n, t_s=round(t, 3), video_file=name, frame_in_file=chunk_frames - 1, mode=mode,
+                           state=info["state"], target_id=logic.target_id if mode == "FOLLOW" else None,
+                           dist_m=info.get("dist"), method=info.get("method"), roll=cmd["roll"], pitch=round(cmd["pitch"], 1),
+                           yaw=round(cmd["yaw"], 1), gaz=cmd["gaz"], gimbal_cmd=round(gimbal_pitch, 1),
+                           det_age_ms=None if det_t is None else round((now - det_t) * 1000), det_ms=round(det_ms, 1),
+                           n_tracks=len(tracks), lock_event=info.get("event", "") if mode == "FOLLOW" else "",
+                           gallery_n=len(logic.lock.gallery), n_embedded=len(vecs), embed_ms=round(embed_ms, 1),
+                           best_sim=max((c[2] for c in logic.lock.checked.values() if c[2] is not None), default=None),
+                           **{k: round(v, 1) for k, v in tm.items()}, **tel,
+                           **mapf.update(logic.last_box if mode == "FOLLOW" and info["state"] == "FOLLOWING" else None,
+                                         W, H, tel))
+                tm["loops_since_frame"] = 0
+                if log_w is None:
+                    log_w = csv.DictWriter(log_f, fieldnames=list(row)); log_w.writeheader()
+                log_w.writerow(row); log_f.flush(); n += 1
+
+            # ---- display ----
+            if not args.headless:
+                _a = pc()
+                c = dict(yaw=cmd["yaw"], pitch=cmd["pitch"], gimbal_delta=0.0, dist=info.get("dist") or 0.0,
+                         method=info.get("method") if mode == "FOLLOW" and info["state"] == "FOLLOWING" else "searching")
+                vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, 1000 / max(det_ms, 1), tel, n, 0, logic.picked_by)
+                col = (0, 255, 0) if mode == "FOLLOW" and info["state"] == "FOLLOWING" else (0, 200, 255) if mode == "FOLLOW" else (200, 200, 200)
+                cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
+                if not video_ok:
+                    cv2.putText(vis, "NO VIDEO - L = land, SPACE = hover", (30, H // 2), 0, 1.0, (0, 0, 255), 3)
+                tm["draw_ms"] = (pc() - _a) * 1000
+                _a = pc()
+                cv2.imshow("follow", vis)
+                tm["show_ms"] = (pc() - _a) * 1000
+            if args.seconds and t > args.seconds:
+                break
+    finally:
+        det.stop_flag = True
+        det.join(timeout=3)              # let a running YOLO call finish: killing it mid-call aborts Python at exit
+        try:
+            d["pcmd"]()
+        except Exception:
+            pass
+        if writer: writer.release()
+        log_f.close()
+        if flying:
+            print("Landing..."); d["land"]()
+        d["close"]()
+        if not args.headless:
+            cv2.destroyAllWindows()
+        print(f"Saved {n} frames + follow.csv to {out}")
+
+
+if __name__ == "__main__":
+    main()

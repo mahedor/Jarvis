@@ -51,3 +51,7 @@ node_modules/
 # Linter caches
 .ruff_cache/
 .eslintcache
+# Follow-me drone runtime files: flight logs (video + CSV, hundreds of MB) and weights
+followme/logs/
+followme/weights/
+followme/_test_follow_out/
