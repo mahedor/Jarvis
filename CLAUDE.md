@@ -202,8 +202,8 @@ uv venv (`~/jarvis-follow`), not the repo `.venv`; see `followme/README.md`. **N
 imports it.** Flown once (2026-11-15): follow, re-ID re-locks and the two-way spin search ran on the
 real drone; map position (`geo.py`) logged numbers but is unchecked against ground truth.
 
-`followme/weights/` (detector + OSNet `.pt`) and `followme/logs/` (per-run video + `follow.csv`) are
-gitignored. Its 43 tests are run from inside the folder
+`followme/weights/` (detector + OSNet `.pt`) is gitignored. Flight logs (per-run video + `follow.csv`,
+300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 43 tests are run from inside the folder
 (`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 

@@ -17,7 +17,7 @@ Safety rules in FOLLOW (all of them make the drone HOVER, i.e. send zero sticks)
   - target lost for more than LOST_S seconds           - detections older than STALE_S (detector stalled)
   - no video for more than 1 s (also drops to MANUAL)  - battery below --min-battery (also drops to MANUAL)
   - forward/back and yaw are capped at --max-speed %;  height is never changed (gaz = 0)
-Every frame + command is logged to followme/logs/<timestamp>/ (next to this file; gitignored) (video chunks + follow.csv) for replay and analysis.
+Every frame + command is logged to ~/follow_logs/<timestamp>/ (kept out of the repo and OneDrive: 300+ MB per flight) (video chunks + follow.csv) for replay and analysis.
 Detection runs in a background thread on the newest frame, so keys and stick commands never wait for the model.
 """
 import argparse
@@ -238,7 +238,7 @@ def main():
     ap.add_argument("--search-yaw", type=float, default=SEARCH_YAW, help="%% yaw while spinning in place to search")
     ap.add_argument("--search-deg", type=float, default=SEARCH_DEG, help="degrees per spin direction (360 = one full turn)")
     ap.add_argument("--search-one-way", action="store_true", help="only spin one way (default: one way, then the other)")
-    ap.add_argument("--out", default=str(Path(__file__).resolve().parent / "logs"))
+    ap.add_argument("--out", default=str(Path.home() / "follow_logs"))   # outside the repo/OneDrive: 300+ MB per flight
     ap.add_argument("--fps", type=float, default=30.0)
     ap.add_argument("--fake", action="store_true", help="no drone (synthetic video)")
     ap.add_argument("--fake-detector", action="store_true", help="no model (tracks the fake video's ball)")

@@ -21,11 +21,12 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `test_*.py` | 43 tests: logic on made-up inputs + one full run against the fake drone |
 
-## Folders (gitignored, create once)
+## Folders
 
 - `weights/` — put `vd_mav_cl_s42.pt` (detector) and `osnet_x0_25_msmt17.pt` (re-ID) here.
   `lockon.py` looks in `weights/` first.
-- `logs/` — every run writes `logs/<YYYYMMDD_HHMMSS>/` (video chunks + `follow.csv`). Created automatically.
+- Flight logs are **not** kept here: every run writes `~/follow_logs/<YYYYMMDD_HHMMSS>/` (video chunks +
+  `follow.csv`, 300+ MB per flight) in the WSL home, outside the repo and OneDrive. `--out` changes it.
 
 ## Setup (WSL, uv-managed venv `~/jarvis-follow`)
 
