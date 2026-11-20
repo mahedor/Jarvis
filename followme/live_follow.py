@@ -9,7 +9,8 @@ It starts in MANUAL (same keys as record.py). Follow mode only runs when YOU tur
 takes control back instantly.
   T takeoff   L land   Q quit (lands first)   SPACE hover + MANUAL
   W/S A/D R/F Z/C (or arrows) fly by hand -> always switches to MANUAL
-  M  toggle FOLLOW (locks onto the biggest person; click a box in the window to pick someone else)
+  M  toggle FOLLOW. Lock-on + re-ID also run in MANUAL (11-20): the target (biggest person, or any box you click,
+     vehicles included) and its re-ID gallery carry over when FOLLOW turns on.   N  new lock (forget target + gallery)
   1/2/3 manual speed 20/35/50 %    G/B gimbal up/down 5 deg
 
 Safety rules in FOLLOW (all of them make the drone HOVER, i.e. send zero sticks):
@@ -158,6 +159,25 @@ class FollowLogic:
     def pick(self, tid, tracks=None):
         self.lock.pick(tid, tracks, by="you"); self.last_seen = time.time()
 
+    def resume(self):
+        """FOLLOW switched on: fresh controller and search, but KEEP the target + re-ID gallery built so far
+        (Michael 2026-11-20: lock-on should already know you before follow mode starts)."""
+        self.ctrl = replay.Controller(); self._yaw_prev, self.turned_deg = None, 0.0
+        if self.lock.target_id is not None and self.lock.lost_since is None:
+            self.last_seen = time.time()
+
+    def observe(self, tracks, det_t, now, W, H, vecs=None):
+        """MANUAL mode: run lock-on (choose the target, build the gallery, re-lock) but send no commands."""
+        if det_t is None or now - det_t > self.stale_s:
+            return ""
+        if det_t == self._fed_det_t:
+            vecs = {}
+        self._fed_det_t = det_t
+        tgt, self.event = self.lock.update(tracks, vecs or {}, det_t, W, H)
+        if tgt is not None:
+            self.last_seen = now
+        return self.event
+
     def wants_embedding(self, tracks, now, W=None, H=None):
         return self.lock.wants_embedding(tracks, now, W, H)
 
@@ -236,7 +256,7 @@ def main():
     person_ids = {k for k, v in det.names.items() if str(v).lower() in replay.PERSON_NAMES}
     logic = FollowLogic(person_ids, args.max_speed, search_s=args.search_s, search_yaw=args.search_yaw, search_deg=args.search_deg, search_both=not args.search_one_way,
                         match_sim=args.match_sim)
-    det.want_fn = lambda tr, t, W, H: logic.wants_embedding(tr, t, W, H) if mode == "FOLLOW" else []
+    det.want_fn = lambda tr, t, W, H: logic.wants_embedding(tr, t, W, H)   # lock-on runs in MANUAL too (11-20)
     calib = geo.load_calib(args.calib or None)
     mapf = geo.MapFrame(calib)
     print('map position:', 'camera_calib.json' if calib else f'ASSUMED FOV {geo.HFOV_DEG}x{geo.VFOV_DEG} deg (run calibrate_camera.py)')
@@ -297,8 +317,12 @@ def main():
             elif ch == " ":
                 mode, held = "MANUAL", None
             elif ch == "m":
-                mode = "FOLLOW" if mode == "MANUAL" else "MANUAL"; held = None; logic.reset()
-                print("mode", mode)
+                mode = "FOLLOW" if mode == "MANUAL" else "MANUAL"; held = None
+                if mode == "FOLLOW":
+                    logic.resume()                     # keeps the target + gallery collected in MANUAL
+                print("mode", mode, f"(target {logic.target_id}, gallery {len(logic.lock.gallery)})")
+            elif ch == "n":
+                logic.reset(); print("NEW LOCK: target + gallery cleared (next = biggest person, or click a box)")
             elif ch == "g":
                 gimbal_pitch = min(GIMBAL_MAX, gimbal_pitch + 5); d["gimbal"](gimbal_pitch)
             elif ch == "b":
@@ -335,7 +359,8 @@ def main():
                 if held and now - last_key_t > HOLD:
                     held = None
                 cmd = dict(roll=0, pitch=0, yaw=0, gaz=0, **{}) if not held else {**dict(roll=0, pitch=0, yaw=0, gaz=0), **held}
-                info = dict(state="MANUAL", dist=None, method="manual")
+                ev = logic.observe(tracks, det_t, now, W, H, vecs)
+                info = dict(state="MANUAL", dist=None, method="manual", event=ev)
             d["pcmd"](**cmd)
 
             # ---- log + record ----
@@ -348,13 +373,14 @@ def main():
                 writer.write(img); chunk_frames += 1
                 tm["rec_ms"] = (pc() - _a) * 1000
                 row = dict(frame=n, t_s=round(t, 3), video_file=name, frame_in_file=chunk_frames - 1, mode=mode,
-                           state=info["state"], target_id=logic.target_id if mode == "FOLLOW" else None,
+                           state=info["state"], target_id=logic.target_id,
                            dist_m=info.get("dist"), method=info.get("method"), roll=cmd["roll"], pitch=round(cmd["pitch"], 1),
                            yaw=round(cmd["yaw"], 1), gaz=cmd["gaz"], gimbal_cmd=round(gimbal_pitch, 1),
                            det_age_ms=None if det_t is None else round((now - det_t) * 1000), det_ms=round(det_ms, 1),
-                           n_tracks=len(tracks), lock_event=info.get("event", "") if mode == "FOLLOW" else "",
+                           n_tracks=len(tracks), lock_event=info.get("event", ""),
                            gallery_n=len(logic.lock.gallery), n_embedded=len(vecs), embed_ms=round(embed_ms, 1),
-                           best_sim=max((c[2] for c in logic.lock.checked.values() if c[2] is not None), default=None),
+                           best_sim=(logic.lock.last_sim if info.get("event") == "reacquired_reid" else
+                                     max((c[2] for c in logic.lock.checked.values() if c[2] is not None), default=None)),
                            **{k: round(v, 1) for k, v in tm.items()}, **tel,
                            **mapf.update(logic.last_box if mode == "FOLLOW" and info["state"] == "FOLLOWING" else None,
                                          W, H, tel))
@@ -370,7 +396,7 @@ def main():
                          method=info.get("method") if mode == "FOLLOW" and info["state"] == "FOLLOWING" else "searching")
                 vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, 1000 / max(det_ms, 1), tel, n, 0, logic.picked_by)
                 col = (0, 255, 0) if mode == "FOLLOW" and info["state"] == "FOLLOWING" else (0, 200, 255) if mode == "FOLLOW" else (200, 200, 200)
-                cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
+                cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, N new lock, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
                 if not video_ok:
                     cv2.putText(vis, "NO VIDEO - L = land, SPACE = hover", (30, H // 2), 0, 1.0, (0, 0, 255), 3)
                 tm["draw_ms"] = (pc() - _a) * 1000

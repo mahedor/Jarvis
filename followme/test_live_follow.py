@@ -166,3 +166,49 @@ def test_video_stall_drops_to_manual():
     assert "NO VIDEO -> MANUAL" in out
     after = [r for r in rows if float(r["t_s"]) > 5.2]
     assert after and all(r["mode"] == "MANUAL" for r in after)     # does NOT silently resume following
+
+
+def test_manual_mode_builds_gallery_and_follow_keeps_it():
+    import numpy as np
+    L = logic(); now = time.time(); a = np.array([1, 0, 0], np.float32)
+    for i in range(4):                                            # MANUAL: lock-on runs, no commands
+        t = now + i
+        L.observe([person(600, tid=1)], t, t, W, H, {1: a})
+    assert L.target_id == 1 and len(L.lock.gallery) == 3          # frame 1 picks you, frames 2-4 add samples
+    L.resume()                                                    # M -> FOLLOW keeps target + gallery
+    assert L.target_id == 1 and len(L.lock.gallery) == 3
+    t = now + 4.2
+    cmd, info = L.step([person(1000, tid=1)], t, t, W, H, TEL)
+    assert info["state"] == "FOLLOWING" and cmd["yaw"] > 0
+
+
+def test_manual_mode_relocks_by_reid():
+    import numpy as np
+    L = logic(); now = time.time(); a, b = np.array([1, 0, 0], np.float32), np.array([0, 1, 0], np.float32)
+    for i in range(3):
+        t = now + i
+        L.observe([person(600, tid=1)], t, t, W, H, {1: a})
+    t = now + 3.2
+    L.observe([person(610, tid=4)], t, t, W, H, {4: b})           # stranger where you were: refused
+    assert L.target_id == 1
+    t = now + 3.6
+    L.observe([person(610, tid=4), person(200, tid=6)], t, t, W, H, {6: a})
+    assert L.target_id == 6 and L.lock.last_sim is not None and L.lock.last_sim > 0.99
+
+
+def car(x, tid=7, w=200, h=100):
+    return (x - w / 2, 400, x + w / 2, 400 + h, tid, 2, 0.9)
+
+
+def test_clicked_vehicle_is_followed_and_relocked_nearby_only():
+    L = logic(); now = time.time()
+    L.pick(7, [car(1000), person(300, tid=1)])                    # you clicked a car (Michael 11-19: keep vehicles)
+    cmd, info = L.step([car(1000), person(300, tid=1)], now, now, W, H, TEL)
+    assert L.target_id == 7 and info["state"] == "FOLLOWING" and cmd["yaw"] > 0
+    assert L.wants_embedding([car(1000)], now) == []              # no OSNet for vehicles
+    t = now + 0.5                                                 # tracker lost it; a new car ID appears nearby
+    L.step([car(1030, tid=9), person(1000, tid=1)], t, t, W, H, TEL)
+    assert L.target_id == 9                                       # nearest vehicle, never the person
+    t = now + 1.0                                                 # lost again; only a far-away car is in view
+    L.step([car(100, tid=11)], t, t, W, H, TEL)
+    assert L.target_id == 9                                       # too far from where it was: stays lost

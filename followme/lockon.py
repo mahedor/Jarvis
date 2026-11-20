@@ -18,6 +18,10 @@ Pieces:
   * No gallery yet (embedder missing, or lost before the first sample): falls back to the old nearest-box rule,
                 and says so (event "relock_nearest_no_reid").
 
+Vehicles (Michael 2026-11-19): a clicked vehicle can be the target too. Re-ID (OSNet) only knows people, so a lost
+vehicle is re-locked onto the nearest vehicle box near where it was last seen (within VEHICLE_GATE of the frame width),
+never onto a person. Auto-lock (M with no target) still picks the biggest person.
+
 MATCH_SIM / MARGIN are PLACEHOLDERS until the re-ID benchmark (MOT17 + VisDrone-MOT crops) measures them.
 Pure logic + a thin embedder wrapper; no drone I/O, so it is unit-tested.
 """
@@ -37,6 +41,7 @@ MATCH_SIM = 0.70            # PROVISIONAL (2026-11-14, OSNet x0_25 on the 10-29 
 MARGIN = 0.05               # best match must beat the runner-up by this much
 CHECKS_PER_TRACK = 3        # embed a candidate track at most this many times while lost
 RECHECK_S = 0.3             # ...no more often than this
+VEHICLE_GATE = 0.25         # lost vehicle: only re-lock a vehicle box whose centre is within this fraction of W (11-19)
 
 
 def iou(a, b):
@@ -119,6 +124,8 @@ class TargetLock:
         self.checked = {}                 # tid -> (n_checks, last_check_t, best_sim) while lost
         self.picked_by = "auto"
         self.last_event = ""
+        self.target_is_person = True      # False when a vehicle was clicked (11-19)
+        self.last_sim = None              # similarity of the most recent re-ID re-lock (logged)
 
     # -- choosing ---------------------------------------------------------
     def pick(self, tid, tracks=None, by="you"):
@@ -130,12 +137,21 @@ class TargetLock:
             t = next((t for t in tracks if t[4] == tid), None)
             if t is not None:
                 self.last_box = tuple(t[:4])
+                self.target_is_person = t[5] in self.person_ids
 
     def _people(self, tracks):
         return [t for t in tracks if t[5] in self.person_ids]
 
+    def _same_kind(self, tracks):
+        """Candidates the target can be: people for a person target, non-person boxes for a vehicle target."""
+        if self.target_is_person:
+            return self._people(tracks)
+        return [t for t in tracks if t[5] not in self.person_ids]
+
     # -- which crops to embed this frame (cheap: usually 0 or 1) -----------
     def wants_embedding(self, tracks, now, W=None, H=None):
+        if not self.target_is_person:
+            return []                                       # OSNet only knows people
         people = self._people(tracks)
         tgt = next((t for t in people if t[4] == self.target_id), None)
         if tgt is not None:
@@ -174,8 +190,11 @@ class TargetLock:
                 return None, self._ev("searching")
             t = max(people, key=lambda t: (t[2] - t[0]) * (t[3] - t[1]))
             self.pick(t[4], by="auto")
-            self.last_box = tuple(t[:4])
+            self.last_box, self.target_is_person = tuple(t[:4]), True
             return t, self._ev("first_lock")
+
+        if not self.target_is_person:
+            return self._update_vehicle(tracks, now, W, H)
 
         tgt = next((t for t in people if t[4] == self.target_id), None)
         if tgt is not None:
@@ -212,7 +231,25 @@ class TargetLock:
             if best >= self.match_sim and best - runner >= self.margin:
                 t = next(p for p in people if p[4] == tid)
                 self.target_id, self.lost_since, self.checked, self.last_box = tid, None, {}, tuple(t[:4])
+                self.last_sim = best
                 return t, self._ev("reacquired_reid")
+        return None, self._ev("lost")
+
+    def _update_vehicle(self, tracks, now, W, H):
+        cands = self._same_kind(tracks)
+        tgt = next((t for t in cands if t[4] == self.target_id), None)
+        if tgt is not None:
+            self.lost_since, self.last_box = None, tuple(tgt[:4])
+            return tgt, self._ev("following")
+        if self.lost_since is None:
+            self.lost_since = now
+        if cands:
+            lx, ly = self._last_center(W, H)
+            d2 = lambda t: ((t[0] + t[2]) / 2 - lx) ** 2 + ((t[1] + t[3]) / 2 - ly) ** 2
+            t = min(cands, key=d2)
+            if W and d2(t) ** 0.5 <= VEHICLE_GATE * W:
+                self.target_id, self.lost_since, self.last_box = t[4], None, tuple(t[:4])
+                return t, self._ev("relock_nearest_vehicle")
         return None, self._ev("lost")
 
     def _last_center(self, W, H):
