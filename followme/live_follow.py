@@ -9,8 +9,9 @@ It starts in MANUAL (same keys as record.py). Follow mode only runs when YOU tur
 takes control back instantly.
   T takeoff   L land   Q quit (lands first)   SPACE hover + MANUAL
   W/S A/D R/F Z/C (or arrows) fly by hand -> always switches to MANUAL
-  M  toggle FOLLOW. Lock-on + re-ID also run in MANUAL (11-20): the target (biggest person, or any box you click,
-     vehicles included) and its re-ID gallery carry over when FOLLOW turns on.   N  new lock (forget target + gallery)
+  CLICK a box to lock onto it (person or vehicle); nothing locks without a click (11-20).
+  M  toggle FOLLOW. Lock-on + re-ID also run in MANUAL: the clicked target and its re-ID gallery carry over when
+     FOLLOW turns on.   N  new lock (forget target + gallery)
   1/2/3 manual speed 20/35/50 %    G/B gimbal up/down 5 deg
 
 Safety rules in FOLLOW (all of them make the drone HOVER, i.e. send zero sticks):
@@ -138,12 +139,13 @@ class FollowLogic:
     (Michael 2026-11-14). Then hover until picked again. Only yaw changes while searching: no roll/pitch/gaz.
     """
     def __init__(self, person_ids, max_speed, lost_s=replay.LOST_S, stale_s=STALE_S, search_s=SEARCH_S,
-                 search_yaw=SEARCH_YAW, match_sim=lockon.MATCH_SIM, search_deg=SEARCH_DEG, search_both=SEARCH_BOTH):
+                 search_yaw=SEARCH_YAW, match_sim=lockon.MATCH_SIM, search_deg=SEARCH_DEG, search_both=SEARCH_BOTH,
+                 auto_lock=False):
         self.ctrl = replay.Controller()
         self.person_ids, self.max_speed, self.lost_s, self.stale_s = person_ids, max_speed, lost_s, stale_s
         self.search_s, self.search_yaw, self.search_deg, self.search_both = search_s, search_yaw, search_deg, search_both
         self._yaw_prev, self.turned_deg = None, 0.0
-        self.lock = lockon.TargetLock(person_ids, match_sim=match_sim)
+        self.lock = lockon.TargetLock(person_ids, match_sim=match_sim, auto_lock=auto_lock)
         self.last_seen = None
         self.event = ""
         self._fed_det_t = None
@@ -190,6 +192,9 @@ class FollowLogic:
             vecs = {}                                  # frame's re-ID vectors once, not every loop iteration
         self._fed_det_t = det_t
         tgt, self.event = self.lock.update(tracks, vecs or {}, det_t, W, H)
+        if tgt is None and self.lock.target_id is None:
+            return hover, dict(state="NO TARGET (click someone)", gimbal_delta=0.0, dist=None, method="no_target",
+                               event=self.event)
         if tgt is None:
             gone = 0.0 if self.last_seen is None else now - self.last_seen
             if self.last_seen is None or gone <= self.lost_s:
@@ -246,6 +251,8 @@ def main():
     ap.add_argument("--headless", action="store_true", help="(testing) no window; --script drives the keys")
     ap.add_argument("--script", default="", help="(testing) 't@1,m@2,w@5,m@6,q@9' = key@seconds")
     ap.add_argument("--seconds", type=float, default=0)
+    ap.add_argument("--auto-lock", action="store_true",
+                    help="lock onto the biggest person without a click (fake-drone tests only; default: click to lock)")
     args = ap.parse_args()
     replay.FOLLOW_DIST_M = args.follow_dist
 
@@ -255,7 +262,7 @@ def main():
     det = Detector(args.model, args.tracker, args.imgsz, args.conf, fake=args.fake_detector, embedder=embedder)
     person_ids = {k for k, v in det.names.items() if str(v).lower() in replay.PERSON_NAMES}
     logic = FollowLogic(person_ids, args.max_speed, search_s=args.search_s, search_yaw=args.search_yaw, search_deg=args.search_deg, search_both=not args.search_one_way,
-                        match_sim=args.match_sim)
+                        match_sim=args.match_sim, auto_lock=args.auto_lock)
     det.want_fn = lambda tr, t, W, H: logic.wants_embedding(tr, t, W, H)   # lock-on runs in MANUAL too (11-20)
     calib = geo.load_calib(args.calib or None)
     mapf = geo.MapFrame(calib)

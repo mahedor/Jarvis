@@ -28,7 +28,7 @@ def build_gallery(lock, tid=1, vec=A, n=3, x=100):
 
 
 def test_first_lock_is_biggest_person_and_gallery_fills():
-    lock = lockon.TargetLock(P)
+    lock = lockon.TargetLock(P, auto_lock=True)                     # auto-lock: fake-drone tests only
     tgt, ev = lock.update([trk(1, w=40), trk(2, x=400, w=80)], {}, 0.0)
     assert ev == "first_lock" and tgt[4] == 2
     build_gallery(lock, tid=2, x=400)
@@ -100,15 +100,21 @@ def test_candidate_checked_limited_times():
     assert lock.wants_embedding(tracks, t) == []                                 # gave up on this stranger
 
 
-def test_falls_back_to_nearest_without_gallery():
-    lock = lockon.TargetLock(P)
+def test_never_guesses_without_gallery():
+    lock = lockon.TargetLock(P)                                    # Michael 11-20: never lock onto anyone new
     lock.pick(1, tracks=[trk(1, x=100)])
     tgt, ev = lock.update([trk(7, x=110), trk(8, x=600)], {}, 0.0)
-    assert ev == "relock_nearest_no_reid" and tgt[4] == 7
+    assert tgt is None and ev == "lost" and lock.target_id == 1
+
+
+def test_nothing_locks_without_a_click():
+    lock = lockon.TargetLock(P)
+    tgt, ev = lock.update([trk(1, x=100), trk(2, x=600)], {}, 0.0)
+    assert tgt is None and ev == "no_target" and lock.target_id is None
 
 
 def test_non_people_ignored():
-    lock = lockon.TargetLock(P)
+    lock = lockon.TargetLock(P, auto_lock=True)
     tgt, ev = lock.update([trk(1, cls=2)], {}, 0.0)
     assert tgt is None and ev == "searching"
 

@@ -19,6 +19,7 @@ def person(x, tid=1, w=80, h=200):
 
 
 def logic(**kw):
+    kw.setdefault("auto_lock", True)        # most tests are about following/search, not how the target was chosen
     return lf.FollowLogic({0}, max_speed=20, **kw)
 
 
@@ -61,7 +62,7 @@ def test_search_can_be_disabled_and_is_fast_regardless_of_follow_cap():
     L.step([person(1000)], now, now, W, H, TEL)
     cmd, info = L.step([], now + 1.5, now + 1.5, W, H, TEL)
     assert info["state"].startswith("LOST") and all(v == 0 for v in cmd.values())
-    L = lf.FollowLogic({0}, max_speed=5, lost_s=1.0, search_yaw=50); now = time.time()
+    L = lf.FollowLogic({0}, max_speed=5, lost_s=1.0, search_yaw=50, auto_lock=True); now = time.time()
     L.step([person(100)], now, now, W, H, TEL)                    # last seen on the LEFT
     cmd, _ = L.step([], now + 1.5, now + 1.5, W, H, TEL)
     assert cmd["yaw"] == -50 and cmd["pitch"] == 0 and cmd["roll"] == 0 and cmd["gaz"] == 0   # spins, never moves
@@ -121,16 +122,16 @@ def test_lost_target_not_replaced_by_stranger_once_gallery_exists():
     assert L.target_id == 6
 
 
-def test_ignores_non_person_and_relocks_near_last_position():
-    L = logic(); now = time.time()
-    car = (100, 100, 300, 200, 7, 2, 0.9)
-    cmd, info = L.step([car], now, now, W, H, TEL)
-    assert L.target_id is None                                      # never follows a car
-    L.step([person(900, tid=1)], now, now, W, H, TEL)
+def test_click_only_lock_and_no_new_lock_when_lost():
+    L = logic(auto_lock=False); now = time.time()                # Michael 11-20: lock only on a click
+    cmd, info = L.step([person(900, tid=1)], now, now, W, H, TEL)
+    assert L.target_id is None and info["state"].startswith("NO TARGET") and all(v == 0 for v in cmd.values())
+    L.pick(1, [person(900, tid=1)])
+    L.step([person(900, tid=1)], now + 0.1, now + 0.1, W, H, TEL)
     assert L.target_id == 1
-    # track ID changes (tracker lost and re-found): picks the person nearest the last position, not the biggest
+    # track ID changes (tracker lost and re-found) and there's no gallery yet: do NOT grab the nearest person
     L.step([person(200, tid=5, w=200, h=400), person(910, tid=9)], now + 0.2, now + 0.2, W, H, TEL)
-    assert L.target_id == 9
+    assert L.target_id == 1
 
 
 def test_click_pick_sticks():
@@ -142,7 +143,7 @@ def test_click_pick_sticks():
 
 def run_fake(script, seconds, extra=()):
     out = HERE / "_test_follow_out"
-    cmd = [sys.executable, str(HERE / "live_follow.py"), "--fake", "--fake-detector", "--headless",
+    cmd = [sys.executable, str(HERE / "live_follow.py"), "--fake", "--fake-detector", "--headless", "--auto-lock",
            "--script", script, "--seconds", str(seconds), "--out", str(out), *extra]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=HERE)
     assert p.returncode == 0, p.stderr[-2000:]
@@ -170,13 +171,14 @@ def test_video_stall_drops_to_manual():
 
 def test_manual_mode_builds_gallery_and_follow_keeps_it():
     import numpy as np
-    L = logic(); now = time.time(); a = np.array([1, 0, 0], np.float32)
+    L = logic(auto_lock=False); now = time.time(); a = np.array([1, 0, 0], np.float32)
+    L.pick(1, [person(600, tid=1)])                               # you click yourself
     for i in range(4):                                            # MANUAL: lock-on runs, no commands
         t = now + i
         L.observe([person(600, tid=1)], t, t, W, H, {1: a})
-    assert L.target_id == 1 and len(L.lock.gallery) == 3          # frame 1 picks you, frames 2-4 add samples
+    assert L.target_id == 1 and len(L.lock.gallery) == 4          # one sample per second
     L.resume()                                                    # M -> FOLLOW keeps target + gallery
-    assert L.target_id == 1 and len(L.lock.gallery) == 3
+    assert L.target_id == 1 and len(L.lock.gallery) == 4
     t = now + 4.2
     cmd, info = L.step([person(1000, tid=1)], t, t, W, H, TEL)
     assert info["state"] == "FOLLOWING" and cmd["yaw"] > 0
@@ -184,7 +186,8 @@ def test_manual_mode_builds_gallery_and_follow_keeps_it():
 
 def test_manual_mode_relocks_by_reid():
     import numpy as np
-    L = logic(); now = time.time(); a, b = np.array([1, 0, 0], np.float32), np.array([0, 1, 0], np.float32)
+    L = logic(auto_lock=False); now = time.time(); a, b = np.array([1, 0, 0], np.float32), np.array([0, 1, 0], np.float32)
+    L.pick(1, [person(600, tid=1)])
     for i in range(3):
         t = now + i
         L.observe([person(600, tid=1)], t, t, W, H, {1: a})
@@ -200,15 +203,12 @@ def car(x, tid=7, w=200, h=100):
     return (x - w / 2, 400, x + w / 2, 400 + h, tid, 2, 0.9)
 
 
-def test_clicked_vehicle_is_followed_and_relocked_nearby_only():
-    L = logic(); now = time.time()
+def test_clicked_vehicle_is_followed_and_not_replaced_when_lost():
+    L = logic(auto_lock=False); now = time.time()
     L.pick(7, [car(1000), person(300, tid=1)])                    # you clicked a car (Michael 11-19: keep vehicles)
     cmd, info = L.step([car(1000), person(300, tid=1)], now, now, W, H, TEL)
     assert L.target_id == 7 and info["state"] == "FOLLOWING" and cmd["yaw"] > 0
     assert L.wants_embedding([car(1000)], now) == []              # no OSNet for vehicles
-    t = now + 0.5                                                 # tracker lost it; a new car ID appears nearby
+    t = now + 0.5                                                 # tracker lost it; another car appears right there
     L.step([car(1030, tid=9), person(1000, tid=1)], t, t, W, H, TEL)
-    assert L.target_id == 9                                       # nearest vehicle, never the person
-    t = now + 1.0                                                 # lost again; only a far-away car is in view
-    L.step([car(100, tid=11)], t, t, W, H, TEL)
-    assert L.target_id == 9                                       # too far from where it was: stays lost
+    assert L.target_id == 7                                       # no vehicle re-ID yet: never guess (Michael 11-20)

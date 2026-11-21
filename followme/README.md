@@ -19,7 +19,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `record.py` | Olympe connection, telemetry (incl. GPS), and the fake drone used by tests |
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 43 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 44 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
@@ -45,22 +45,25 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py      # expect 43 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py      # expect 44 passed
 python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet       # laptop on the drone's Wi-Fi
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person
 ```
 
 Keys (window focused): T take off · L land · SPACE hover + manual · Q quit (lands first) ·
 W/S forward/back · A/D left/right · R/F up/down · Z/C turn · G/B camera up/down · 1/2/3 speed ·
-M follow on/off · N new lock (forget target + re-ID gallery).
+M follow on/off · N new lock (forget target + re-ID gallery) · click a box to lock onto it.
 
-## Lock-on behavior
+## Lock-on behavior (Michael 2026-11-20)
 
-- Lock-on runs in **both** modes. In MANUAL it picks the biggest person (or whatever box you click) and builds
-  that person's re-ID gallery; pressing **M** keeps both. **N** forgets them.
-- **Vehicles can be targets** by clicking them. Re-ID (OSNet) only knows people, so a lost vehicle is re-locked
-  onto the nearest vehicle box close to where it was last seen (`VEHICLE_GATE`, 25% of the frame width), never
-  onto a person. Follow distance is tuned for people.
+- **Nothing locks until you click a box** (person or vehicle). Lock-on runs in both modes, so clicking
+  yourself in MANUAL starts your re-ID gallery right away; pressing **M** keeps the target and gallery.
+  **N** forgets them. With no target, FOLLOW hovers and shows "NO TARGET (click someone)".
+- If the target's track ID is lost, it searches and **only** takes a person back on a confident re-ID
+  match against their own gallery. It never locks onto anyone new: no nearest-box guess, no automatic
+  "biggest person" (`--auto-lock` exists only for the fake-drone test).
+- **Vehicles:** OSNet only knows people, so a lost vehicle is not re-acquired automatically; click it again.
+  A vehicle re-ID model is a planned add-on. Follow distance is tuned for people.
 
 ## Notes
 
