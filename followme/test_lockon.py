@@ -88,7 +88,7 @@ def test_ambiguous_match_waits():
     assert tgt is None and ev == "lost"
 
 
-def test_candidate_checked_limited_times():
+def test_refused_candidate_rechecked_slowly_not_never():
     lock = lockon.TargetLock(P)
     lock.pick(1)
     t = build_gallery(lock)
@@ -97,7 +97,38 @@ def test_candidate_checked_limited_times():
         assert lock.wants_embedding(tracks, t) == [7]
         lock.update(tracks, {7: B}, t)
         t += lockon.RECHECK_S + 0.01
-    assert lock.wants_embedding(tracks, t) == []                                 # gave up on this stranger
+    assert lock.wants_embedding(tracks, t) == []                                 # quick checks used up
+    t += lockon.RETRY_S
+    assert lock.wants_embedding(tracks, t) == [7]                                # Michael 11-21: look again later
+
+
+def test_target_refused_at_first_is_taken_back_on_a_later_look():
+    # 10-29 replay: at a high cutoff he was refused 3x on one track ID and then never looked at again
+    lock = lockon.TargetLock(P)
+    lock.pick(1)
+    t = build_gallery(lock)
+    tracks = [trk(9, x=500)]
+    for _ in range(lockon.CHECKS_PER_TRACK):                                     # blurry first looks: no match
+        lock.update(tracks, {i: B for i in lock.wants_embedding(tracks, t)}, t)
+        t += lockon.RECHECK_S + 0.01
+    t += lockon.RETRY_S
+    want = lock.wants_embedding(tracks, t)
+    tgt, ev = lock.update(tracks, {i: A2 for i in want}, t)                      # clear view now
+    assert ev == "reacquired_reid" and tgt[4] == 9
+
+
+def test_search_ignores_fragment_boxes():
+    # 10-29 replay: the only non-target boxes scoring >= 0.70 were fragments (low confidence, on the edge, or
+    # inside another person's box). Search candidates now pass the same clean-sample rule as the gallery.
+    lock = lockon.TargetLock(P)
+    lock.pick(1)
+    t = build_gallery(lock)
+    W, H = 1280, 720
+    assert lock.wants_embedding([trk(7, x=300, conf=0.36)], t, W, H) == []       # low confidence
+    assert lock.wants_embedding([trk(7, x=0)], t, W, H) == []                    # cut off by the frame edge
+    assert lock.wants_embedding([trk(7, x=300, h=20)], t, W, H) == []            # tiny
+    assert lock.wants_embedding([trk(7, x=300), trk(8, x=320, w=20, h=60)], t, W, H) == []  # box inside a box
+    assert lock.wants_embedding([trk(7, x=300)], t, W, H) == [7]
 
 
 def test_never_guesses_without_gallery():

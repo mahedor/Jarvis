@@ -14,9 +14,9 @@ Pieces:
                 is confident, big enough, and not overlapping anyone else (so a stranger never leaks in).
   * Re-acquire: candidate = any person track that isn't a recently rejected one. Score = max cosine similarity to
                 the gallery (multi-reference, like the face pipeline). Accept if >= MATCH_SIM and it beats the
-                runner-up by MARGIN. Each candidate is checked a few times (CHECKS_PER_TRACK) then left alone.
-  * No gallery yet (embedder missing, or lost before the first sample): falls back to the old nearest-box rule,
-                and says so (event "relock_nearest_no_reid").
+                runner-up by MARGIN. Each candidate gets a few quick checks (CHECKS_PER_TRACK), then is looked at
+                again every RETRY_S. Only clean boxes are candidates (same rule as gallery samples).
+  * No gallery yet (embedder missing, or lost before the first sample): stays lost; it never guesses.
 
 Lock rule (Michael 2026-11-20): lock on ONLY when you click someone, and stay on that track ID. If the ID is lost,
 try to find THEM again (re-ID match against their gallery), but never lock onto anyone new: no nearest-box fallback
@@ -38,11 +38,18 @@ MIN_BOX_H_ADD = 40          # px; tiny crops make junk vectors
 ISOLATION_IOU = 0.0         # target must overlap no other person box to be added to the gallery
 EDGE_MARGIN = 4             # px; a box touching the frame edge is a partial body (2026-11-14: first gallery sample
                             # on the real flight was a blurry close-up face at takeoff) -> never a gallery sample
-MATCH_SIM = 0.70            # PROVISIONAL (2026-11-14, OSNet x0_25 on the 10-29 18:20 flight: strangers <= 0.685,
-                            # the target 0.75-0.91 on re-locks). Replace with the re-ID benchmark number.
+MATCH_SIM = 0.70            # Michael 11-21: keep 0.70 (set 11-14 from the 10-29 18:20 flight). Re-ID benchmark: 1% of
+                            # strangers pass at 0.789. 10-29 replay with the search fixes below: every re-lock was him
+                            # (0.70-0.91), highest clean stranger 0.621.
 MARGIN = 0.05               # best match must beat the runner-up by this much
-CHECKS_PER_TRACK = 3        # embed a candidate track at most this many times while lost
+CHECKS_PER_TRACK = 3        # quick checks of a candidate track when it first appears while lost
 RECHECK_S = 0.3             # ...no more often than this
+RETRY_S = 2.0               # after the quick checks, look at a refused track again every RETRY_S (Michael 11-21:
+                            # the 10-29 replay at a 0.79 cutoff refused him 3x at 0.779 and then never looked again
+                            # for the ~60 s the tracker kept that ID)
+# Search candidates must pass the same clean-sample rule as the gallery (Michael 11-21): confident, not tiny, not
+# cut off by the frame edge, not overlapping another person. On the 10-29 replay the only non-target boxes scoring
+# >= 0.70 were fragments (conf 0.26-0.54, a sliver on the top edge, part-body boxes inside another person's box).
 
 
 def iou(a, b):
@@ -164,8 +171,10 @@ class TargetLock:
             return []
         want = []
         for t in people:
+            if not self._clean_sample(t, people, W, H):
+                continue                                    # fragment / partial / crowded box: never a candidate
             n, last_t, _ = self.checked.get(t[4], (0, -1e9, None))
-            if n < CHECKS_PER_TRACK and now - last_t >= RECHECK_S:
+            if (n < CHECKS_PER_TRACK and now - last_t >= RECHECK_S) or now - last_t >= RETRY_S:
                 want.append(t[4])
         return want
 

@@ -19,7 +19,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `record.py` | Olympe connection, telemetry (incl. GPS), and the fake drone used by tests |
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 44 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 46 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
@@ -45,7 +45,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py      # expect 44 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py      # expect 46 passed
 python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet       # laptop on the drone's Wi-Fi
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person
 ```
@@ -62,6 +62,9 @@ M follow on/off · N new lock (forget target + re-ID gallery) · click a box to 
 - If the target's track ID is lost, it searches and **only** takes a person back on a confident re-ID
   match against their own gallery. It never locks onto anyone new: no nearest-box guess, no automatic
   "biggest person" (`--auto-lock` exists only for the fake-drone test).
+- **Search (Michael 2026-11-21):** only clean boxes are compared (confident, not tiny, not cut off by the
+  frame edge, not overlapping another person — the same rule as gallery samples), and a refused track is
+  looked at again every 2 s instead of being dropped after 3 quick checks. Cutoff stays 0.70.
 - **Vehicles:** OSNet only knows people, so a lost vehicle is not re-acquired automatically; click it again.
   A vehicle re-ID model is a planned add-on. Follow distance is tuned for people.
 
