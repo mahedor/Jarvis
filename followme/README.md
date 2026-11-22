@@ -18,9 +18,10 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `replay.py` | Shared pieces: follow controller, target drawing, class names |
 | `record.py` | Olympe connection, telemetry (incl. GPS), and the fake drone used by tests |
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
+| `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 56 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 59 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
@@ -46,7 +47,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py   # expect 56 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 59 passed
 python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet       # laptop on the drone's Wi-Fi
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person
 ```

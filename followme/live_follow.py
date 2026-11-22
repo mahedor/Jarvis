@@ -263,6 +263,7 @@ def main():
     ap.add_argument("--listen", default="", help="name of the drone whose clicked spots this one follows (worker)")
     ap.add_argument("--share-file", default="", help="JSON file used to share clicked spots (both programs on ONE laptop)")
     ap.add_argument("--mqtt", default="", help="MQTT broker host used to share clicked spots (TWO laptops)")
+    ap.add_argument("--no-profile", action="store_true", help="don't push drone_profile.json to the drone on connect")
     args = ap.parse_args()
     replay.FOLLOW_DIST_M = args.follow_dist
     link = (lookhere.TargetLink(args.share_file or None, args.mqtt or None, drone=args.name,
@@ -271,6 +272,11 @@ def main():
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
 
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
+    if not args.no_profile and "apply_profile" in d:
+        try:
+            print("settings:", d["apply_profile"]())          # same max tilt / rotation / climb on both drones (11-22)
+        except Exception as e:
+            print("settings: could not apply drone_profile.json:", e)
     embedder, reid_note = lockon.make_embedder(args.reid)
     print(reid_note)
     det = Detector(args.model, args.tracker, args.imgsz, args.conf, fake=args.fake_detector, embedder=embedder)

@@ -145,8 +145,21 @@ def connect_real(ip):
     def close():
         drone.streaming.stop(); drone.disconnect()
 
+    def apply_profile():
+        """Push followme/drone_profile.json (shared max tilt / rotation / vertical speed ...) to this drone."""
+        import drone_settings
+        prof = drone_settings.load_profile()
+        if prof is None:
+            return "no drone_profile.json yet (run drone_settings.py --save on drone A)"
+        d = drone_settings.diff(prof, drone_settings.read(drone))
+        if not d:
+            return "drone settings match drone_profile.json"
+        res = drone_settings.apply(drone, prof)
+        bad = {k: v for k, v in res.items() if v != "ok"}
+        return f"applied drone_profile.json ({len(d)} changed)" + (f"; FAILED: {bad}" if bad else "")
+
     return dict(next_frame=next_frame, telemetry=telemetry, pcmd=pcmd, gimbal=gimbal, takeoff=takeoff,
-                land=land, close=close)
+                land=land, close=close, apply_profile=apply_profile)
 
 
 def connect_fake(stall=(0, 0)):
