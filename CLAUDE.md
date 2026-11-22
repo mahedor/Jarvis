@@ -197,14 +197,15 @@ with an injected clock.
 ## Follow-me drone (`followme/`)
 
 The live follow-me loop for a Parrot ANAFI 4K: YOLOv8n detector → BoT-SORT (+ camera-motion
-compensation) → lock-on with OSNet re-ID (`lockon.py`) → Olympe commands. Runs in WSL from its own
+compensation) → lock-on with OSNet re-ID (`lockon.py`) → Olympe commands. `lookhere.py` adds the two-drone "look here / go there"
+(share a clicked ground spot over a file or MQTT; built 2026-11-22, not yet flown). Runs in WSL from its own
 uv venv (`~/jarvis-follow`), not the repo `.venv`; see `followme/README.md`. **Nothing in `demo/`
 imports it.** Flown once (2026-11-15): follow, re-ID re-locks and the two-way spin search ran on the
 real drone; map position (`geo.py`) logged numbers but is unchecked against ground truth.
 
 `followme/weights/` (detector + OSNet `.pt`) is gitignored. Flight logs (per-run video + `follow.csv`,
-300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 46 tests are run from inside the folder
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py`) and are **not** part of the
+300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 56 tests are run from inside the folder
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
 ## Engineering log

@@ -13,6 +13,11 @@ takes control back instantly.
   M  toggle FOLLOW. Lock-on + re-ID also run in MANUAL: the clicked target and its re-ID gallery carry over when
      FOLLOW turns on.   N  new lock (forget target + gallery)
   1/2/3 manual speed 20/35/50 %    G/B gimbal up/down 5 deg
+  Two drones (lookhere.py, 11-22; needs --share-file or --mqtt):
+  P  (overseer) point mode: the next click shares that ground spot instead of locking a box
+  V  (worker) LOOK at the shared spot: hover in place, turn + tilt the camera only
+  X  (worker) GO to the shared spot: turn to face it, fly slowly, stop lookhere.STOP_M short, keep height
+     Any movement key, SPACE or L takes back control (MANUAL).
 
 Safety rules in FOLLOW (all of them make the drone HOVER, i.e. send zero sticks):
   - target lost for more than LOST_S seconds           - detections older than STALE_S (detector stalled)
@@ -35,6 +40,7 @@ import record                       # connect_real / connect_fake (Olympe I/O, t
 import replay                       # Controller, pick_target, draw (the same logic the replays use)
 import geo                          # one-drone map position: target box -> metres N/E of takeoff (2026-11-08)
 import lockon                       # lock-on: gallery of re-ID vectors, verified re-acquisition (2026-11-10)
+import lookhere                     # two drones: share a clicked ground spot, look at it / go there (2026-11-22)
 
 HOLD = 0.3
 STALE_S = 0.6
@@ -253,8 +259,16 @@ def main():
     ap.add_argument("--seconds", type=float, default=0)
     ap.add_argument("--auto-lock", action="store_true",
                     help="lock onto the biggest person without a click (fake-drone tests only; default: click to lock)")
+    ap.add_argument("--name", default="droneA", help="this drone's name in shared messages (droneA / droneB)")
+    ap.add_argument("--listen", default="", help="name of the drone whose clicked spots this one follows (worker)")
+    ap.add_argument("--share-file", default="", help="JSON file used to share clicked spots (both programs on ONE laptop)")
+    ap.add_argument("--mqtt", default="", help="MQTT broker host used to share clicked spots (TWO laptops)")
     args = ap.parse_args()
     replay.FOLLOW_DIST_M = args.follow_dist
+    link = (lookhere.TargetLink(args.share_file or None, args.mqtt or None, drone=args.name,
+                                listen_to=args.listen or ("droneA" if args.name != "droneA" else "droneB"))
+            if (args.share_file or args.mqtt) else None)
+    lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
 
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
     embedder, reid_note = lockon.make_embedder(args.reid)
@@ -320,9 +334,18 @@ def main():
             if ch == "t":
                 d["takeoff"](); flying = True
             elif ch == "l":
-                mode = "MANUAL"; d["pcmd"](); d["land"](); flying = False
+                mode = "MANUAL"; lookgo.stop(); d["pcmd"](); d["land"](); flying = False
             elif ch == " ":
-                mode, held = "MANUAL", None
+                mode, held = "MANUAL", None; lookgo.stop()
+            elif ch == "p":
+                point_mode = not point_mode and link is not None
+                print("POINT mode: click a spot to share it" if point_mode else
+                      ("point mode off" if link else "no --share-file / --mqtt: nothing to share with"))
+            elif ch in ("v", "x"):
+                if lookgo.start("look" if ch == "v" else "go"):
+                    mode, held = "LOOKGO", None; print("LOOK at shared spot" if ch == "v" else "GO to shared spot")
+                else:
+                    print("no shared spot yet (press P on the overseer and click the ground)")
             elif ch == "m":
                 mode = "FOLLOW" if mode == "MANUAL" else "MANUAL"; held = None
                 if mode == "FOLLOW":
@@ -339,20 +362,33 @@ def main():
             else:
                 mv = MOVES.get(ch) or (ARROW_MOVES.get(ARROWS.get(k)) if k in ARROWS else None)
                 if mv:
-                    if mode == "FOLLOW":
+                    if mode in ("FOLLOW", "LOOKGO"):
                         print("manual key -> MANUAL")
-                    mode = "MANUAL"; held = {a: v * speed for a, v in mv.items()}; last_key_t = now
+                    mode = "MANUAL"; lookgo.stop(); held = {a: v * speed for a, v in mv.items()}; last_key_t = now
             if click["pt"] is not None:
-                hit = replay.box_at(tracks, *click["pt"]); click["pt"] = None
-                if hit is not None:
-                    logic.pick(hit[4], tracks)
+                if point_mode:
+                    g = lookhere.click_to_gps(*click["pt"], W, H, tel, calib)
+                    if g is None:
+                        print("can't place that spot (no GPS fix / heading, or clicked above the horizon)")
+                    else:
+                        link.publish(*g); shared_px = click["pt"]; point_mode = False
+                        print(f"shared spot {g[0]:.6f}, {g[1]:.6f}")
+                else:
+                    hit = replay.box_at(tracks, *click["pt"])
+                    if hit is not None:
+                        logic.pick(hit[4], tracks)
+                click["pt"] = None
+            if link is not None:
+                got = link.poll()
+                if got is not None:
+                    lookgo.set_target(*got, now); print(f"received spot {got[0]:.6f}, {got[1]:.6f}: V = look, X = go")
 
             # ---- safety drops out of FOLLOW ----
             bat = tel.get("battery_pct")
-            if mode == "FOLLOW" and not video_ok:
-                mode = "MANUAL"; print("NO VIDEO -> MANUAL (hover)")
-            if mode == "FOLLOW" and bat is not None and bat < args.min_battery:
-                mode = "MANUAL"; print(f"battery {bat}% -> MANUAL (hover)")
+            if mode in ("FOLLOW", "LOOKGO") and not video_ok:
+                mode = "MANUAL"; lookgo.stop(); print("NO VIDEO -> MANUAL (hover)")
+            if mode in ("FOLLOW", "LOOKGO") and bat is not None and bat < args.min_battery:
+                mode = "MANUAL"; lookgo.stop(); print(f"battery {bat}% -> MANUAL (hover)")
 
             # ---- command ----
             if mode == "FOLLOW":
@@ -362,6 +398,14 @@ def main():
                     base = gp if gp is not None else gimbal_pitch
                     gimbal_pitch = float(np.clip(base + info["gimbal_delta"], GIMBAL_MIN, GIMBAL_MAX))
                     d["gimbal"](gimbal_pitch); last_gimbal_t = now
+            elif mode == "LOOKGO":
+                cmd, gp, lg = lookgo.step(tel, now)
+                if gp is not None and abs(gp - gimbal_pitch) > 1.0 and now - last_gimbal_t > GIMBAL_PERIOD_S:
+                    gimbal_pitch = float(np.clip(gp, GIMBAL_MIN, GIMBAL_MAX)); d["gimbal"](gimbal_pitch); last_gimbal_t = now
+                ev = logic.observe(tracks, det_t, now, W, H, vecs)
+                info = dict(state=lg["state"], dist=lg.get("dist"), method="lookgo", event=lg.get("event") or ev, lg=lg)
+                if lookgo.mode is None:
+                    mode = "MANUAL"
             else:
                 if held and now - last_key_t > HOLD:
                     held = None
@@ -386,6 +430,10 @@ def main():
                            det_age_ms=None if det_t is None else round((now - det_t) * 1000), det_ms=round(det_ms, 1),
                            n_tracks=len(tracks), lock_event=info.get("event", ""),
                            gallery_n=len(logic.lock.gallery), n_embedded=len(vecs), embed_ms=round(embed_ms, 1),
+                           lg_state=info.get("lg", {}).get("state", ""), lg_bearing=info.get("lg", {}).get("bearing"),
+                           lg_yaw_err=info.get("lg", {}).get("yaw_err"),
+                           shared_lat=lookgo.target[0] if lookgo.target else None,
+                           shared_lon=lookgo.target[1] if lookgo.target else None,
                            best_sim=(logic.lock.last_sim if info.get("event") == "reacquired_reid" else
                                      max((c[2] for c in logic.lock.checked.values() if c[2] is not None), default=None)),
                            **{k: round(v, 1) for k, v in tm.items()}, **tel,
@@ -404,6 +452,12 @@ def main():
                 vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, 1000 / max(det_ms, 1), tel, n, 0, logic.picked_by)
                 col = (0, 255, 0) if mode == "FOLLOW" and info["state"] == "FOLLOWING" else (0, 200, 255) if mode == "FOLLOW" else (200, 200, 200)
                 cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, N new lock, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
+                if point_mode:
+                    cv2.putText(vis, "POINT MODE: click the ground spot to share (P to cancel)", (10, 80), 0, 0.9, (255, 0, 255), 2)
+                if shared_px is not None:
+                    cv2.drawMarker(vis, shared_px, (255, 0, 255), cv2.MARKER_CROSS, 40, 3)
+                if lookgo.target and link is not None:
+                    cv2.putText(vis, f"shared spot ready: V look, X go  {info.get('lg', {}).get('dist', '')}", (10, 115), 0, 0.7, (255, 0, 255), 2)
                 if not video_ok:
                     cv2.putText(vis, "NO VIDEO - L = land, SPACE = hover", (30, H // 2), 0, 1.0, (0, 0, 255), 3)
                 tm["draw_ms"] = (pc() - _a) * 1000

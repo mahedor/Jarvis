@@ -18,8 +18,9 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `replay.py` | Shared pieces: follow controller, target drawing, class names |
 | `record.py` | Olympe connection, telemetry (incl. GPS), and the fake drone used by tests |
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
+| `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 46 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 56 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
@@ -45,14 +46,15 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py      # expect 46 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py   # expect 56 passed
 python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet       # laptop on the drone's Wi-Fi
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person
 ```
 
 Keys (window focused): T take off · L land · SPACE hover + manual · Q quit (lands first) ·
 W/S forward/back · A/D left/right · R/F up/down · Z/C turn · G/B camera up/down · 1/2/3 speed ·
-M follow on/off · N new lock (forget target + re-ID gallery) · click a box to lock onto it.
+M follow on/off · N new lock (forget target + re-ID gallery) · click a box to lock onto it ·
+P point mode (overseer: next click shares a ground spot) · V look at the shared spot · X go to it.
 
 ## Lock-on behavior (Michael 2026-11-20)
 
@@ -67,6 +69,22 @@ M follow on/off · N new lock (forget target + re-ID gallery) · click a box to 
   looked at again every 2 s instead of being dropped after 3 quick checks. Cutoff stays 0.70.
 - **Vehicles:** OSNet only knows people, so a lost vehicle is not re-acquired automatically; click it again.
   A vehicle re-ID model is a planned add-on. Follow distance is tuned for people.
+
+## Two drones: look here / go there (Michael 2026-11-22, not yet flown)
+
+Overseer (high drone) and worker (lower drone) each run `live_follow.py`, sharing clicked spots:
+
+```bash
+# one laptop (two programs):  --share-file /tmp/jarvis_spot.json on both
+python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --name droneA --share-file /tmp/jarvis_spot.json
+python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --name droneB --listen droneA --share-file /tmp/jarvis_spot.json --ip 192.168.53.1
+# two laptops: --mqtt <broker host> instead of --share-file (topic jarvis/sensor/<name>/target)
+```
+
+On the overseer press **P** and click the ground spot. On the worker press **V** (hover, turn + tilt the camera to look
+at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 6 m short; refuses spots more than
+40 m away). Any movement key, SPACE or L takes control back. Needs a GPS fix and a true compass heading on both drones
+(heading unverified on the ANAFI 4K); the ground is assumed flat.
 
 ## Notes
 
