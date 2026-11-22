@@ -283,7 +283,8 @@ def main():
     print('map position:', 'camera_calib.json' if calib else f'ASSUMED FOV {geo.HFOV_DEG}x{geo.VFOV_DEG} deg (run calibrate_camera.py)')
     det.start()
 
-    out = Path(args.out) / datetime.now().strftime("%Y%m%d_%H%M%S"); out.mkdir(parents=True, exist_ok=True)
+    out = Path(args.out) / (datetime.now().strftime("%Y%m%d_%H%M%S") + (f"_{args.name}" if link else ""))   # two programs never share a folder
+    out.mkdir(parents=True, exist_ok=True)
     log_f = open(out / "follow.csv", "w", newline=""); log_w = None
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
