@@ -271,7 +271,9 @@ def main():
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
     ident = d["identity"]() if "identity" in d else {}
     print(f"drone: {ident.get('drone_nickname')} ({ident.get('drone_product_name')}, firmware {ident.get('drone_firmware')})")
-    args.name = args.name or (ident.get("drone_nickname") if ident.get("drone_nickname") not in (None, "unknown", "fake") else "droneA")
+    nick = ident.get("drone_nickname")
+    args.name = args.name or (nick if nick not in (None, "unknown", "fake") else
+                              "droneA" if args.fake else f"unknown_{args.ip.replace('.', '_')}")   # never guess a drone (11-22)
     link = (lookhere.TargetLink(args.share_file or None, args.mqtt or None, drone=args.name,
                                 listen_to=args.listen or ("droneA" if args.name != "droneA" else "droneB"))
             if (args.share_file or args.mqtt) else None)

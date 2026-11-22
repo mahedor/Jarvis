@@ -181,6 +181,10 @@ def connect_real(ip):
         except ImportError:
             ProductSerialHighChanged = ProductSerialLowChanged = None
         n, v = get(ProductNameChanged), get(ProductVersionChanged)
+        for _ in range(25):                          # right after connect the drone may not have sent these yet
+            if n and v:
+                break
+            time.sleep(0.2); n, v = n or get(ProductNameChanged), v or get(ProductVersionChanged)
         hi = get(ProductSerialHighChanged) if ProductSerialHighChanged else None
         lo = get(ProductSerialLowChanged) if ProductSerialLowChanged else None
         name = n["name"] if n else None
