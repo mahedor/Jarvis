@@ -78,6 +78,17 @@ def connect_real(ip):
     drone = olympe.Drone(ip)
     if not drone.connect():
         raise SystemExit("Could not connect (drone Wi-Fi? Skycontroller off?)")
+    via_controller = ip.startswith("192.168.53.")
+    if via_controller:
+        # Through a SkyController the drone obeys the controller's own sticks by default and ignores our stick
+        # commands (PCMD): takeoff/land/gimbal work, W/A/S/D/R/F/Z/C and FOLLOW do nothing (Michael 11-22, drone B).
+        # Hand piloting to this program; give it back to the sticks on close.
+        try:
+            from olympe.messages.skyctrl.CoPiloting import setPilotingSource
+            ok = drone(setPilotingSource(source="Controller")).wait(_timeout=5).success()
+            print("piloting source -> this laptop" + ("" if ok else " (NOT acknowledged: keys may not move the drone)"))
+        except Exception as e:
+            print("could not take piloting from the SkyController sticks:", e)
     frames = queue.Queue(maxsize=4)
     CONVERT = {olympe.VDEF_I420: cv2.COLOR_YUV2BGR_I420, olympe.VDEF_NV12: cv2.COLOR_YUV2BGR_NV12}
 
@@ -154,6 +165,12 @@ def connect_real(ip):
         drone(Landing()).wait(_timeout=30)
 
     def close():
+        if via_controller:
+            try:
+                from olympe.messages.skyctrl.CoPiloting import setPilotingSource
+                drone(setPilotingSource(source="SkyController")).wait(_timeout=3)
+            except Exception:
+                pass
         drone.streaming.stop(); drone.disconnect()
 
     def identity():
