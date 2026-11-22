@@ -45,6 +45,17 @@ class FakeDrone:
                     gps_lat=37.0, gps_lon=-122.0, gps_alt_m=10.0, gps_lat_acc_m=2.0, gps_lon_acc_m=2.0)
 
 
+# Michael's two ANAFI 4Ks (11-22). Matched on the end of the Wi-Fi/product name (= end of the serial).
+DRONES = {"G134762": "droneA", "J102372": "droneB"}
+
+
+def nickname(product_name):
+    for tail, nick in DRONES.items():
+        if product_name and product_name.endswith(tail):
+            return nick
+    return product_name or "unknown"
+
+
 def connect_real(ip):
     import olympe
     olympe.log.update_config({"loggers": {"olympe": {"level": "WARNING"}}})   # hide the INFO flood
@@ -145,6 +156,21 @@ def connect_real(ip):
     def close():
         drone.streaming.stop(); drone.disconnect()
 
+    def identity():
+        """Which physical drone this is: Wi-Fi/product name, serial, firmware, and our nickname (droneA/droneB)."""
+        from olympe.messages.common.SettingsState import ProductNameChanged, ProductVersionChanged
+        try:
+            from olympe.messages.common.SettingsState import ProductSerialHighChanged, ProductSerialLowChanged
+        except ImportError:
+            ProductSerialHighChanged = ProductSerialLowChanged = None
+        n, v = get(ProductNameChanged), get(ProductVersionChanged)
+        hi = get(ProductSerialHighChanged) if ProductSerialHighChanged else None
+        lo = get(ProductSerialLowChanged) if ProductSerialLowChanged else None
+        name = n["name"] if n else None
+        return dict(drone_product_name=name, drone_nickname=nickname(name),
+                    drone_serial=((hi or {}).get("high", "") + (lo or {}).get("low", "")) or None,
+                    drone_firmware=v.get("software") if v else None)
+
     def apply_profile():
         """Push followme/drone_profile.json (shared max tilt / rotation / vertical speed ...) to this drone."""
         import drone_settings
@@ -159,7 +185,7 @@ def connect_real(ip):
         return f"applied drone_profile.json ({len(d)} changed)" + (f"; FAILED: {bad}" if bad else "")
 
     return dict(next_frame=next_frame, telemetry=telemetry, pcmd=pcmd, gimbal=gimbal, takeoff=takeoff,
-                land=land, close=close, apply_profile=apply_profile)
+                land=land, close=close, apply_profile=apply_profile, identity=identity)
 
 
 def connect_fake(stall=(0, 0)):
@@ -171,7 +197,9 @@ def connect_fake(stall=(0, 0)):
         time.sleep(1 / 30); return fd.frame()
     def gimbal(p): fd.pitch = p
     noop = lambda *a, **k: None
-    return dict(next_frame=next_frame, telemetry=fd.telemetry, pcmd=noop, gimbal=gimbal, takeoff=noop, land=noop, close=noop)
+    ident = lambda: dict(drone_product_name="FAKE", drone_nickname="fake", drone_serial=None, drone_firmware=None)
+    return dict(next_frame=next_frame, telemetry=fd.telemetry, pcmd=noop, gimbal=gimbal, takeoff=noop, land=noop,
+                close=noop, identity=ident)
 
 
 def main():

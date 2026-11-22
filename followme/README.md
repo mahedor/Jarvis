@@ -21,13 +21,13 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 59 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 60 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
 - `weights/` — put `vd_mav_cl_s42.pt` (detector) and `osnet_x0_25_msmt17.pt` (re-ID) here.
   `lockon.py` looks in `weights/` first.
-- Flight logs are **not** kept here: every run writes `~/follow_logs/<YYYYMMDD_HHMMSS>/` (video chunks +
+- Flight logs are **not** kept here: every run writes `~/follow_logs/<YYYYMMDD_HHMMSS>_<droneA|droneB>/` (with `drone.json`: name, serial, firmware; and a `drone` column in follow.csv) (video chunks +
   `follow.csv`, 300+ MB per flight) in the WSL home, outside the repo and OneDrive. `--out` changes it.
 
 ## Setup (WSL, uv-managed venv `~/jarvis-follow`)
@@ -47,7 +47,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 59 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 60 passed
 python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet       # laptop on the drone's Wi-Fi
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person
 ```

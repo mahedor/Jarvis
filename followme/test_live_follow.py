@@ -212,3 +212,16 @@ def test_clicked_vehicle_is_followed_and_not_replaced_when_lost():
     t = now + 0.5                                                 # tracker lost it; another car appears right there
     L.step([car(1030, tid=9), person(1000, tid=1)], t, t, W, H, TEL)
     assert L.target_id == 7                                       # no vehicle re-ID yet: never guess (Michael 11-20)
+
+
+def test_every_run_records_which_drone():
+    import json
+    import record
+    assert record.nickname("ANAFI-G134762") == "droneA" and record.nickname("ANAFI-J102372") == "droneB"
+    assert record.nickname("ANAFI-X999") == "ANAFI-X999" and record.nickname(None) == "unknown"
+    out, rows = run_fake("q@1.5", 3)
+    run = sorted((HERE / "_test_follow_out").iterdir())[-1]
+    assert run.name.endswith("_droneA")                                # fake drone -> default name
+    info = json.loads((run / "drone.json").read_text())
+    assert info["drone_nickname"] == "fake" and info["name"] == "droneA"
+    assert rows and all(r["drone"] == "droneA" for r in rows)

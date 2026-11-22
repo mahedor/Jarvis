@@ -259,19 +259,22 @@ def main():
     ap.add_argument("--seconds", type=float, default=0)
     ap.add_argument("--auto-lock", action="store_true",
                     help="lock onto the biggest person without a click (fake-drone tests only; default: click to lock)")
-    ap.add_argument("--name", default="droneA", help="this drone's name in shared messages (droneA / droneB)")
+    ap.add_argument("--name", default="", help="this drone's name in shared messages (default: its nickname, droneA / droneB)")
     ap.add_argument("--listen", default="", help="name of the drone whose clicked spots this one follows (worker)")
     ap.add_argument("--share-file", default="", help="JSON file used to share clicked spots (both programs on ONE laptop)")
     ap.add_argument("--mqtt", default="", help="MQTT broker host used to share clicked spots (TWO laptops)")
     ap.add_argument("--no-profile", action="store_true", help="don't push drone_profile.json to the drone on connect")
     args = ap.parse_args()
     replay.FOLLOW_DIST_M = args.follow_dist
-    link = (lookhere.TargetLink(args.share_file or None, args.mqtt or None, drone=args.name,
-                                listen_to=args.listen or ("droneA" if args.name != "droneA" else "droneB"))
-            if (args.share_file or args.mqtt) else None)
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
 
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
+    ident = d["identity"]() if "identity" in d else {}
+    print(f"drone: {ident.get('drone_nickname')} ({ident.get('drone_product_name')}, firmware {ident.get('drone_firmware')})")
+    args.name = args.name or (ident.get("drone_nickname") if ident.get("drone_nickname") not in (None, "unknown", "fake") else "droneA")
+    link = (lookhere.TargetLink(args.share_file or None, args.mqtt or None, drone=args.name,
+                                listen_to=args.listen or ("droneA" if args.name != "droneA" else "droneB"))
+            if (args.share_file or args.mqtt) else None)
     if not args.no_profile and "apply_profile" in d:
         try:
             print("settings:", d["apply_profile"]())          # same max tilt / rotation / climb on both drones (11-22)
@@ -289,9 +292,10 @@ def main():
     print('map position:', 'camera_calib.json' if calib else f'ASSUMED FOV {geo.HFOV_DEG}x{geo.VFOV_DEG} deg (run calibrate_camera.py)')
     det.start()
 
-    out = Path(args.out) / (datetime.now().strftime("%Y%m%d_%H%M%S") + (f"_{args.name}" if link else ""))   # two programs never share a folder
+    out = Path(args.out) / f'{datetime.now().strftime("%Y%m%d_%H%M%S")}_{args.name}'   # which drone, and two programs never share a folder
     out.mkdir(parents=True, exist_ok=True)
     log_f = open(out / "follow.csv", "w", newline=""); log_w = None
+    (out / "drone.json").write_text(__import__("json").dumps(dict(ident, name=args.name, ip=args.ip), indent=1))
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
     mode, speed, gimbal_pitch, flying = "MANUAL", 20, 0.0, False
@@ -443,7 +447,7 @@ def main():
                            shared_lon=lookgo.target[1] if lookgo.target else None,
                            best_sim=(logic.lock.last_sim if info.get("event") == "reacquired_reid" else
                                      max((c[2] for c in logic.lock.checked.values() if c[2] is not None), default=None)),
-                           **{k: round(v, 1) for k, v in tm.items()}, **tel,
+                           drone=args.name, **{k: round(v, 1) for k, v in tm.items()}, **tel,
                            **mapf.update(logic.last_box if mode == "FOLLOW" and info["state"] == "FOLLOWING" else None,
                                          W, H, tel))
                 tm["loops_since_frame"] = 0
