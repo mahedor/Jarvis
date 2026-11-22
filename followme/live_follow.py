@@ -359,6 +359,8 @@ def main():
                     mode, held = "LOOKGO", None; print("LOOK at shared spot" if ch == "v" else "GO to shared spot")
                 else:
                     print("no shared spot yet (press P on the overseer and click the ground)")
+            elif ch == "m" and mode == "MANUAL" and tel.get("battery_pct") is not None and tel["battery_pct"] < args.min_battery:
+                print(f"battery {tel['battery_pct']}% < {args.min_battery:.0f}%: FOLLOW refused - land and swap the battery")
             elif ch == "m":
                 mode = "FOLLOW" if mode == "MANUAL" else "MANUAL"; held = None
                 if mode == "FOLLOW":
@@ -473,6 +475,8 @@ def main():
                     cv2.putText(vis, f"shared spot ready: V look, X go  {info.get('lg', {}).get('dist', '')}", (10, 115), 0, 0.7, (255, 0, 255), 2)
                 if not video_ok:
                     cv2.putText(vis, "NO VIDEO - L = land, SPACE = hover", (30, H // 2), 0, 1.0, (0, 0, 255), 3)
+                if bat is not None and bat < args.min_battery:
+                    cv2.putText(vis, f"BATTERY {bat}% < {args.min_battery:.0f}%: FOLLOW/LOOK/GO OFF - land (L)", (30, 160), 0, 1.0, (0, 0, 255), 3)
                 tm["draw_ms"] = (pc() - _a) * 1000
                 _a = pc()
                 cv2.imshow("follow", vis)
