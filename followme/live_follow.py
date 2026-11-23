@@ -237,7 +237,9 @@ class FollowLogic:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ip", default="192.168.42.1")
-    ap.add_argument("--model", default="yolov8n.pt")
+    _int8 = Path(__file__).resolve().parent / "weights" / "vd_mav_cl_s42_int8_openvino_model"
+    ap.add_argument("--model", default=str(_int8) if _int8.exists() else "weights/vd_mav_cl_s42.pt",
+                    help="detector (default: the INT8 OpenVINO model if it's in weights/, ~3x faster than .pt; Michael 11-22)")
     ap.add_argument("--tracker", default="botsort.yaml")
     ap.add_argument("--imgsz", type=int, default=640)
     ap.add_argument("--conf", type=float, default=0.25)
@@ -276,6 +278,7 @@ def main():
 
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
     ident = d["identity"]() if "identity" in d else {}
+    print(f"detector: {args.model}" + ("" if "int8" in str(args.model).lower() else "   <-- NOT the INT8 model (slower)"))
     print(f"drone: {ident.get('drone_nickname')} ({ident.get('drone_product_name')}, firmware {ident.get('drone_firmware')})")
     nick = ident.get("drone_nickname")
     args.name = args.name or (nick if nick not in (None, "unknown", "fake") else
@@ -304,7 +307,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     log_f = open(out / "follow.csv", "w", newline=""); log_w = None
     box_f = open(out / "boxes.jsonl", "w")    # every box the program saw, per frame: replays show exactly what it saw (11-22)
-    (out / "drone.json").write_text(__import__("json").dumps(dict(ident, name=args.name, ip=args.ip), indent=1))
+    (out / "drone.json").write_text(__import__("json").dumps(dict(ident, name=args.name, ip=args.ip, model=str(args.model)), indent=1))
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
     mode, speed, gimbal_pitch, flying = "MANUAL", 20, 0.0, False
