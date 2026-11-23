@@ -22,7 +22,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `flight_index.py` | One table of every flight in `~/follow_logs` (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv` |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 62 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 63 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
