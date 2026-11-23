@@ -225,3 +225,14 @@ def test_every_run_records_which_drone():
     info = json.loads((run / "drone.json").read_text())
     assert info["drone_nickname"] == "fake" and info["name"] == "droneA"
     assert rows and all(r["drone"] == "droneA" for r in rows)
+
+
+def test_boxes_logged_and_flight_index(tmp_path):
+    import json
+    import flight_index
+    out, rows = run_fake("t@0.5,m@1,q@3", 4)
+    run = sorted((HERE / "_test_follow_out").iterdir())[-1]
+    lines = [json.loads(x) for x in (run / "boxes.jsonl").read_text().splitlines()]
+    assert len(lines) == len(rows) and lines[0]["names"] and any(ln["boxes"] for ln in lines)
+    s = flight_index.summarize(run)
+    assert s["drone"] == "droneA" and s["boxes_logged"] and s["videos"] >= 1

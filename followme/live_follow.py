@@ -300,6 +300,7 @@ def main():
     out = Path(args.out) / f'{datetime.now().strftime("%Y%m%d_%H%M%S")}_{args.name}'   # which drone, and two programs never share a folder
     out.mkdir(parents=True, exist_ok=True)
     log_f = open(out / "follow.csv", "w", newline=""); log_w = None
+    box_f = open(out / "boxes.jsonl", "w")    # every box the program saw, per frame: replays show exactly what it saw (11-22)
     (out / "drone.json").write_text(__import__("json").dumps(dict(ident, name=args.name, ip=args.ip), indent=1))
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
@@ -472,7 +473,12 @@ def main():
                 tm["loops_since_frame"] = 0
                 if log_w is None:
                     log_w = csv.DictWriter(log_f, fieldnames=list(row)); log_w.writeheader()
-                log_w.writerow(row); log_f.flush(); n += 1
+                log_w.writerow(row); log_f.flush()
+                box_f.write(__import__("json").dumps(dict(
+                    frame=n, video_file=name, frame_in_file=chunk_frames - 1, target_id=logic.target_id,
+                    boxes=[[round(float(v), 1) for v in t[:4]] + [int(t[4]), int(t[5]), round(float(t[6]), 3)] for t in tracks],
+                    names={int(k): v for k, v in names.items()} if n == 0 else None)) + "\n")
+                n += 1
 
             # ---- display ----
             if not args.headless:
@@ -508,7 +514,7 @@ def main():
         except Exception:
             pass
         if writer: writer.release()
-        log_f.close()
+        log_f.close(); box_f.close()
         if flying:
             print("Landing..."); d["land"]()
         d["close"]()
