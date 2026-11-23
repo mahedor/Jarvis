@@ -21,7 +21,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 60 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 61 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
@@ -47,7 +47,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 60 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 61 passed
 python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet       # laptop on the drone's Wi-Fi
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person
 ```
@@ -55,7 +55,8 @@ python live_follow.py --fake --fake-detector                              # no d
 Keys (window focused): T take off · L land · SPACE hover + manual · Q quit (lands first) ·
 W/S forward/back · A/D left/right · R/F up/down · Z/C turn · G/B camera up/down · 1/2/3 speed ·
 M follow on/off · N new lock (forget target + re-ID gallery) · click a box to lock onto it ·
-P point mode (overseer: next click shares a ground spot) · V look at the shared spot · X go to it.
+P point mode (overseer: next click shares a ground spot) · O share the tracked target continuously (overseer) ·
+V look at the shared spot (keeps watching a shared target) · X go to it.
 
 ## Lock-on behavior (Michael 2026-11-20)
 

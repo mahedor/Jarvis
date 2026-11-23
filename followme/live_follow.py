@@ -16,6 +16,8 @@ takes control back instantly.
   Two drones (lookhere.py, 11-22; needs --share-file or --mqtt):
   P  (overseer) point mode: the next click shares that ground spot instead of locking a box
   V  (worker) LOOK at the shared spot: hover in place, turn + tilt the camera only
+  O  (overseer) share the TRACKED target: while the clicked/followed person is in view, their ground spot is
+     re-shared twice a second, so a worker in LOOK (V) keeps turning to watch them (11-22)
   X  (worker) GO to the shared spot: turn to face it, fly slowly, stop lookhere.STOP_M short, keep height
      Any movement key, SPACE or L takes back control (MANUAL).
 
@@ -267,6 +269,7 @@ def main():
     args = ap.parse_args()
     replay.FOLLOW_DIST_M = args.follow_dist
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
+    share_target, last_share_t, last_rx_print = False, 0.0, 0.0
 
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
     ident = d["identity"]() if "identity" in d else {}
@@ -354,6 +357,10 @@ def main():
                 point_mode = not point_mode and link is not None
                 print("POINT mode: click a spot to share it" if point_mode else
                       ("point mode off" if link else "no --share-file / --mqtt: nothing to share with"))
+            elif ch == "o":
+                share_target = not share_target and link is not None
+                print("SHARING the tracked target's ground spot (2/s)" if share_target else
+                      ("stopped sharing the target" if link else "no --share-file / --mqtt: nothing to share with"))
             elif ch in ("v", "x"):
                 if lookgo.start("look" if ch == "v" else "go"):
                     mode, held = "LOOKGO", None; print("LOOK at shared spot" if ch == "v" else "GO to shared spot")
@@ -393,10 +400,18 @@ def main():
                     if hit is not None:
                         logic.pick(hit[4], tracks)
                 click["pt"] = None
+            if share_target and logic.target_id is not None and now - last_share_t > 0.5:
+                seen = [t for t in tracks if t[4] == logic.target_id]
+                if seen and seen[0][3] < H - 3:                      # feet visible: the box bottom is on the ground
+                    g = lookhere.click_to_gps((seen[0][0] + seen[0][2]) / 2, seen[0][3], W, H, tel, calib)
+                    if g is not None:
+                        link.publish(*g); last_share_t = now
             if link is not None:
                 got = link.poll()
                 if got is not None:
-                    lookgo.set_target(*got, now); print(f"received spot {got[0]:.6f}, {got[1]:.6f}: V = look, X = go")
+                    lookgo.set_target(*got, now)
+                    if now - last_rx_print > 10:
+                        print(f"received spot {got[0]:.6f}, {got[1]:.6f}: V = look, X = go"); last_rx_print = now
 
             # ---- safety drops out of FOLLOW ----
             bat = tel.get("battery_pct")
@@ -467,6 +482,8 @@ def main():
                 vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, 1000 / max(det_ms, 1), tel, n, 0, logic.picked_by)
                 col = (0, 255, 0) if mode == "FOLLOW" and info["state"] == "FOLLOWING" else (0, 200, 255) if mode == "FOLLOW" else (200, 200, 200)
                 cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, N new lock, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
+                if share_target:
+                    cv2.putText(vis, "SHARING TARGET with the other drone (O to stop)", (10, 150), 0, 0.8, (255, 0, 255), 2)
                 if point_mode:
                     cv2.putText(vis, "POINT MODE: click the ground spot to share (P to cancel)", (10, 80), 0, 0.9, (255, 0, 255), 2)
                 if shared_px is not None:

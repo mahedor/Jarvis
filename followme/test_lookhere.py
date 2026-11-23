@@ -113,3 +113,13 @@ def test_headless_worker_looks_then_space_takes_control(tmp_path):
     look = [r for r in rows if r["mode"] == "LOOKGO"]
     assert look and all(float(r["yaw"]) > 0 and float(r["pitch"]) == 0 for r in look)   # fake heading never changes
     assert rows[-1]["mode"] == "MANUAL"
+
+
+def test_headless_overseer_shares_its_tracked_target(tmp_path):
+    spot = tmp_path / "spot.json"
+    # fake drone: 2 m up, ball below the image centre; tilt the camera down, lock (auto-lock), share with O
+    out, rows = run_fake("b@0.3,b@0.5,b@0.7,o@1.5,q@4", 5, ("--name", "droneA", "--share-file", str(spot)))
+    assert "SHARING the tracked target" in out
+    m = json.loads(spot.read_text())
+    assert m["src"] == "droneA" and abs(m["lat"] - 37.0) < 0.001 and abs(m["lon"] + 122.0) < 0.001
+    assert time.time() - m["t"] < 10                                # re-shared during the run
