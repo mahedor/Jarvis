@@ -28,7 +28,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 
 - `weights/` — put `vd_mav_cl_s42.pt` (detector) and `osnet_x0_25_msmt17.pt` (re-ID) here.
   `lockon.py` looks in `weights/` first.
-- Flight logs are **not** kept here: every run writes `~/follow_logs/<YYYYMMDD_HHMMSS>_<droneA|droneB>/` (with `drone.json`: name, serial, firmware; a `drone` column in follow.csv; and `boxes.jsonl`: every box the program saw each frame, so replays draw exactly what it saw) (video chunks +
+- Flight logs are **not** kept here: every run writes `~/follow_logs/<YYYYMMDD_HHMMSS>_<droneA|droneB>/` (with `drone.json`: name, serial, firmware; a `drone` column in follow.csv; `boxes.jsonl`: every box the program saw each frame; and `overlay_*.mp4`: the on-screen view with boxes and labels exactly as shown live — `--no-overlay-video` turns it off) (video chunks +
   `follow.csv`, 300+ MB per flight) in the WSL home, outside the repo and OneDrive. `--out` changes it.
 
 ## Setup (WSL, uv-managed venv `~/jarvis-follow`)

@@ -25,7 +25,8 @@ Safety rules in FOLLOW (all of them make the drone HOVER, i.e. send zero sticks)
   - target lost for more than LOST_S seconds           - detections older than STALE_S (detector stalled)
   - no video for more than 1 s (also drops to MANUAL)  - battery below --min-battery (also drops to MANUAL)
   - forward/back and yaw are capped at --max-speed %;  height is never changed (gaz = 0)
-Every frame + command is logged to ~/follow_logs/<timestamp>/ (kept out of the repo and OneDrive: 300+ MB per flight) (video chunks + follow.csv) for replay and analysis.
+Every frame + command is logged to ~/follow_logs/<timestamp>_<drone>/ (kept out of the repo and OneDrive): clean video
+chunks, overlay_*.mp4 (the on-screen view with boxes, exactly as shown live), follow.csv, boxes.jsonl, drone.json.
 Detection runs in a background thread on the newest frame, so keys and stick commands never wait for the model.
 """
 import argparse
@@ -265,6 +266,8 @@ def main():
     ap.add_argument("--listen", default="", help="name of the drone whose clicked spots this one follows (worker)")
     ap.add_argument("--share-file", default="", help="JSON file used to share clicked spots (both programs on ONE laptop)")
     ap.add_argument("--mqtt", default="", help="MQTT broker host used to share clicked spots (TWO laptops)")
+    ap.add_argument("--no-overlay-video", action="store_true",
+                    help="don't also record the on-screen view (boxes + labels exactly as shown live) to overlay_*.mp4")
     ap.add_argument("--no-profile", action="store_true", help="don't push drone_profile.json to the drone on connect")
     args = ap.parse_args()
     replay.FOLLOW_DIST_M = args.follow_dist
@@ -315,7 +318,8 @@ def main():
     info = dict(state="MANUAL")
     # per-step timing of the main loop (ms). The row for a frame carries this iteration's wait/record times and the
     # PREVIOUS iteration's draw/show/key times (the row is written before this iteration draws).
-    tm = dict(wait_ms=0.0, rec_ms=0.0, draw_ms=0.0, show_ms=0.0, key_ms=0.0, loops_since_frame=0)
+    tm = dict(wait_ms=0.0, rec_ms=0.0, draw_ms=0.0, show_ms=0.0, key_ms=0.0, ov_ms=0.0, loops_since_frame=0)
+    ov_writer, ov_chunk = None, -1          # the live on-screen view, chunked in step with video_*.mp4 (11-22)
     pc = time.perf_counter
     try:
         while True:
@@ -504,6 +508,15 @@ def main():
                 _a = pc()
                 cv2.imshow("follow", vis)
                 tm["show_ms"] = (pc() - _a) * 1000
+                if new is not None and not args.no_overlay_video:
+                    _a = pc()
+                    if ov_chunk != chunk:                    # new video chunk started -> new overlay chunk
+                        if ov_writer: ov_writer.release()
+                        ov_chunk = chunk
+                        ov_writer = cv2.VideoWriter(str(out / f"overlay_{chunk - 1:03d}.mp4"), cv2.VideoWriter_fourcc(*"mp4v"),
+                                                    args.fps, (vis.shape[1], vis.shape[0]))
+                    ov_writer.write(vis)
+                    tm["ov_ms"] = (pc() - _a) * 1000
             if args.seconds and t > args.seconds:
                 break
     finally:
@@ -514,6 +527,7 @@ def main():
         except Exception:
             pass
         if writer: writer.release()
+        if ov_writer: ov_writer.release()
         log_f.close(); box_f.close()
         if flying:
             print("Landing..."); d["land"]()
