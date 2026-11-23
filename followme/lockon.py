@@ -8,8 +8,8 @@ Replaces the old behaviour (replay.pick_target): "track ID vanished -> grab whoe
 which happily latched onto a stranger walking past.
 
 Pieces:
-  * Embedder:   crop -> L2-normalised vector. OSNet x0_25 (boxmot, re-ID trained on MSMT17) if installed,
-                otherwise an HSV colour histogram (crude but dependency-free; logged so you know which one ran).
+  * Embedder:   crop -> L2-normalised vector. OSNet x0_25 (boxmot, re-ID trained on MSMT17). If it can't load,
+                the program stops (no fallback). An HSV colour histogram exists only as a named test baseline.
   * Gallery:    up to GALLERY_MAX vectors of the target, added at most every ADD_EVERY_S, and only when the target
                 is confident, big enough, and not overlapping anyone else (so a stranger never leaks in).
   * Re-acquire: candidate = any person track that isn't a recently rejected one. Score = max cosine similarity to
@@ -99,20 +99,18 @@ class OSNetEmbedder:
         return np.asarray(self.reid(frame, boxes=np.asarray(boxes, np.float32)), np.float32)
 
 
-def make_embedder(kind="auto"):
-    """'osnet', 'hist', 'none' or 'auto' (OSNet if boxmot imports, else histogram). Returns (embedder|None, note)."""
+def make_embedder(kind="osnet"):
+    """'osnet', 'hist' or 'none'. Returns (embedder|None, note).
+    No silent fallback (Michael 11-22): if OSNet can't load, this raises instead of quietly switching to the much
+    weaker colour histogram at the same cutoff. The histogram only runs when asked for by name (tests/baseline)."""
     if kind == "none":
-        return None, "re-ID off (old nearest-box re-lock)"
-    if kind in ("auto", "osnet"):
-        try:
-            e = OSNetEmbedder()
-            return e, f"re-ID: {e.name}"
-        except Exception as ex:                         # noqa: BLE001 - any failure -> fall back, but say why
-            if kind == "osnet":
-                raise
-            note = f"re-ID: OSNet unavailable ({type(ex).__name__}: {ex}); using HSV histogram baseline"
-            return HistEmbedder(), note
-    return HistEmbedder(), "re-ID: HSV histogram baseline"
+        return None, "re-ID OFF: a lost target is never re-acquired"
+    if kind == "osnet":
+        e = OSNetEmbedder()
+        return e, f"re-ID: {e.name}"
+    if kind == "hist":
+        return HistEmbedder(), "re-ID: HSV histogram baseline (NOT for flying)"
+    raise ValueError(f"unknown re-ID kind {kind!r} (use osnet, hist or none)")
 
 
 # ------------------------------------------------------------------ the lock

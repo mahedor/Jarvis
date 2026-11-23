@@ -175,3 +175,12 @@ def test_no_gallery_sample_when_box_touches_frame_edge():
     assert lock.wants_embedding([trk(1, x=0)], 0.0, 1280, 720) == []          # cut off on the left
     assert lock.wants_embedding([trk(1, x=500, h=700)], 0.0, 1280, 720) == []  # runs off the bottom (close-up)
     assert lock.wants_embedding([trk(1, x=500)], 0.0, 1280, 720) == [1]
+
+
+def test_no_silent_reid_fallback():
+    """Michael 11-22: no 'auto' that quietly swaps OSNet for the histogram."""
+    import pytest
+    with pytest.raises(ValueError):
+        lockon.make_embedder("auto")
+    e, note = lockon.make_embedder("hist")
+    assert "NOT for flying" in note

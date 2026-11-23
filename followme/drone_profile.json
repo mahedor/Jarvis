@@ -1,0 +1,13 @@
+{
+ "source": "ANAFI-G134762",
+ "saved": "2026-11-22 16:21",
+ "settings": {
+  "max_tilt_deg": 20.0,
+  "max_rotation_speed_dps": 90.0,
+  "max_vertical_speed_mps": 2.0,
+  "max_pitch_roll_rotation_speed_dps": 111.111,
+  "max_altitude_m": 30.0,
+  "max_distance_m": 100.0,
+  "gimbal_max_pitch_speed_dps": 10.0
+ }
+}

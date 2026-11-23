@@ -2,7 +2,7 @@
 """LIVE follow-me on the ANAFI:  video -> detector + tracker -> controller -> drone, with you as the safety pilot.
 
 Run in WSL (Olympe env + ultralytics):
-  python live_follow.py --model vd_mav_cl_s42.pt                 # real drone
+  python live_follow.py                                          # real drone (INT8 detector + OSNet re-ID; stops if either is missing)
   python live_follow.py --fake --fake-detector --seconds 20      # no drone, no model: tests the loop + safety logic
 
 It starts in MANUAL (same keys as record.py). Follow mode only runs when YOU turn it on, and any movement key
@@ -31,6 +31,7 @@ Detection runs in a background thread on the newest frame, so keys and stick com
 """
 import argparse
 import csv
+import sys
 import threading
 import time
 from datetime import datetime
@@ -234,12 +235,15 @@ class FollowLogic:
                          event=self.event)
 
 
+INT8_MODEL = Path(__file__).resolve().parent / "weights" / "vd_mav_cl_s42_int8_openvino_model"   # live detector (Michael 11-22)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ip", default="192.168.42.1")
-    _int8 = Path(__file__).resolve().parent / "weights" / "vd_mav_cl_s42_int8_openvino_model"
-    ap.add_argument("--model", default=str(_int8) if _int8.exists() else "weights/vd_mav_cl_s42.pt",
-                    help="detector (default: the INT8 OpenVINO model if it's in weights/, ~3x faster than .pt; Michael 11-22)")
+    ap.add_argument("--model", default=str(INT8_MODEL),
+                    help="detector (default: the INT8 OpenVINO model, ~3x faster than .pt; Michael 11-22). No silent "
+                         "fallback: if it's missing the program stops. Pass a .pt here only on purpose.")
     ap.add_argument("--tracker", default="botsort.yaml")
     ap.add_argument("--imgsz", type=int, default=640)
     ap.add_argument("--conf", type=float, default=0.25)
@@ -247,9 +251,10 @@ def main():
     ap.add_argument("--follow-dist", type=float, default=replay.FOLLOW_DIST_M, help="metres to keep from the target")
     ap.add_argument("--min-battery", type=float, default=25.0)
     ap.add_argument("--calib", default="", help="camera_calib.json from calibrate_camera.py (default: next to this file)")
-    ap.add_argument("--reid", default="auto", choices=["auto", "osnet", "hist", "none"],
-                    help="lock-on appearance model: OSNet (boxmot) if installed, else colour histogram; none = old re-lock")
-    ap.add_argument("--match-sim", type=float, default=lockon.MATCH_SIM, help="re-ID similarity needed to re-lock (PLACEHOLDER)")
+    ap.add_argument("--reid", default="osnet", choices=["osnet", "hist", "none"],
+                    help="lock-on appearance model: osnet (default; stops if boxmot/OSNet can't load), hist = colour "
+                         "histogram baseline (tests only), none = no re-ID (a lost target is never re-acquired)")
+    ap.add_argument("--match-sim", type=float, default=lockon.MATCH_SIM, help="re-ID similarity needed to re-lock (0.70, Michael 11-21)")
     ap.add_argument("--search-s", type=float, default=SEARCH_S, help="max seconds spinning to find a lost target (0 = just hover)")
     ap.add_argument("--search-yaw", type=float, default=SEARCH_YAW, help="%% yaw while spinning in place to search")
     ap.add_argument("--search-deg", type=float, default=SEARCH_DEG, help="degrees per spin direction (360 = one full turn)")
@@ -272,6 +277,9 @@ def main():
                     help="don't also record the on-screen view (boxes + labels exactly as shown live) to overlay_*.mp4")
     ap.add_argument("--no-profile", action="store_true", help="don't push drone_profile.json to the drone on connect")
     args = ap.parse_args()
+    if not args.fake_detector and not Path(args.model).exists():   # no silent fallback to the .pt (Michael 11-22)
+        sys.exit(f"STOP: detector not found: {args.model}\n"
+                 f"  Put vd_mav_cl_s42_int8_openvino_model/ in followme/weights/, or pass --model on purpose.")
     replay.FOLLOW_DIST_M = args.follow_dist
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
     share_target, last_share_t, last_rx_print = False, 0.0, 0.0
@@ -289,8 +297,8 @@ def main():
     if not args.no_profile and "apply_profile" in d:
         try:
             print("settings:", d["apply_profile"]())          # same max tilt / rotation / climb on both drones (11-22)
-        except Exception as e:
-            print("settings: could not apply drone_profile.json:", e)
+        except Exception as e:                                 # no silent fallback (Michael 11-22)
+            sys.exit(f"STOP: could not apply drone_profile.json ({e}). Fix it, or pass --no-profile on purpose.")
     embedder, reid_note = lockon.make_embedder(args.reid)
     print(reid_note)
     det = Detector(args.model, args.tracker, args.imgsz, args.conf, fake=args.fake_detector, embedder=embedder)
