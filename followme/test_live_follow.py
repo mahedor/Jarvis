@@ -236,3 +236,16 @@ def test_boxes_logged_and_flight_index(tmp_path):
     assert len(lines) == len(rows) and lines[0]["names"] and any(ln["boxes"] for ln in lines)
     s = flight_index.summarize(run)
     assert s["drone"] == "droneA" and s["boxes_logged"] and s["videos"] >= 1
+
+
+def test_cutoffs_from_f1_sweep():
+    """Michael 11-26: the flight model flies at its F1-max cutoffs, per class; unknown models must be explicit."""
+    import pytest
+    import live_follow as lf
+    assert lf.resolve_cutoffs("weights/vd_mav_cl_s42_int8_openvino_model")[:2] == (0.24, 0.28)
+    assert lf.resolve_cutoffs("weights/vd_mav_cl_s42.pt")[:2] == (0.24, 0.28)
+    assert lf.resolve_cutoffs("other.pt", 0.3, 0.4)[:2] == (0.3, 0.4)
+    with pytest.raises(SystemExit):
+        lf.resolve_cutoffs("other.pt")
+    assert lf.keep_box("person", 0.245, 0.24, 0.28) and not lf.keep_box("car", 0.245, 0.24, 0.28)
+    assert lf.keep_box("car", 0.29, 0.24, 0.28)

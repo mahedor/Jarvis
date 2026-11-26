@@ -22,7 +22,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `flight_index.py` | One table of every flight in `~/follow_logs` (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv` |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 63 tests: logic on made-up inputs + one full run against the fake drone |
+| `test_*.py` | 64 tests: logic on made-up inputs + one full run against the fake drone |
 
 ## Folders
 
@@ -51,7 +51,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 63 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 64 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 ```
@@ -93,6 +93,14 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
 (heading unverified on the ANAFI 4K); the ground is assumed flat.
 
 ## Change log
+
+- **2026-11-26 (Michael): fly at the F1-max cutoffs, per class.** The program used one cutoff, 0.25, for every
+  class: Ultralytics' default, never chosen for this model. The F1-max sweep (`thresholds_balanced.py`, Oct 28-29:
+  confidence 0.05-0.95 in 0.01 steps, IoU >= 0.5, equal-weight average of F1 on VisDrone val, MAVREC val (aerial) and a
+  COCO holdout) picked **0.24 for people and 0.28 for vehicles** for `vd_mav_cl_s42`; INT8 kept the same best cutoffs.
+  These are now built in (`MODEL_CUTOFFS` in `live_follow.py`), printed at startup and saved in `drone.json`. `--conf`
+  is gone; `--conf-person` / `--conf-vehicle` override on purpose. A model with no known cutoffs **stops** unless both are
+  given. Flights before this ran at 0.25 for every class.
 
 - **2026-11-22 (Michael): fly the INT8 detector from now on, and no silent fallbacks.**
   - Why: the INT8 decision (10-29: ~3x faster, -0.01 F1) was lost from the copied run command on 11-15, and the

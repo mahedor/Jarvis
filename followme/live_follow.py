@@ -59,7 +59,7 @@ GIMBAL_MIN, GIMBAL_MAX = -90.0, 0.0
 
 class Detector(threading.Thread):
     """Runs model.track on the newest frame it is given; publishes (tracks, names, frame_time, ms)."""
-    def __init__(self, model_path, tracker, imgsz, conf, fake=False, embedder=None, want_fn=None):
+    def __init__(self, model_path, tracker, imgsz, cutoffs=(0.24, 0.28), fake=False, embedder=None, want_fn=None):
         super().__init__(daemon=True)
         self.fake = fake
         self.embedder, self.want_fn = embedder, want_fn     # re-ID: only the crops lock-on asks for (usually 0-1)
@@ -68,11 +68,13 @@ class Detector(threading.Thread):
         self.frame = self.frame_t = None
         self.result = ([], {0: "person"}, 0.0, 0.0)
         self.stop_flag = False
+        self.person_cut, self.vehicle_cut = cutoffs
         if not fake:
             from ultralytics import YOLO
             self.model = YOLO(model_path)
             self.names = self.model.names
-            self.args = dict(persist=True, tracker=tracker, imgsz=imgsz, conf=conf, verbose=False)
+            # the model keeps everything above the lower cutoff; keep_box then applies each class's own cutoff
+            self.args = dict(persist=True, tracker=tracker, imgsz=imgsz, conf=min(cutoffs), verbose=False)
         else:
             self.names = {0: "person"}
 
@@ -110,7 +112,8 @@ class Detector(threading.Thread):
                 if r.boxes is not None and r.boxes.id is not None:
                     for b, tid, cls, cf in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.id.cpu().numpy().astype(int),
                                                r.boxes.cls.cpu().numpy().astype(int), r.boxes.conf.cpu().numpy()):
-                        tracks.append((*b.tolist(), int(tid), int(cls), float(cf)))
+                        if keep_box(self.names.get(int(cls), ""), float(cf), self.person_cut, self.vehicle_cut):
+                            tracks.append((*b.tolist(), int(tid), int(cls), float(cf)))
             det_ms = (time.time() - t0) * 1000
             vecs, t1 = {}, time.time()
             if self.embedder is not None and self.want_fn is not None and tracks:
@@ -237,6 +240,30 @@ class FollowLogic:
 
 INT8_MODEL = Path(__file__).resolve().parent / "weights" / "vd_mav_cl_s42_int8_openvino_model"   # live detector (Michael 11-22)
 
+# Detection cutoffs per model, from the F1-max sweep (thresholds_balanced.py, Oct 28-29): confidence swept 0.05-0.95 in
+# 0.01 steps, IoU >= 0.5, equal-weight average of F1 on VisDrone val, MAVREC val (aerial) and a COCO holdout; one cutoff
+# for people, one for all vehicle classes. Michael 11-26: bake them in instead of the old single --conf 0.25 (Ultralytics'
+# default, never chosen for this model). INT8 kept the same best cutoffs (Oct 29). No silent fallback: a model not listed
+# here needs --conf-person and --conf-vehicle on purpose, or the program stops.
+MODEL_CUTOFFS = {"vd_mav_cl_s42": (0.24, 0.28)}
+
+
+def resolve_cutoffs(model_path, conf_person=None, conf_vehicle=None):
+    """-> (person, vehicle, source). Explicit values win; else look the model up by name; else stop."""
+    if conf_person is not None and conf_vehicle is not None:
+        return conf_person, conf_vehicle, "set on the command line"
+    stem = Path(str(model_path)).name
+    for key, (p, v) in MODEL_CUTOFFS.items():
+        if stem.startswith(key):
+            return (conf_person if conf_person is not None else p,
+                    conf_vehicle if conf_vehicle is not None else v, f"F1-max sweep for {key}")
+    sys.exit(f"STOP: no F1-max cutoffs known for {stem}. Pass --conf-person and --conf-vehicle on purpose.")
+
+
+def keep_box(cls_name, conf, person_cut, vehicle_cut):
+    """Per-class cutoff: people use the person cutoff, every other class the vehicle cutoff."""
+    return conf >= (person_cut if str(cls_name).lower() in replay.PERSON_NAMES else vehicle_cut)
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -246,7 +273,8 @@ def main():
                          "fallback: if it's missing the program stops. Pass a .pt here only on purpose.")
     ap.add_argument("--tracker", default="botsort.yaml")
     ap.add_argument("--imgsz", type=int, default=640)
-    ap.add_argument("--conf", type=float, default=0.25)
+    ap.add_argument("--conf-person", type=float, default=None, help="person cutoff (default: this model's F1-max, 0.24)")
+    ap.add_argument("--conf-vehicle", type=float, default=None, help="vehicle cutoff (default: this model's F1-max, 0.28)")
     ap.add_argument("--max-speed", type=float, default=20.0, help="cap on FOLLOW yaw and forward/back, %% of max")
     ap.add_argument("--follow-dist", type=float, default=replay.FOLLOW_DIST_M, help="metres to keep from the target")
     ap.add_argument("--min-battery", type=float, default=25.0)
@@ -280,6 +308,7 @@ def main():
     if not args.fake_detector and not Path(args.model).exists():   # no silent fallback to the .pt (Michael 11-22)
         sys.exit(f"STOP: detector not found: {args.model}\n"
                  f"  Put vd_mav_cl_s42_int8_openvino_model/ in followme/weights/, or pass --model on purpose.")
+    cut_p, cut_v, cut_src = resolve_cutoffs(args.model, args.conf_person, args.conf_vehicle)
     replay.FOLLOW_DIST_M = args.follow_dist
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
     share_target, last_share_t, last_rx_print = False, 0.0, 0.0
@@ -287,6 +316,7 @@ def main():
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
     ident = d["identity"]() if "identity" in d else {}
     print(f"detector: {args.model}" + ("" if "int8" in str(args.model).lower() else "   <-- NOT the INT8 model (slower)"))
+    print(f"cutoffs: person >= {cut_p:.2f}, vehicle >= {cut_v:.2f}  ({cut_src})")
     print(f"drone: {ident.get('drone_nickname')} ({ident.get('drone_product_name')}, firmware {ident.get('drone_firmware')})")
     nick = ident.get("drone_nickname")
     args.name = args.name or (nick if nick not in (None, "unknown", "fake") else
@@ -301,7 +331,7 @@ def main():
             sys.exit(f"STOP: could not apply drone_profile.json ({e}). Fix it, or pass --no-profile on purpose.")
     embedder, reid_note = lockon.make_embedder(args.reid)
     print(reid_note)
-    det = Detector(args.model, args.tracker, args.imgsz, args.conf, fake=args.fake_detector, embedder=embedder)
+    det = Detector(args.model, args.tracker, args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
     person_ids = {k for k, v in det.names.items() if str(v).lower() in replay.PERSON_NAMES}
     logic = FollowLogic(person_ids, args.max_speed, search_s=args.search_s, search_yaw=args.search_yaw, search_deg=args.search_deg, search_both=not args.search_one_way,
                         match_sim=args.match_sim, auto_lock=args.auto_lock)
@@ -315,7 +345,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     log_f = open(out / "follow.csv", "w", newline=""); log_w = None
     box_f = open(out / "boxes.jsonl", "w")    # every box the program saw, per frame: replays show exactly what it saw (11-22)
-    (out / "drone.json").write_text(__import__("json").dumps(dict(ident, name=args.name, ip=args.ip, model=str(args.model)), indent=1))
+    (out / "drone.json").write_text(__import__("json").dumps(dict(ident, name=args.name, ip=args.ip, model=str(args.model),
+                                                                         conf_person=cut_p, conf_vehicle=cut_v), indent=1))
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
     mode, speed, gimbal_pitch, flying = "MANUAL", 20, 0.0, False
