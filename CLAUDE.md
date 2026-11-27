@@ -215,9 +215,17 @@ Michael 11-27) is merged on every regenerate: drone corrections ("droneB (correc
 and chat-history notes for what a run did not record (model, cutoffs, tracker, re-ID, fake test vs real flight, who was
 followed), always marked "from chat history:" and citing the chat time + seq or a commit; never overwrites a logged
 value; a key matching no run folder is ignored with a warning. Michael's WSL clone is
-`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 184 tests are run from inside it
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py`) and are **not** part of the
+`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 195 tests are run from inside it
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
+
+`time_trackers.py` times the 15 tuned tracker setups on the laptop CPU (Michael 11-27: talk speed numbers come only
+from his Ryzen 7 7735HS, CPU only): the flight detector (live_follow's `resolve_detection` + `Detector`) runs once per
+frame of the newest real flight's clean video and its boxes are cached; each setup is built as `tracker_tuning_all.py`
+built it (all six trackers are Ultralytics built-ins, not boxmot; re-ID = `yolo26n-cls.pt` crop encoder on the CPU) with
+its `chosen.settings_changed` read from `results/followme_tracker_tuning_all_summary.json` (byte-exact from Drive, sha256
+pinned in `test_time_trackers.py`), and only `tracker.update` is timed (GMC and re-ID included), after 20 warm-up frames.
+Writes `~/follow_logs/tracker_speed_<date>.json` (+ `--save` copy). No laptop numbers are committed yet.
 
 Detection cutoffs are read from the Colab F1-max sweep's own output, per model by exact name: the INT8 export that
 flies (`vd_mav_cl_s42_int8_openvino_model`) from entry `vd_mav_cl_s42_int8` of `results/followme_cutoffs_balanced_int8.json`

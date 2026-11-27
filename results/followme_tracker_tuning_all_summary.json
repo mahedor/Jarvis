@@ -1,0 +1,4591 @@
+{
+ "what": "every follow-me tracker setup tuned like BoT-SORT+CMC (choose on VisDrone-MOT val class-avg HOTA, check on test-dev / MOT17 / MOT20), detector vd_mav_cl_s42",
+ "made": "2026-11-27T22:03:13+00:00",
+ "scoring": "jarvis_det/jarvis_track_v5.py = cell 3 of followme_tracker_comparison_v5.ipynb",
+ "trackers": "Ultralytics 8.4.184 built-ins via T.make_tracker (YAML defaults + T.tracker_configs overrides)",
+ "detector_inputs": {
+  "pt": {
+   "weights": "jarvis_det/runs_3w/vd_mav_cl_s42/weights/best.pt",
+   "imgsz": 640,
+   "conf": 0.05,
+   "iou": 0.7,
+   "cache": "jarvis_track/det_cache/vd_mav_cl_s42/<split>/<seq>.npz (grid's own cache)"
+  },
+  "int8": {
+   "weights": "jarvis_det/live_models/vd_mav_cl_s42_int8_openvino_model.zip",
+   "imgsz": 640,
+   "conf": 0.23,
+   "iou": 0.7,
+   "note": "flight-like: conf = min(person 0.23, vehicle 0.29)"
+  }
+ },
+ "flight_post_filter": {
+  "person": 0.23,
+  "vehicle": 0.29
+ },
+ "replay_tol": 0.0,
+ "repro_tol": 0.001,
+ "spaces": {
+  "bytetrack": [
+   "high_new",
+   "track_low_thresh",
+   "match_thresh",
+   "track_buffer"
+  ],
+  "botsort": [
+   "high_new",
+   "track_low_thresh",
+   "match_thresh",
+   "track_buffer"
+  ],
+  "ocsort": [
+   "high_new",
+   "match_thresh",
+   "track_buffer",
+   "delta_t",
+   "inertia",
+   "use_byte/low"
+  ],
+  "deepocsort": [
+   "high_new",
+   "match_thresh",
+   "track_buffer",
+   "delta_t",
+   "inertia",
+   "use_byte/low"
+  ],
+  "fasttrack": [
+   "high_new",
+   "track_low_thresh",
+   "match_thresh",
+   "track_buffer",
+   "init_iou_suppress",
+   "occ_cover_thresh",
+   "active_occ_to_lost_thresh",
+   "occ_reappear_window"
+  ],
+  "tracktrack": [
+   "track_high_thresh",
+   "new_track_thresh",
+   "track_low_thresh",
+   "match_thresh",
+   "track_buffer",
+   "min_track_len",
+   "tai_thr",
+   "penalty_p"
+  ]
+ },
+ "per_setup": {
+  "bytetrack": {
+   "grid_default": {
+    "val": 0.24000011727518197,
+    "test-dev": 0.26577662184577944,
+    "MOT17-train": 0.3792850793714749,
+    "MOT20-train": 0.3075552607000003
+   },
+   "n_rows": 51,
+   "repro_val": {
+    "rerun": 0.24000011727518197,
+    "grid": 0.24000011727518197,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.95,
+     "new_track_thresh": 0.35,
+     "track_high_thresh": 0.35,
+     "track_low_thresh": 0.05
+    },
+    "val_HOTA": 0.2562974015216417,
+    "run": "extend match_thresh: match_thresh=0.95 on best",
+    "n_val_runs": 40
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2305,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2322,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2342,
+    "high_new: new_track_thresh=0.3,track_high_thresh=0.3": 0.2409,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.2426,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2434,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2351,
+    "track_low_thresh: track_low_thresh=0.05": 0.2393,
+    "track_low_thresh: track_low_thresh=0.15": 0.235,
+    "track_low_thresh: track_low_thresh=0.2": 0.2342,
+    "match_thresh: match_thresh=0.6": 0.1728,
+    "match_thresh: match_thresh=0.7": 0.2005,
+    "match_thresh: match_thresh=0.9": 0.2485,
+    "track_buffer: track_buffer=15": 0.2358,
+    "track_buffer: track_buffer=60": 0.2394,
+    "track_buffer: track_buffer=90": 0.2389
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.24,
+     "person": {
+      "HOTA": 0.2829,
+      "DetA": 0.2948,
+      "AssA": 0.2781,
+      "IDF1": 0.3201,
+      "MOTA": 0.1053,
+      "IDSW": 1235
+     },
+     "tracker_ms": 8.9
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.24,
+     "person": {
+      "HOTA": 0.2829,
+      "DetA": 0.2948,
+      "AssA": 0.2781,
+      "IDF1": 0.3201,
+      "MOTA": 0.1053,
+      "IDSW": 1235
+     },
+     "tracker_ms": 10.7
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2658,
+     "person": {
+      "HOTA": 0.2426,
+      "DetA": 0.2357,
+      "AssA": 0.2607,
+      "IDF1": 0.2784,
+      "MOTA": 0.0594,
+      "IDSW": 2953
+     },
+     "tracker_ms": 13.2
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2658,
+     "person": {
+      "HOTA": 0.2426,
+      "DetA": 0.2357,
+      "AssA": 0.2607,
+      "IDF1": 0.2784,
+      "MOTA": 0.0594,
+      "IDSW": 2953
+     },
+     "tracker_ms": 12.4
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2736,
+     "person": {
+      "HOTA": 0.2654,
+      "DetA": 0.2423,
+      "AssA": 0.301,
+      "IDF1": 0.3194,
+      "MOTA": 0.0817,
+      "IDSW": 1982
+     },
+     "tracker_ms": 11.1
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2563,
+     "person": {
+      "HOTA": 0.312,
+      "DetA": 0.3043,
+      "AssA": 0.3258,
+      "IDF1": 0.3811,
+      "MOTA": 0.125,
+      "IDSW": 826
+     },
+     "tracker_ms": 10.9
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3793,
+     "person": {
+      "HOTA": 0.3793,
+      "DetA": 0.3727,
+      "AssA": 0.394,
+      "IDF1": 0.4546,
+      "MOTA": 0.3942,
+      "IDSW": 833
+     },
+     "tracker_ms": 3.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3793,
+     "person": {
+      "HOTA": 0.3793,
+      "DetA": 0.3727,
+      "AssA": 0.394,
+      "IDF1": 0.4546,
+      "MOTA": 0.3942,
+      "IDSW": 833
+     },
+     "tracker_ms": 3.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3906,
+     "person": {
+      "HOTA": 0.3906,
+      "DetA": 0.3746,
+      "AssA": 0.4153,
+      "IDF1": 0.4716,
+      "MOTA": 0.4006,
+      "IDSW": 542
+     },
+     "tracker_ms": 3.3
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3076,
+     "person": {
+      "HOTA": 0.3076,
+      "DetA": 0.3609,
+      "AssA": 0.2652,
+      "IDF1": 0.3922,
+      "MOTA": 0.4384,
+      "IDSW": 8238
+     },
+     "tracker_ms": 13.0
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3076,
+     "person": {
+      "HOTA": 0.3076,
+      "DetA": 0.3609,
+      "AssA": 0.2652,
+      "IDF1": 0.3922,
+      "MOTA": 0.4384,
+      "IDSW": 8238
+     },
+     "tracker_ms": 13.1
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3197,
+     "person": {
+      "HOTA": 0.3197,
+      "DetA": 0.3578,
+      "AssA": 0.2883,
+      "IDF1": 0.4259,
+      "MOTA": 0.4455,
+      "IDSW": 5200
+     },
+     "tracker_ms": 12.5
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.3792850793714749,
+     "DetA": 0.37272646069952886,
+     "AssA": 0.3940497442900208,
+     "IDF1": 0.454578494467338,
+     "MOTA": 0.39423136860290126,
+     "IDSW": 833,
+     "replayed": false,
+     "tracker_ms": 3.5408041733879605,
+     "run": "default (grid procedure, real)",
+     "grid": 0.3792850793714749
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.39061106035315146,
+     "DetA": 0.3746151571240715,
+     "AssA": 0.4152971335452789,
+     "IDF1": 0.4715884221276978,
+     "MOTA": 0.4005538883496442,
+     "IDSW": 542,
+     "replayed": true,
+     "tracker_ms": 3.304378096290531,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.30755526070000033,
+     "DetA": 0.36094751040905687,
+     "AssA": 0.2652043832884244,
+     "IDF1": 0.3921742922406809,
+     "MOTA": 0.43841782315395367,
+     "IDSW": 8238,
+     "replayed": false,
+     "tracker_ms": 13.021282099221448,
+     "run": "default (grid procedure, real)",
+     "grid": 0.3075552607000003
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.3197081693549822,
+     "DetA": 0.35783655512845075,
+     "AssA": 0.28830378080158126,
+     "IDF1": 0.4259181025124004,
+     "MOTA": 0.44550922163837214,
+     "IDSW": 5200,
+     "replayed": true,
+     "tracker_ms": 12.535586057677211,
+     "run": "chosen"
+    }
+   }
+  },
+  "botsort|reid-|gmc-": {
+   "grid_default": {
+    "val": 0.2438615836899929,
+    "test-dev": 0.2705456033367733,
+    "MOT17-train": 0.3849673337487473,
+    "MOT20-train": 0.3162681093950495
+   },
+   "n_rows": 58,
+   "repro_val": {
+    "rerun": 0.2438615836899929,
+    "grid": 0.2438615836899929,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.9,
+     "new_track_thresh": 0.35,
+     "track_high_thresh": 0.35,
+     "track_low_thresh": 0.25
+    },
+    "val_HOTA": 0.25142208651498127,
+    "run": "extend track_low_thresh: track_low_thresh=0.25 on best",
+    "n_val_runs": 47
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2383,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2389,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2402,
+    "high_new: new_track_thresh=0.3,track_high_thresh=0.3": 0.2469,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.2493,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2474,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2436,
+    "track_low_thresh: track_low_thresh=0.05": 0.2439,
+    "track_low_thresh: track_low_thresh=0.15": 0.2435,
+    "track_low_thresh: track_low_thresh=0.2": 0.244,
+    "match_thresh: match_thresh=0.6": 0.1813,
+    "match_thresh: match_thresh=0.7": 0.2082,
+    "match_thresh: match_thresh=0.9": 0.2506,
+    "track_buffer: track_buffer=15": 0.2398,
+    "track_buffer: track_buffer=60": 0.2431,
+    "track_buffer: track_buffer=90": 0.2429
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2439,
+     "person": {
+      "HOTA": 0.2844,
+      "DetA": 0.2945,
+      "AssA": 0.2816,
+      "IDF1": 0.3228,
+      "MOTA": 0.0959,
+      "IDSW": 1221
+     },
+     "tracker_ms": 11.8
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2439,
+     "person": {
+      "HOTA": 0.2844,
+      "DetA": 0.2945,
+      "AssA": 0.2816,
+      "IDF1": 0.3228,
+      "MOTA": 0.0959,
+      "IDSW": 1221
+     },
+     "tracker_ms": 11.1
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2705,
+     "person": {
+      "HOTA": 0.2444,
+      "DetA": 0.2378,
+      "AssA": 0.2626,
+      "IDF1": 0.2801,
+      "MOTA": 0.0588,
+      "IDSW": 2982
+     },
+     "tracker_ms": 12.8
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2705,
+     "person": {
+      "HOTA": 0.2444,
+      "DetA": 0.2378,
+      "AssA": 0.2626,
+      "IDF1": 0.2801,
+      "MOTA": 0.0588,
+      "IDSW": 2982
+     },
+     "tracker_ms": 11.4
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2794,
+     "person": {
+      "HOTA": 0.256,
+      "DetA": 0.2302,
+      "AssA": 0.2953,
+      "IDF1": 0.31,
+      "MOTA": 0.1332,
+      "IDSW": 1943
+     },
+     "tracker_ms": 7.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2514,
+     "person": {
+      "HOTA": 0.3005,
+      "DetA": 0.2993,
+      "AssA": 0.3069,
+      "IDF1": 0.3668,
+      "MOTA": 0.1989,
+      "IDSW": 861
+     },
+     "tracker_ms": 7.2
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.385,
+     "person": {
+      "HOTA": 0.385,
+      "DetA": 0.3775,
+      "AssA": 0.4,
+      "IDF1": 0.4586,
+      "MOTA": 0.4008,
+      "IDSW": 814
+     },
+     "tracker_ms": 3.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.385,
+     "person": {
+      "HOTA": 0.385,
+      "DetA": 0.3775,
+      "AssA": 0.4,
+      "IDF1": 0.4586,
+      "MOTA": 0.4008,
+      "IDSW": 814
+     },
+     "tracker_ms": 3.2
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3857,
+     "person": {
+      "HOTA": 0.3857,
+      "DetA": 0.3556,
+      "AssA": 0.4236,
+      "IDF1": 0.4688,
+      "MOTA": 0.4033,
+      "IDSW": 520
+     },
+     "tracker_ms": 2.4
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3163,
+     "person": {
+      "HOTA": 0.3163,
+      "DetA": 0.3665,
+      "AssA": 0.2769,
+      "IDF1": 0.4053,
+      "MOTA": 0.4514,
+      "IDSW": 7412
+     },
+     "tracker_ms": 13.1
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3163,
+     "person": {
+      "HOTA": 0.3163,
+      "DetA": 0.3665,
+      "AssA": 0.2769,
+      "IDF1": 0.4053,
+      "MOTA": 0.4514,
+      "IDSW": 7412
+     },
+     "tracker_ms": 12.5
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2999,
+     "person": {
+      "HOTA": 0.2999,
+      "DetA": 0.3068,
+      "AssA": 0.296,
+      "IDF1": 0.4053,
+      "MOTA": 0.395,
+      "IDSW": 4893
+     },
+     "tracker_ms": 8.6
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.3849673337487473,
+     "DetA": 0.37746785419131257,
+     "AssA": 0.40003703102465193,
+     "IDF1": 0.45855939503093085,
+     "MOTA": 0.4008210370713376,
+     "IDSW": 814,
+     "replayed": false,
+     "tracker_ms": 3.5838976013892356,
+     "run": "default (grid procedure, real)",
+     "grid": 0.3849673337487473
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.3856610050083225,
+     "DetA": 0.35558800724539646,
+     "AssA": 0.42362879988835733,
+     "IDF1": 0.46882095241482746,
+     "MOTA": 0.40328771026830634,
+     "IDSW": 520,
+     "replayed": true,
+     "tracker_ms": 2.3830916252032495,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.3162681093950495,
+     "DetA": 0.36648596657521865,
+     "AssA": 0.27688622142302244,
+     "IDF1": 0.40526799115527923,
+     "MOTA": 0.45143017801648844,
+     "IDSW": 7412,
+     "replayed": false,
+     "tracker_ms": 13.121817395405026,
+     "run": "default (grid procedure, real)",
+     "grid": 0.3162681093950495
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.2999045498071712,
+     "DetA": 0.3067937959452469,
+     "AssA": 0.296000486510124,
+     "IDF1": 0.40531909400447713,
+     "MOTA": 0.39496956674252215,
+     "IDSW": 4893,
+     "replayed": true,
+     "tracker_ms": 8.623985793386312,
+     "run": "chosen"
+    }
+   }
+  },
+  "botsort|reid-|gmc+": {
+   "grid_default": {
+    "val": 0.26579976004905026,
+    "test-dev": 0.2926602977104624,
+    "MOT17-train": 0.39459239412538216,
+    "MOT20-train": 0.31728402460247423
+   },
+   "n_rows": 45,
+   "repro_val": {
+    "rerun": 0.26579903515201647,
+    "grid": 0.26579976004905026,
+    "diff": -7.248970337880856e-07
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.95,
+     "new_track_thresh": 0.4,
+     "track_high_thresh": 0.4,
+     "track_low_thresh": 0.05
+    },
+    "val_HOTA": 0.2788081284783045,
+    "run": "recheck high_new: new_track_thresh=0.4,track_high_thresh=0.4 on best",
+    "n_val_runs": 32
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2584,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2604,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2634,
+    "high_new: new_track_thresh=0.3,track_high_thresh=0.3": 0.2713,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.27,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2712,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2645,
+    "track_low_thresh: track_low_thresh=0.05": 0.2698,
+    "track_low_thresh: track_low_thresh=0.15": 0.265,
+    "track_low_thresh: track_low_thresh=0.2": 0.2622,
+    "match_thresh: match_thresh=0.6": 0.2011,
+    "match_thresh: match_thresh=0.7": 0.2351,
+    "match_thresh: match_thresh=0.9": 0.2705,
+    "track_buffer: track_buffer=15": 0.2645,
+    "track_buffer: track_buffer=60": 0.2653,
+    "track_buffer: track_buffer=90": 0.2648
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2658,
+     "person": {
+      "HOTA": 0.3162,
+      "DetA": 0.3074,
+      "AssA": 0.332,
+      "IDF1": 0.3705,
+      "MOTA": 0.0856,
+      "IDSW": 976
+     },
+     "tracker_ms": 34.3
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2658,
+     "person": {
+      "HOTA": 0.3162,
+      "DetA": 0.3074,
+      "AssA": 0.332,
+      "IDF1": 0.3705,
+      "MOTA": 0.0856,
+      "IDSW": 976
+     },
+     "tracker_ms": 12.4
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2927,
+     "person": {
+      "HOTA": 0.2692,
+      "DetA": 0.2508,
+      "AssA": 0.3002,
+      "IDF1": 0.3138,
+      "MOTA": 0.0631,
+      "IDSW": 2396
+     },
+     "tracker_ms": 17.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2927,
+     "person": {
+      "HOTA": 0.2692,
+      "DetA": 0.2508,
+      "AssA": 0.3002,
+      "IDF1": 0.3138,
+      "MOTA": 0.0631,
+      "IDSW": 2396
+     },
+     "tracker_ms": 7.2
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3016,
+     "person": {
+      "HOTA": 0.2867,
+      "DetA": 0.2475,
+      "AssA": 0.3411,
+      "IDF1": 0.3574,
+      "MOTA": 0.1327,
+      "IDSW": 1097
+     },
+     "tracker_ms": 5.7
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2788,
+     "person": {
+      "HOTA": 0.3397,
+      "DetA": 0.319,
+      "AssA": 0.3661,
+      "IDF1": 0.422,
+      "MOTA": 0.1944,
+      "IDSW": 440
+     },
+     "tracker_ms": 22.2
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3946,
+     "person": {
+      "HOTA": 0.3946,
+      "DetA": 0.3834,
+      "AssA": 0.4134,
+      "IDF1": 0.4742,
+      "MOTA": 0.4078,
+      "IDSW": 666
+     },
+     "tracker_ms": 13.4
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3946,
+     "person": {
+      "HOTA": 0.3946,
+      "DetA": 0.3834,
+      "AssA": 0.4134,
+      "IDF1": 0.4742,
+      "MOTA": 0.4078,
+      "IDSW": 666
+     },
+     "tracker_ms": 2.1
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4036,
+     "person": {
+      "HOTA": 0.4036,
+      "DetA": 0.3761,
+      "AssA": 0.4394,
+      "IDF1": 0.4938,
+      "MOTA": 0.4157,
+      "IDSW": 362
+     },
+     "tracker_ms": 2.0
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3173,
+     "person": {
+      "HOTA": 0.3173,
+      "DetA": 0.3664,
+      "AssA": 0.2787,
+      "IDF1": 0.4075,
+      "MOTA": 0.4511,
+      "IDSW": 7449
+     },
+     "tracker_ms": 19.0
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3173,
+     "person": {
+      "HOTA": 0.3173,
+      "DetA": 0.3664,
+      "AssA": 0.2787,
+      "IDF1": 0.4075,
+      "MOTA": 0.4511,
+      "IDSW": 7449
+     },
+     "tracker_ms": 8.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3242,
+     "person": {
+      "HOTA": 0.3242,
+      "DetA": 0.3467,
+      "AssA": 0.3064,
+      "IDF1": 0.4368,
+      "MOTA": 0.4453,
+      "IDSW": 3895
+     },
+     "tracker_ms": 7.3
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.39459239412538216,
+     "DetA": 0.38335309671029694,
+     "AssA": 0.4133806749563376,
+     "IDF1": 0.4742222345347259,
+     "MOTA": 0.4078292385370936,
+     "IDSW": 666,
+     "replayed": false,
+     "tracker_ms": 13.373259883364117,
+     "run": "default (grid procedure, real)",
+     "grid": 0.39459239412538216
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.4022399304808802,
+     "DetA": 0.37553409781849423,
+     "AssA": 0.4371897941895157,
+     "IDF1": 0.49173334549996295,
+     "MOTA": 0.41511349368193273,
+     "IDSW": 366,
+     "replayed": true,
+     "tracker_ms": 2.2962631564720333,
+     "run": "chosen (bot sweep)"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.31728402460247423,
+     "DetA": 0.366379140956834,
+     "AssA": 0.2786624828659506,
+     "IDF1": 0.40750180870753977,
+     "MOTA": 0.4510582453592147,
+     "IDSW": 7449,
+     "replayed": false,
+     "tracker_ms": 19.005840554612035,
+     "run": "default (grid procedure, real)",
+     "grid": 0.31728402460247423
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.3166246686976132,
+     "DetA": 0.3440993895536159,
+     "AssA": 0.29437660266784943,
+     "IDF1": 0.42648470476723993,
+     "MOTA": 0.4431031170071936,
+     "IDSW": 4138,
+     "replayed": true,
+     "tracker_ms": 8.753936846428058,
+     "run": "chosen (bot sweep)"
+    }
+   },
+   "bot_sweep_chosen": {
+    "settings_changed": {
+     "track_high_thresh": 0.4,
+     "track_low_thresh": 0.05,
+     "new_track_thresh": 0.4,
+     "match_thresh": 0.975,
+     "track_buffer": 60
+    },
+    "val_HOTA": 0.2801636812415585,
+    "run": "match2 hn=0.4 m=0.975 buf=60 low=0.05",
+    "n_val_runs": 50,
+    "rows": [
+     {
+      "which": "default",
+      "run": "default (grid procedure, real GMC)",
+      "split": "val",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": false,
+      "class_avg_HOTA": 0.2658,
+      "person": {
+       "HOTA": 0.3162,
+       "DetA": 0.3074,
+       "AssA": 0.332,
+       "IDF1": 0.3705,
+       "MOTA": 0.0856,
+       "IDSW": 976
+      },
+      "tracker_ms": 23.8
+     },
+     {
+      "which": "default",
+      "run": "default",
+      "split": "val",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": true,
+      "class_avg_HOTA": 0.2658,
+      "person": {
+       "HOTA": 0.3162,
+       "DetA": 0.3074,
+       "AssA": 0.332,
+       "IDF1": 0.3705,
+       "MOTA": 0.0856,
+       "IDSW": 976
+      },
+      "tracker_ms": 6.8
+     },
+     {
+      "which": "default",
+      "run": "default (grid procedure, real GMC)",
+      "split": "test-dev",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": false,
+      "class_avg_HOTA": 0.2927,
+      "person": {
+       "HOTA": 0.2692,
+       "DetA": 0.2508,
+       "AssA": 0.3002,
+       "IDF1": 0.3138,
+       "MOTA": 0.0631,
+       "IDSW": 2396
+      },
+      "tracker_ms": 16.9
+     },
+     {
+      "which": "default",
+      "run": "default",
+      "split": "test-dev",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": true,
+      "class_avg_HOTA": 0.2927,
+      "person": {
+       "HOTA": 0.2692,
+       "DetA": 0.2508,
+       "AssA": 0.3002,
+       "IDF1": 0.3138,
+       "MOTA": 0.0631,
+       "IDSW": 2396
+      },
+      "tracker_ms": 9.4
+     },
+     {
+      "which": "default",
+      "run": "default | INT8 conf 0.23 + flight post-filter",
+      "split": "val",
+      "det": "vd_mav_cl_s42_int8",
+      "post_filter": {
+       "person": 0.23,
+       "vehicle": 0.29
+      },
+      "replayed": true,
+      "class_avg_HOTA": 0.2508,
+      "person": {
+       "HOTA": 0.2953,
+       "DetA": 0.2961,
+       "AssA": 0.3012,
+       "IDF1": 0.3392,
+       "MOTA": 0.1351,
+       "IDSW": 1017
+      },
+      "tracker_ms": 5.8
+     },
+     {
+      "which": "default",
+      "run": "default | INT8 conf 0.23 + flight post-filter",
+      "split": "test-dev",
+      "det": "vd_mav_cl_s42_int8",
+      "post_filter": {
+       "person": 0.23,
+       "vehicle": 0.29
+      },
+      "replayed": true,
+      "class_avg_HOTA": 0.2823,
+      "person": {
+       "HOTA": 0.2509,
+       "DetA": 0.2316,
+       "AssA": 0.2837,
+       "IDF1": 0.2924,
+       "MOTA": 0.0768,
+       "IDSW": 2681
+      },
+      "tracker_ms": 6.7
+     },
+     {
+      "which": "default",
+      "run": "default (grid procedure, real GMC)",
+      "split": "MOT17-train",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": false,
+      "class_avg_HOTA": 0.3946,
+      "person": {
+       "HOTA": 0.3946,
+       "DetA": 0.3834,
+       "AssA": 0.4134,
+       "IDF1": 0.4742,
+       "MOTA": 0.4078,
+       "IDSW": 666
+      },
+      "tracker_ms": 14.9
+     },
+     {
+      "which": "default",
+      "run": "default (grid procedure, real GMC)",
+      "split": "MOT20-train",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": false,
+      "class_avg_HOTA": 0.3173,
+      "person": {
+       "HOTA": 0.3173,
+       "DetA": 0.3664,
+       "AssA": 0.2787,
+       "IDF1": 0.4075,
+       "MOTA": 0.4511,
+       "IDSW": 7449
+      },
+      "tracker_ms": 23.8
+     },
+     {
+      "which": "chosen",
+      "run": "match2 hn=0.4 m=0.975 buf=60 low=0.05",
+      "split": "val",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": true,
+      "class_avg_HOTA": 0.2802,
+      "person": {
+       "HOTA": 0.3405,
+       "DetA": 0.3198,
+       "AssA": 0.3669,
+       "IDF1": 0.4227,
+       "MOTA": 0.1951,
+       "IDSW": 466
+      },
+      "tracker_ms": 6.1
+     },
+     {
+      "which": "chosen",
+      "run": "chosen",
+      "split": "test-dev",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": true,
+      "class_avg_HOTA": 0.3016,
+      "person": {
+       "HOTA": 0.2865,
+       "DetA": 0.248,
+       "AssA": 0.3403,
+       "IDF1": 0.3586,
+       "MOTA": 0.133,
+       "IDSW": 1119
+      },
+      "tracker_ms": 6.6
+     },
+     {
+      "which": "chosen",
+      "run": "chosen | INT8 conf 0.23 + flight post-filter",
+      "split": "val",
+      "det": "vd_mav_cl_s42_int8",
+      "post_filter": {
+       "person": 0.23,
+       "vehicle": 0.29
+      },
+      "replayed": true,
+      "class_avg_HOTA": 0.2547,
+      "person": {
+       "HOTA": 0.3277,
+       "DetA": 0.2959,
+       "AssA": 0.3669,
+       "IDF1": 0.4203,
+       "MOTA": 0.2153,
+       "IDSW": 461
+      },
+      "tracker_ms": 4.2
+     },
+     {
+      "which": "chosen",
+      "run": "chosen | INT8 conf 0.23 + flight post-filter",
+      "split": "test-dev",
+      "det": "vd_mav_cl_s42_int8",
+      "post_filter": {
+       "person": 0.23,
+       "vehicle": 0.29
+      },
+      "replayed": true,
+      "class_avg_HOTA": 0.2928,
+      "person": {
+       "HOTA": 0.2674,
+       "DetA": 0.223,
+       "AssA": 0.33,
+       "IDF1": 0.3332,
+       "MOTA": 0.13,
+       "IDSW": 1170
+      },
+      "tracker_ms": 4.6
+     },
+     {
+      "which": "chosen",
+      "run": "chosen",
+      "split": "MOT17-train",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": true,
+      "class_avg_HOTA": 0.4022,
+      "person": {
+       "HOTA": 0.4022,
+       "DetA": 0.3755,
+       "AssA": 0.4372,
+       "IDF1": 0.4917,
+       "MOTA": 0.4151,
+       "IDSW": 366
+      },
+      "tracker_ms": 2.1
+     },
+     {
+      "which": "chosen",
+      "run": "chosen",
+      "split": "MOT20-train",
+      "det": "vd_mav_cl_s42",
+      "post_filter": null,
+      "replayed": true,
+      "class_avg_HOTA": 0.3166,
+      "person": {
+       "HOTA": 0.3166,
+       "DetA": 0.3441,
+       "AssA": 0.2944,
+       "IDF1": 0.4265,
+       "MOTA": 0.4431,
+       "IDSW": 4138
+      },
+      "tracker_ms": 7.4
+     }
+    ]
+   }
+  },
+  "botsort|reid+|gmc-": {
+   "grid_default": {
+    "val": 0.24195899461859396,
+    "test-dev": 0.26912649658359344
+   },
+   "n_rows": 52,
+   "repro_val": {
+    "rerun": 0.24195899461859396,
+    "grid": 0.24195899461859396,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.925,
+     "new_track_thresh": 0.35,
+     "proximity_thresh": 0.3,
+     "track_high_thresh": 0.35,
+     "track_low_thresh": 0.05
+    },
+    "val_HOTA": 0.2655015326082633,
+    "run": "extend match_thresh: match_thresh=0.925 on best",
+    "n_val_runs": 47
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2152,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2257,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2334,
+    "high_new: new_track_thresh=0.3,track_high_thresh=0.3": 0.2508,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.2548,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2532,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2452,
+    "track_low_thresh: track_low_thresh=0.05": 0.2432,
+    "track_low_thresh: track_low_thresh=0.15": 0.2426,
+    "track_low_thresh: track_low_thresh=0.2": 0.242,
+    "match_thresh: match_thresh=0.6": 0.2332,
+    "match_thresh: match_thresh=0.7": 0.2369,
+    "match_thresh: match_thresh=0.9": 0.2451,
+    "track_buffer: track_buffer=15": 0.238,
+    "track_buffer: track_buffer=60": 0.24,
+    "track_buffer: track_buffer=90": 0.2411,
+    "appearance_thresh: appearance_thresh=0.6": 0.242,
+    "appearance_thresh: appearance_thresh=0.7": 0.242,
+    "appearance_thresh: appearance_thresh=0.9": 0.242,
+    "appearance_thresh: appearance_thresh=0.95": 0.2419,
+    "proximity_thresh: proximity_thresh=0.3": 0.2475,
+    "proximity_thresh: proximity_thresh=0.4": 0.2433,
+    "proximity_thresh: proximity_thresh=0.6": 0.2397,
+    "proximity_thresh: proximity_thresh=0.7": 0.2349
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.242,
+     "person": {
+      "HOTA": 0.2794,
+      "DetA": 0.2803,
+      "AssA": 0.2847,
+      "IDF1": 0.3126,
+      "MOTA": -0.0933,
+      "IDSW": 2106
+     },
+     "tracker_ms": 369.8
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.242,
+     "person": {
+      "HOTA": 0.2794,
+      "DetA": 0.2803,
+      "AssA": 0.2847,
+      "IDF1": 0.3126,
+      "MOTA": -0.0933,
+      "IDSW": 2106
+     },
+     "tracker_ms": 20.3
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2691,
+     "person": {
+      "HOTA": 0.2463,
+      "DetA": 0.2416,
+      "AssA": 0.2638,
+      "IDF1": 0.277,
+      "MOTA": -0.0836,
+      "IDSW": 5307
+     },
+     "tracker_ms": 14.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2868,
+     "person": {
+      "HOTA": 0.2728,
+      "DetA": 0.2479,
+      "AssA": 0.3105,
+      "IDF1": 0.3298,
+      "MOTA": 0.0707,
+      "IDSW": 2537
+     },
+     "tracker_ms": 11.3
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4044,
+     "person": {
+      "HOTA": 0.4044,
+      "DetA": 0.3804,
+      "AssA": 0.4374,
+      "IDF1": 0.4976,
+      "MOTA": 0.408,
+      "IDSW": 644
+     },
+     "tracker_ms": 6.8
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.338,
+     "person": {
+      "HOTA": 0.338,
+      "DetA": 0.3646,
+      "AssA": 0.3166,
+      "IDF1": 0.4544,
+      "MOTA": 0.4578,
+      "IDSW": 5428
+     },
+     "tracker_ms": 23.1
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.40441532999308355,
+     "DetA": 0.38044639181130624,
+     "AssA": 0.4374381487414495,
+     "IDF1": 0.4975588005796455,
+     "MOTA": 0.4080340525570585,
+     "IDSW": 644,
+     "replayed": true,
+     "tracker_ms": 6.785364510245897,
+     "run": "chosen"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.33799629447394347,
+     "DetA": 0.36464572507783777,
+     "AssA": 0.31664023259468943,
+     "IDF1": 0.45438167137004704,
+     "MOTA": 0.45779181289848353,
+     "IDSW": 5428,
+     "replayed": true,
+     "tracker_ms": 23.083771148922498,
+     "run": "chosen"
+    }
+   }
+  },
+  "botsort|reid+|gmc+": {
+   "grid_default": {
+    "val": 0.26413461329188936,
+    "test-dev": 0.2907419538491162
+   },
+   "n_rows": 47,
+   "repro_val": {
+    "rerun": 0.26413461329188936,
+    "grid": 0.26413461329188936,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "new_track_thresh": 0.35,
+     "proximity_thresh": 0.4,
+     "track_buffer": 60,
+     "track_high_thresh": 0.35
+    },
+    "val_HOTA": 0.27681512856316653,
+    "run": "grid: new_track_thresh=0.35,proximity_thresh=0.4,track_buffer=60,track_high_thresh=0.35",
+    "n_val_runs": 37
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2319,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2441,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2559,
+    "high_new: new_track_thresh=0.3,track_high_thresh=0.3": 0.2703,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.2753,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2752,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2654,
+    "track_low_thresh: track_low_thresh=0.05": 0.2629,
+    "track_low_thresh: track_low_thresh=0.15": 0.2635,
+    "track_low_thresh: track_low_thresh=0.2": 0.2626,
+    "match_thresh: match_thresh=0.6": 0.2632,
+    "match_thresh: match_thresh=0.7": 0.2635,
+    "match_thresh: match_thresh=0.9": 0.2637,
+    "track_buffer: track_buffer=15": 0.2622,
+    "track_buffer: track_buffer=60": 0.2646,
+    "track_buffer: track_buffer=90": 0.2646,
+    "appearance_thresh: appearance_thresh=0.6": 0.2641,
+    "appearance_thresh: appearance_thresh=0.7": 0.2641,
+    "appearance_thresh: appearance_thresh=0.9": 0.2641,
+    "appearance_thresh: appearance_thresh=0.95": 0.264,
+    "proximity_thresh: proximity_thresh=0.3": 0.2668,
+    "proximity_thresh: proximity_thresh=0.4": 0.265,
+    "proximity_thresh: proximity_thresh=0.6": 0.2596,
+    "proximity_thresh: proximity_thresh=0.7": 0.2538
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2641,
+     "person": {
+      "HOTA": 0.3223,
+      "DetA": 0.2871,
+      "AssA": 0.3679,
+      "IDF1": 0.3805,
+      "MOTA": -0.1094,
+      "IDSW": 1616
+     },
+     "tracker_ms": 394.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2641,
+     "person": {
+      "HOTA": 0.3223,
+      "DetA": 0.2871,
+      "AssA": 0.3679,
+      "IDF1": 0.3805,
+      "MOTA": -0.1094,
+      "IDSW": 1616
+     },
+     "tracker_ms": 14.0
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2907,
+     "person": {
+      "HOTA": 0.2738,
+      "DetA": 0.2483,
+      "AssA": 0.3138,
+      "IDF1": 0.3181,
+      "MOTA": -0.0965,
+      "IDSW": 4137
+     },
+     "tracker_ms": 18.7
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3026,
+     "person": {
+      "HOTA": 0.2879,
+      "DetA": 0.2534,
+      "AssA": 0.3372,
+      "IDF1": 0.3515,
+      "MOTA": 0.0848,
+      "IDSW": 2019
+     },
+     "tracker_ms": 11.7
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2768,
+     "person": {
+      "HOTA": 0.3538,
+      "DetA": 0.3144,
+      "AssA": 0.4035,
+      "IDF1": 0.4364,
+      "MOTA": 0.1232,
+      "IDSW": 854
+     },
+     "tracker_ms": 289.8
+    },
+    {
+     "which": "default",
+     "run": "default | INT8 conf 0.23 + flight post-filter",
+     "split": "val",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.248,
+     "person": {
+      "HOTA": 0.3136,
+      "DetA": 0.2891,
+      "AssA": 0.3472,
+      "IDF1": 0.3744,
+      "MOTA": 0.0031,
+      "IDSW": 1744
+     },
+     "tracker_ms": 12.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen | INT8 conf 0.23 + flight post-filter",
+     "split": "val",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.2575,
+     "person": {
+      "HOTA": 0.3349,
+      "DetA": 0.3003,
+      "AssA": 0.3788,
+      "IDF1": 0.4229,
+      "MOTA": 0.1666,
+      "IDSW": 807
+     },
+     "tracker_ms": 9.6
+    },
+    {
+     "which": "default",
+     "run": "default | INT8 conf 0.23 + flight post-filter",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.2828,
+     "person": {
+      "HOTA": 0.2575,
+      "DetA": 0.2348,
+      "AssA": 0.2948,
+      "IDF1": 0.2986,
+      "MOTA": -0.0447,
+      "IDSW": 4577
+     },
+     "tracker_ms": 13.4
+    },
+    {
+     "which": "chosen",
+     "run": "chosen | INT8 conf 0.23 + flight post-filter",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.2874,
+     "person": {
+      "HOTA": 0.2693,
+      "DetA": 0.2315,
+      "AssA": 0.3236,
+      "IDF1": 0.3286,
+      "MOTA": 0.092,
+      "IDSW": 2128
+     },
+     "tracker_ms": 10.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4114,
+     "person": {
+      "HOTA": 0.4114,
+      "DetA": 0.3771,
+      "AssA": 0.4547,
+      "IDF1": 0.505,
+      "MOTA": 0.4162,
+      "IDSW": 528
+     },
+     "tracker_ms": 5.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.336,
+     "person": {
+      "HOTA": 0.336,
+      "DetA": 0.3561,
+      "AssA": 0.3201,
+      "IDF1": 0.4504,
+      "MOTA": 0.4494,
+      "IDSW": 5300
+     },
+     "tracker_ms": 23.5
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.41142196701587624,
+     "DetA": 0.3771241583940045,
+     "AssA": 0.4546864882274899,
+     "IDF1": 0.5050498172987449,
+     "MOTA": 0.41624442327043465,
+     "IDSW": 528,
+     "replayed": true,
+     "tracker_ms": 5.56546735248943,
+     "run": "chosen"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.3359935355051588,
+     "DetA": 0.3561485547903358,
+     "AssA": 0.3201155609368101,
+     "IDF1": 0.45036269524279327,
+     "MOTA": 0.4494444806780103,
+     "IDSW": 5300,
+     "replayed": true,
+     "tracker_ms": 23.46939790524788,
+     "run": "chosen"
+    }
+   }
+  },
+  "ocsort": {
+   "grid_default": {
+    "val": 0.23394356952348055,
+    "test-dev": 0.2567531257923047,
+    "MOT17-train": 0.3710014837174553,
+    "MOT20-train": 0.285106645188422
+   },
+   "n_rows": 60,
+   "repro_val": {
+    "rerun": 0.23394356952348055,
+    "grid": 0.23394356952348055,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "inertia": 0.1,
+     "match_thresh": 0.975,
+     "new_track_thresh": 0.35,
+     "track_buffer": 60,
+     "track_high_thresh": 0.35,
+     "use_byte": true
+    },
+    "val_HOTA": 0.25251206481786126,
+    "run": "extend match_thresh: match_thresh=0.975 on best",
+    "n_val_runs": 49
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2322,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.233,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.234,
+    "high_new: new_track_thresh=0.3,track_high_thresh=0.3": 0.236,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.231,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2211,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2062,
+    "match_thresh: match_thresh=0.6": 0.1793,
+    "match_thresh: match_thresh=0.7": 0.2055,
+    "match_thresh: match_thresh=0.9": 0.2412,
+    "track_buffer: track_buffer=15": 0.2312,
+    "track_buffer: track_buffer=60": 0.2347,
+    "track_buffer: track_buffer=90": 0.2302,
+    "delta_t: delta_t=1": 0.2317,
+    "delta_t: delta_t=2": 0.2306,
+    "delta_t: delta_t=5": 0.231,
+    "inertia: inertia=0.0": 0.2334,
+    "inertia: inertia=0.1": 0.2336,
+    "inertia: inertia=0.3": 0.2294,
+    "inertia: inertia=0.4": 0.228,
+    "use_byte/low: track_low_thresh=0.05,use_byte=True": 0.2387,
+    "use_byte/low: track_low_thresh=0.1,use_byte=True": 0.2395,
+    "use_byte/low: track_low_thresh=0.15,use_byte=True": 0.2371,
+    "use_byte/low: track_low_thresh=0.2,use_byte=True": 0.2344
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2339,
+     "person": {
+      "HOTA": 0.2729,
+      "DetA": 0.2891,
+      "AssA": 0.2629,
+      "IDF1": 0.3185,
+      "MOTA": 0.1535,
+      "IDSW": 1463
+     },
+     "tracker_ms": 16.1
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2339,
+     "person": {
+      "HOTA": 0.2729,
+      "DetA": 0.2891,
+      "AssA": 0.2629,
+      "IDF1": 0.3185,
+      "MOTA": 0.1535,
+      "IDSW": 1463
+     },
+     "tracker_ms": 23.2
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2568,
+     "person": {
+      "HOTA": 0.2304,
+      "DetA": 0.2251,
+      "AssA": 0.2464,
+      "IDF1": 0.2652,
+      "MOTA": 0.0958,
+      "IDSW": 3486
+     },
+     "tracker_ms": 14.4
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2568,
+     "person": {
+      "HOTA": 0.2304,
+      "DetA": 0.2251,
+      "AssA": 0.2464,
+      "IDF1": 0.2652,
+      "MOTA": 0.0958,
+      "IDSW": 3486
+     },
+     "tracker_ms": 14.1
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2766,
+     "person": {
+      "HOTA": 0.2558,
+      "DetA": 0.2433,
+      "AssA": 0.2789,
+      "IDF1": 0.3104,
+      "MOTA": 0.0837,
+      "IDSW": 2394
+     },
+     "tracker_ms": 11.5
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2525,
+     "person": {
+      "HOTA": 0.3084,
+      "DetA": 0.3043,
+      "AssA": 0.3177,
+      "IDF1": 0.3768,
+      "MOTA": 0.1399,
+      "IDSW": 919
+     },
+     "tracker_ms": 11.5
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.371,
+     "person": {
+      "HOTA": 0.371,
+      "DetA": 0.3574,
+      "AssA": 0.3921,
+      "IDF1": 0.4484,
+      "MOTA": 0.3947,
+      "IDSW": 1069
+     },
+     "tracker_ms": 3.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.371,
+     "person": {
+      "HOTA": 0.371,
+      "DetA": 0.3574,
+      "AssA": 0.3921,
+      "IDF1": 0.4484,
+      "MOTA": 0.3947,
+      "IDSW": 1069
+     },
+     "tracker_ms": 3.2
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.383,
+     "person": {
+      "HOTA": 0.383,
+      "DetA": 0.3689,
+      "AssA": 0.4047,
+      "IDF1": 0.4669,
+      "MOTA": 0.4045,
+      "IDSW": 557
+     },
+     "tracker_ms": 3.0
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2851,
+     "person": {
+      "HOTA": 0.2851,
+      "DetA": 0.3212,
+      "AssA": 0.2558,
+      "IDF1": 0.3716,
+      "MOTA": 0.3979,
+      "IDSW": 10915
+     },
+     "tracker_ms": 14.2
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2851,
+     "person": {
+      "HOTA": 0.2851,
+      "DetA": 0.3212,
+      "AssA": 0.2558,
+      "IDF1": 0.3716,
+      "MOTA": 0.3979,
+      "IDSW": 10915
+     },
+     "tracker_ms": 13.8
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2952,
+     "person": {
+      "HOTA": 0.2952,
+      "DetA": 0.3432,
+      "AssA": 0.2562,
+      "IDF1": 0.3933,
+      "MOTA": 0.4319,
+      "IDSW": 6343
+     },
+     "tracker_ms": 13.0
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.3710014837174553,
+     "DetA": 0.35738093353741135,
+     "AssA": 0.39212843163709005,
+     "IDF1": 0.4483592843693344,
+     "MOTA": 0.3946588065576106,
+     "IDSW": 1069,
+     "replayed": false,
+     "tracker_ms": 3.597339524555351,
+     "run": "default (grid procedure, real)",
+     "grid": 0.3710014837174553
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.3829816025497819,
+     "DetA": 0.36894584806306246,
+     "AssA": 0.4046864021304584,
+     "IDF1": 0.466917108930984,
+     "MOTA": 0.40452549934548565,
+     "IDSW": 557,
+     "replayed": true,
+     "tracker_ms": 2.98417124242114,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.285106645188422,
+     "DetA": 0.3212249813440941,
+     "AssA": 0.2557620611069155,
+     "IDF1": 0.37160950619040845,
+     "MOTA": 0.39793180764559577,
+     "IDSW": 10915,
+     "replayed": false,
+     "tracker_ms": 14.194986093521653,
+     "run": "default (grid procedure, real)",
+     "grid": 0.285106645188422
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.29521284401701936,
+     "DetA": 0.34323645592776036,
+     "AssA": 0.2561858999383893,
+     "IDF1": 0.3933454319941433,
+     "MOTA": 0.43187991687040705,
+     "IDSW": 6343,
+     "replayed": true,
+     "tracker_ms": 12.95581217240995,
+     "run": "chosen"
+    }
+   }
+  },
+  "deepocsort|reid-|gmc-": {
+   "grid_default": {
+    "val": 0.23598810824384253,
+    "test-dev": 0.26294137702477716
+   },
+   "n_rows": 59,
+   "repro_val": {
+    "rerun": 0.23598810824384253,
+    "grid": 0.23598810824384253,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "inertia": 0.0,
+     "match_thresh": 0.95,
+     "new_track_thresh": 0.35,
+     "track_high_thresh": 0.35,
+     "use_byte": true
+    },
+    "val_HOTA": 0.2548079480758943,
+    "run": "extend match_thresh: match_thresh=0.95 on best",
+    "n_val_runs": 48
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2322,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.233,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.234,
+    "high_new: new_track_thresh=0.25,track_high_thresh=0.25": 0.2339,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.231,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2211,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2062,
+    "match_thresh: match_thresh=0.6": 0.1816,
+    "match_thresh: match_thresh=0.7": 0.2077,
+    "match_thresh: match_thresh=0.9": 0.237,
+    "track_buffer: track_buffer=15": 0.2315,
+    "track_buffer: track_buffer=60": 0.2358,
+    "track_buffer: track_buffer=90": 0.2334,
+    "delta_t: delta_t=1": 0.2334,
+    "delta_t: delta_t=2": 0.2334,
+    "delta_t: delta_t=5": 0.2343,
+    "inertia: inertia=0.0": 0.2365,
+    "inertia: inertia=0.1": 0.2378,
+    "inertia: inertia=0.3": 0.2312,
+    "inertia: inertia=0.4": 0.2288,
+    "use_byte/low: track_low_thresh=0.05,use_byte=True": 0.242,
+    "use_byte/low: track_low_thresh=0.1,use_byte=True": 0.2438,
+    "use_byte/low: track_low_thresh=0.15,use_byte=True": 0.2409,
+    "use_byte/low: track_low_thresh=0.2,use_byte=True": 0.236
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.236,
+     "person": {
+      "HOTA": 0.2769,
+      "DetA": 0.2869,
+      "AssA": 0.2726,
+      "IDF1": 0.3289,
+      "MOTA": 0.1793,
+      "IDSW": 1345
+     },
+     "tracker_ms": 19.3
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.236,
+     "person": {
+      "HOTA": 0.2769,
+      "DetA": 0.2869,
+      "AssA": 0.2726,
+      "IDF1": 0.3289,
+      "MOTA": 0.1793,
+      "IDSW": 1345
+     },
+     "tracker_ms": 21.6
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2629,
+     "person": {
+      "HOTA": 0.2302,
+      "DetA": 0.2201,
+      "AssA": 0.2506,
+      "IDF1": 0.2694,
+      "MOTA": 0.1166,
+      "IDSW": 3051
+     },
+     "tracker_ms": 13.3
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2629,
+     "person": {
+      "HOTA": 0.2302,
+      "DetA": 0.2201,
+      "AssA": 0.2506,
+      "IDF1": 0.2694,
+      "MOTA": 0.1166,
+      "IDSW": 3051
+     },
+     "tracker_ms": 12.9
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2734,
+     "person": {
+      "HOTA": 0.2582,
+      "DetA": 0.243,
+      "AssA": 0.2845,
+      "IDF1": 0.3105,
+      "MOTA": 0.0914,
+      "IDSW": 2102
+     },
+     "tracker_ms": 11.3
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2548,
+     "person": {
+      "HOTA": 0.3103,
+      "DetA": 0.3041,
+      "AssA": 0.3223,
+      "IDF1": 0.3791,
+      "MOTA": 0.136,
+      "IDSW": 847
+     },
+     "tracker_ms": 10.8
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3739,
+     "person": {
+      "HOTA": 0.3739,
+      "DetA": 0.3492,
+      "AssA": 0.4063,
+      "IDF1": 0.4509,
+      "MOTA": 0.3914,
+      "IDSW": 927
+     },
+     "tracker_ms": 3.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3739,
+     "person": {
+      "HOTA": 0.3739,
+      "DetA": 0.3492,
+      "AssA": 0.4063,
+      "IDF1": 0.4509,
+      "MOTA": 0.3914,
+      "IDSW": 927
+     },
+     "tracker_ms": 3.2
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3901,
+     "person": {
+      "HOTA": 0.3901,
+      "DetA": 0.3685,
+      "AssA": 0.42,
+      "IDF1": 0.4758,
+      "MOTA": 0.4047,
+      "IDSW": 538
+     },
+     "tracker_ms": 3.0
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.278,
+     "person": {
+      "HOTA": 0.278,
+      "DetA": 0.3017,
+      "AssA": 0.2586,
+      "IDF1": 0.3658,
+      "MOTA": 0.3776,
+      "IDSW": 9821
+     },
+     "tracker_ms": 13.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.278,
+     "person": {
+      "HOTA": 0.278,
+      "DetA": 0.3017,
+      "AssA": 0.2586,
+      "IDF1": 0.3658,
+      "MOTA": 0.3776,
+      "IDSW": 9821
+     },
+     "tracker_ms": 13.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3146,
+     "person": {
+      "HOTA": 0.3146,
+      "DetA": 0.3461,
+      "AssA": 0.2885,
+      "IDF1": 0.4205,
+      "MOTA": 0.4357,
+      "IDSW": 5239
+     },
+     "tracker_ms": 12.8
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.37385083765487465,
+     "DetA": 0.34920246564789537,
+     "AssA": 0.406334969079248,
+     "IDF1": 0.450870001127175,
+     "MOTA": 0.391381782238172,
+     "IDSW": 927,
+     "replayed": false,
+     "tracker_ms": 3.6173744389843168,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.39012473870315467,
+     "DetA": 0.36845574483008664,
+     "AssA": 0.420017400554603,
+     "IDF1": 0.4757729395423809,
+     "MOTA": 0.404712503450671,
+     "IDSW": 538,
+     "replayed": true,
+     "tracker_ms": 2.9961213827908826,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.2780125607804379,
+     "DetA": 0.30169315597080554,
+     "AssA": 0.2586342166315175,
+     "IDF1": 0.3657574555494417,
+     "MOTA": 0.37760859640371086,
+     "IDSW": 9821,
+     "replayed": false,
+     "tracker_ms": 13.631008310574241,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.31458430883347693,
+     "DetA": 0.3460629502417799,
+     "AssA": 0.28849614328905016,
+     "IDF1": 0.4205299242859208,
+     "MOTA": 0.4357376164933625,
+     "IDSW": 5239,
+     "replayed": true,
+     "tracker_ms": 12.793496005496518,
+     "run": "chosen"
+    }
+   }
+  },
+  "deepocsort|reid-|gmc+": {
+   "grid_default": {
+    "val": 0.2500069752490787,
+    "test-dev": 0.28071087920895377,
+    "MOT17-train": 0.37998316195215576,
+    "MOT20-train": 0.27925774313889046
+   },
+   "n_rows": 66,
+   "repro_val": {
+    "rerun": 0.2500069752490787,
+    "grid": 0.2500069752490787,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "delta_t": 1,
+     "inertia": 0.0,
+     "match_thresh": 0.9,
+     "new_track_thresh": 0.15,
+     "track_buffer": 10,
+     "track_high_thresh": 0.15
+    },
+    "val_HOTA": 0.26429743881536333,
+    "run": "extend track_buffer: track_buffer=10 on best",
+    "n_val_runs": 55
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2495,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2499,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2527,
+    "high_new: new_track_thresh=0.25,track_high_thresh=0.25": 0.2501,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.2449,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2407,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2185,
+    "match_thresh: match_thresh=0.6": 0.1964,
+    "match_thresh: match_thresh=0.7": 0.2281,
+    "match_thresh: match_thresh=0.9": 0.2529,
+    "track_buffer: track_buffer=15": 0.2517,
+    "track_buffer: track_buffer=60": 0.2501,
+    "track_buffer: track_buffer=90": 0.2498,
+    "delta_t: delta_t=1": 0.2511,
+    "delta_t: delta_t=2": 0.2491,
+    "delta_t: delta_t=5": 0.2482,
+    "inertia: inertia=0.0": 0.2546,
+    "inertia: inertia=0.1": 0.2511,
+    "inertia: inertia=0.3": 0.2479,
+    "inertia: inertia=0.4": 0.2456,
+    "use_byte/low: track_low_thresh=0.05,use_byte=True": 0.2624,
+    "use_byte/low: track_low_thresh=0.1,use_byte=True": 0.259,
+    "use_byte/low: track_low_thresh=0.15,use_byte=True": 0.2613,
+    "use_byte/low: track_low_thresh=0.2,use_byte=True": 0.2563
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.25,
+     "person": {
+      "HOTA": 0.3072,
+      "DetA": 0.2986,
+      "AssA": 0.3215,
+      "IDF1": 0.3754,
+      "MOTA": 0.1856,
+      "IDSW": 1135
+     },
+     "tracker_ms": 47.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.25,
+     "person": {
+      "HOTA": 0.3072,
+      "DetA": 0.2986,
+      "AssA": 0.3215,
+      "IDF1": 0.3754,
+      "MOTA": 0.1856,
+      "IDSW": 1135
+     },
+     "tracker_ms": 23.9
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2807,
+     "person": {
+      "HOTA": 0.2516,
+      "DetA": 0.2317,
+      "AssA": 0.2829,
+      "IDF1": 0.303,
+      "MOTA": 0.1264,
+      "IDSW": 2617
+     },
+     "tracker_ms": 23.4
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2807,
+     "person": {
+      "HOTA": 0.2516,
+      "DetA": 0.2317,
+      "AssA": 0.2829,
+      "IDF1": 0.303,
+      "MOTA": 0.1264,
+      "IDSW": 2617
+     },
+     "tracker_ms": 13.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2929,
+     "person": {
+      "HOTA": 0.2715,
+      "DetA": 0.253,
+      "AssA": 0.3011,
+      "IDF1": 0.3238,
+      "MOTA": -0.0231,
+      "IDSW": 2978
+     },
+     "tracker_ms": 16.3
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2643,
+     "person": {
+      "HOTA": 0.3258,
+      "DetA": 0.297,
+      "AssA": 0.3639,
+      "IDF1": 0.3862,
+      "MOTA": -0.0287,
+      "IDSW": 1132
+     },
+     "tracker_ms": 32.3
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.38,
+     "person": {
+      "HOTA": 0.38,
+      "DetA": 0.3532,
+      "AssA": 0.4149,
+      "IDF1": 0.4632,
+      "MOTA": 0.3961,
+      "IDSW": 819
+     },
+     "tracker_ms": 14.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.38,
+     "person": {
+      "HOTA": 0.38,
+      "DetA": 0.3532,
+      "AssA": 0.4149,
+      "IDF1": 0.4632,
+      "MOTA": 0.3961,
+      "IDSW": 819
+     },
+     "tracker_ms": 3.3
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3871,
+     "person": {
+      "HOTA": 0.3871,
+      "DetA": 0.3784,
+      "AssA": 0.4038,
+      "IDF1": 0.4679,
+      "MOTA": 0.3875,
+      "IDSW": 814
+     },
+     "tracker_ms": 3.9
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2793,
+     "person": {
+      "HOTA": 0.2793,
+      "DetA": 0.3017,
+      "AssA": 0.261,
+      "IDF1": 0.369,
+      "MOTA": 0.3782,
+      "IDSW": 9652
+     },
+     "tracker_ms": 26.2
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2793,
+     "person": {
+      "HOTA": 0.2793,
+      "DetA": 0.3017,
+      "AssA": 0.261,
+      "IDF1": 0.369,
+      "MOTA": 0.3782,
+      "IDSW": 9652
+     },
+     "tracker_ms": 15.4
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3202,
+     "person": {
+      "HOTA": 0.3202,
+      "DetA": 0.3673,
+      "AssA": 0.282,
+      "IDF1": 0.4162,
+      "MOTA": 0.4395,
+      "IDSW": 9215
+     },
+     "tracker_ms": 16.9
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.37998316195215576,
+     "DetA": 0.3532112863779121,
+     "AssA": 0.41489359364325307,
+     "IDF1": 0.4631662228625073,
+     "MOTA": 0.3961014096547548,
+     "IDSW": 819,
+     "replayed": false,
+     "tracker_ms": 14.538685918741306,
+     "run": "default (grid procedure, real)",
+     "grid": 0.37998316195215576
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.3870936067888453,
+     "DetA": 0.37837593619310594,
+     "AssA": 0.40383934143892136,
+     "IDF1": 0.4679396613558806,
+     "MOTA": 0.3874992208162284,
+     "IDSW": 814,
+     "replayed": true,
+     "tracker_ms": 3.9488695103391396,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.27925774313889046,
+     "DetA": 0.3016923158820894,
+     "AssA": 0.26096777489360623,
+     "IDF1": 0.3690075076374156,
+     "MOTA": 0.3781867666007999,
+     "IDSW": 9652,
+     "replayed": false,
+     "tracker_ms": 26.15503989715699,
+     "run": "default (grid procedure, real)",
+     "grid": 0.27925774313889046
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.3201964998029382,
+     "DetA": 0.3672817753732444,
+     "AssA": 0.2820280207179917,
+     "IDF1": 0.41615119542900586,
+     "MOTA": 0.4395239261986896,
+     "IDSW": 9215,
+     "replayed": true,
+     "tracker_ms": 16.866481450633305,
+     "run": "chosen"
+    }
+   }
+  },
+  "deepocsort|reid+|gmc-": {
+   "grid_default": {
+    "val": 0.23478335897817115,
+    "test-dev": 0.26394951586079796
+   },
+   "n_rows": 72,
+   "repro_val": {
+    "rerun": 0.23478335897817115,
+    "grid": 0.23478335897817115,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "alpha_fixed_emb": 0.9,
+     "delta_t": 5,
+     "inertia": 0.0,
+     "match_thresh": 0.95,
+     "new_track_thresh": 0.35,
+     "proximity_thresh": 0.2,
+     "track_buffer": 90,
+     "track_high_thresh": 0.35,
+     "track_low_thresh": 0.05,
+     "use_byte": true
+    },
+    "val_HOTA": 0.2607372043187972,
+    "run": "extend proximity_thresh: proximity_thresh=0.2 on best",
+    "n_val_runs": 66
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2034,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2194,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.232,
+    "high_new: new_track_thresh=0.25,track_high_thresh=0.25": 0.234,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.2322,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2256,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2061,
+    "match_thresh: match_thresh=0.6": 0.2268,
+    "match_thresh: match_thresh=0.7": 0.2291,
+    "match_thresh: match_thresh=0.9": 0.2366,
+    "track_buffer: track_buffer=15": 0.2318,
+    "track_buffer: track_buffer=60": 0.2349,
+    "track_buffer: track_buffer=90": 0.235,
+    "delta_t: delta_t=1": 0.2346,
+    "delta_t: delta_t=2": 0.2348,
+    "delta_t: delta_t=5": 0.2348,
+    "inertia: inertia=0.0": 0.2356,
+    "inertia: inertia=0.1": 0.2349,
+    "inertia: inertia=0.3": 0.2345,
+    "inertia: inertia=0.4": 0.2345,
+    "use_byte/low: track_low_thresh=0.05,use_byte=True": 0.243,
+    "use_byte/low: track_low_thresh=0.1,use_byte=True": 0.2421,
+    "use_byte/low: track_low_thresh=0.15,use_byte=True": 0.2408,
+    "use_byte/low: track_low_thresh=0.2,use_byte=True": 0.238,
+    "appearance_thresh: appearance_thresh=0.6": 0.2348,
+    "appearance_thresh: appearance_thresh=0.7": 0.2348,
+    "appearance_thresh: appearance_thresh=0.8": 0.2348,
+    "appearance_thresh: appearance_thresh=0.95": 0.2344,
+    "proximity_thresh: proximity_thresh=0.3": 0.238,
+    "proximity_thresh: proximity_thresh=0.4": 0.2362,
+    "proximity_thresh: proximity_thresh=0.6": 0.2301,
+    "proximity_thresh: proximity_thresh=0.7": 0.2307,
+    "alpha_fixed_emb: alpha_fixed_emb=0.8": 0.2376,
+    "alpha_fixed_emb: alpha_fixed_emb=0.9": 0.2363,
+    "alpha_fixed_emb: alpha_fixed_emb=0.99": 0.2293
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2348,
+     "person": {
+      "HOTA": 0.2936,
+      "DetA": 0.2927,
+      "AssA": 0.3007,
+      "IDF1": 0.3489,
+      "MOTA": 0.1467,
+      "IDSW": 1739
+     },
+     "tracker_ms": 383.0
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2348,
+     "person": {
+      "HOTA": 0.2936,
+      "DetA": 0.2927,
+      "AssA": 0.3007,
+      "IDF1": 0.3489,
+      "MOTA": 0.1467,
+      "IDSW": 1739
+     },
+     "tracker_ms": 30.0
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2639,
+     "person": {
+      "HOTA": 0.2392,
+      "DetA": 0.2294,
+      "AssA": 0.2605,
+      "IDF1": 0.2786,
+      "MOTA": 0.0893,
+      "IDSW": 4263
+     },
+     "tracker_ms": 23.1
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2823,
+     "person": {
+      "HOTA": 0.2684,
+      "DetA": 0.246,
+      "AssA": 0.303,
+      "IDF1": 0.3248,
+      "MOTA": 0.05,
+      "IDSW": 3097
+     },
+     "tracker_ms": 23.9
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3973,
+     "person": {
+      "HOTA": 0.3973,
+      "DetA": 0.372,
+      "AssA": 0.4323,
+      "IDF1": 0.4934,
+      "MOTA": 0.3942,
+      "IDSW": 834
+     },
+     "tracker_ms": 11.5
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3125,
+     "person": {
+      "HOTA": 0.3125,
+      "DetA": 0.3544,
+      "AssA": 0.2781,
+      "IDF1": 0.4183,
+      "MOTA": 0.4374,
+      "IDSW": 8669
+     },
+     "tracker_ms": 37.8
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.39726240593904155,
+     "DetA": 0.37199950786417735,
+     "AssA": 0.4322786324927675,
+     "IDF1": 0.4934289461201484,
+     "MOTA": 0.3941868438159523,
+     "IDSW": 834,
+     "replayed": true,
+     "tracker_ms": 11.535746031560091,
+     "run": "chosen"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.31250928161246216,
+     "DetA": 0.35444600881699523,
+     "AssA": 0.27807168818795225,
+     "IDF1": 0.41831765994854253,
+     "MOTA": 0.4374183643071564,
+     "IDSW": 8669,
+     "replayed": true,
+     "tracker_ms": 37.7501215886454,
+     "run": "chosen"
+    }
+   }
+  },
+  "deepocsort|reid+|gmc+": {
+   "grid_default": {
+    "val": 0.250499507527711,
+    "test-dev": 0.284187383485194
+   },
+   "n_rows": 70,
+   "repro_val": {
+    "rerun": 0.250499507527711,
+    "grid": 0.250499507527711,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "alpha_fixed_emb": 0.9,
+     "inertia": 0.1,
+     "match_thresh": 0.95,
+     "new_track_thresh": 0.35,
+     "proximity_thresh": 0.2,
+     "track_buffer": 60,
+     "track_high_thresh": 0.35,
+     "track_low_thresh": 0.05,
+     "use_byte": true
+    },
+    "val_HOTA": 0.2764889321085109,
+    "run": "extend proximity_thresh: proximity_thresh=0.2 on best",
+    "n_val_runs": 64
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2221,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.236,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2487,
+    "high_new: new_track_thresh=0.25,track_high_thresh=0.25": 0.2503,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.249,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.2455,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2211,
+    "match_thresh: match_thresh=0.6": 0.2502,
+    "match_thresh: match_thresh=0.7": 0.2504,
+    "match_thresh: match_thresh=0.9": 0.2514,
+    "track_buffer: track_buffer=15": 0.2502,
+    "track_buffer: track_buffer=60": 0.2512,
+    "track_buffer: track_buffer=90": 0.2511,
+    "delta_t: delta_t=1": 0.2502,
+    "delta_t: delta_t=2": 0.2505,
+    "delta_t: delta_t=5": 0.2503,
+    "inertia: inertia=0.0": 0.2506,
+    "inertia: inertia=0.1": 0.251,
+    "inertia: inertia=0.3": 0.2505,
+    "inertia: inertia=0.4": 0.2504,
+    "use_byte/low: track_low_thresh=0.05,use_byte=True": 0.2627,
+    "use_byte/low: track_low_thresh=0.1,use_byte=True": 0.2607,
+    "use_byte/low: track_low_thresh=0.15,use_byte=True": 0.2589,
+    "use_byte/low: track_low_thresh=0.2,use_byte=True": 0.2551,
+    "appearance_thresh: appearance_thresh=0.6": 0.2505,
+    "appearance_thresh: appearance_thresh=0.7": 0.2505,
+    "appearance_thresh: appearance_thresh=0.8": 0.2505,
+    "appearance_thresh: appearance_thresh=0.95": 0.2497,
+    "proximity_thresh: proximity_thresh=0.3": 0.2523,
+    "proximity_thresh: proximity_thresh=0.4": 0.2512,
+    "proximity_thresh: proximity_thresh=0.6": 0.247,
+    "proximity_thresh: proximity_thresh=0.7": 0.2466,
+    "alpha_fixed_emb: alpha_fixed_emb=0.8": 0.2547,
+    "alpha_fixed_emb: alpha_fixed_emb=0.9": 0.2521,
+    "alpha_fixed_emb: alpha_fixed_emb=0.99": 0.2471
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2505,
+     "person": {
+      "HOTA": 0.3276,
+      "DetA": 0.3018,
+      "AssA": 0.3614,
+      "IDF1": 0.4022,
+      "MOTA": 0.1517,
+      "IDSW": 1336
+     },
+     "tracker_ms": 406.3
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2505,
+     "person": {
+      "HOTA": 0.3276,
+      "DetA": 0.3018,
+      "AssA": 0.3614,
+      "IDF1": 0.4022,
+      "MOTA": 0.1517,
+      "IDSW": 1336
+     },
+     "tracker_ms": 18.2
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2842,
+     "person": {
+      "HOTA": 0.2632,
+      "DetA": 0.2374,
+      "AssA": 0.3021,
+      "IDF1": 0.3185,
+      "MOTA": 0.0931,
+      "IDSW": 3319
+     },
+     "tracker_ms": 22.9
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3006,
+     "person": {
+      "HOTA": 0.2883,
+      "DetA": 0.2513,
+      "AssA": 0.3402,
+      "IDF1": 0.3542,
+      "MOTA": 0.0501,
+      "IDSW": 2435
+     },
+     "tracker_ms": 22.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4051,
+     "person": {
+      "HOTA": 0.4051,
+      "DetA": 0.3761,
+      "AssA": 0.444,
+      "IDF1": 0.5038,
+      "MOTA": 0.4015,
+      "IDSW": 683
+     },
+     "tracker_ms": 11.7
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3172,
+     "person": {
+      "HOTA": 0.3172,
+      "DetA": 0.3545,
+      "AssA": 0.2864,
+      "IDF1": 0.4239,
+      "MOTA": 0.4372,
+      "IDSW": 8340
+     },
+     "tracker_ms": 38.0
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.4051396800883604,
+     "DetA": 0.3761041939232887,
+     "AssA": 0.4440309479604821,
+     "IDF1": 0.50377836558541,
+     "MOTA": 0.4014800039181812,
+     "IDSW": 683,
+     "replayed": true,
+     "tracker_ms": 11.717675310923422,
+     "run": "chosen"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.31719926283334304,
+     "DetA": 0.35447391866901706,
+     "AssA": 0.2864456934723941,
+     "IDF1": 0.4239159024846688,
+     "MOTA": 0.43717422841600756,
+     "IDSW": 8340,
+     "replayed": true,
+     "tracker_ms": 37.96880081201103,
+     "run": "chosen"
+    }
+   }
+  },
+  "fasttrack": {
+   "grid_default": {
+    "val": 0.24443904655765192,
+    "test-dev": 0.26734658104574827
+   },
+   "n_rows": 68,
+   "repro_val": {
+    "rerun": 0.24443904655765192,
+    "grid": 0.24443904655765192,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "init_iou_suppress": 0.4,
+     "match_thresh": 0.95,
+     "new_track_thresh": 0.3,
+     "occ_cover_thresh": 0.9,
+     "occ_reappear_window": 20,
+     "track_high_thresh": 0.3
+    },
+    "val_HOTA": 0.26578958489468535,
+    "run": "extend init_iou_suppress: init_iou_suppress=0.4 on best",
+    "n_val_runs": 55
+   },
+   "val_sweep": {
+    "high_new: new_track_thresh=0.1,track_high_thresh=0.1": 0.2341,
+    "high_new: new_track_thresh=0.15,track_high_thresh=0.15": 0.2336,
+    "high_new: new_track_thresh=0.2,track_high_thresh=0.2": 0.2369,
+    "high_new: new_track_thresh=0.3,track_high_thresh=0.3": 0.2447,
+    "high_new: new_track_thresh=0.35,track_high_thresh=0.35": 0.2465,
+    "high_new: new_track_thresh=0.4,track_high_thresh=0.4": 0.245,
+    "high_new: new_track_thresh=0.5,track_high_thresh=0.5": 0.2375,
+    "track_low_thresh: track_low_thresh=0.05": 0.2437,
+    "track_low_thresh: track_low_thresh=0.15": 0.243,
+    "track_low_thresh: track_low_thresh=0.2": 0.2418,
+    "match_thresh: match_thresh=0.6": 0.1766,
+    "match_thresh: match_thresh=0.7": 0.2022,
+    "match_thresh: match_thresh=0.9": 0.252,
+    "track_buffer: track_buffer=15": 0.2412,
+    "track_buffer: track_buffer=60": 0.2437,
+    "track_buffer: track_buffer=90": 0.2431,
+    "init_iou_suppress: init_iou_suppress=0.5": 0.2494,
+    "init_iou_suppress: init_iou_suppress=0.6": 0.2478,
+    "init_iou_suppress: init_iou_suppress=0.8": 0.2404,
+    "init_iou_suppress: init_iou_suppress=1.0": 0.2359,
+    "occ_cover_thresh: occ_cover_thresh=0.5": 0.244,
+    "occ_cover_thresh: occ_cover_thresh=0.6": 0.2441,
+    "occ_cover_thresh: occ_cover_thresh=0.8": 0.2444,
+    "occ_cover_thresh: occ_cover_thresh=0.9": 0.2449,
+    "active_occ_to_lost_thresh: active_occ_to_lost_thresh=5": 0.2442,
+    "active_occ_to_lost_thresh: active_occ_to_lost_thresh=20": 0.2444,
+    "active_occ_to_lost_thresh: active_occ_to_lost_thresh=30": 0.2443,
+    "occ_reappear_window: occ_reappear_window=20": 0.2445,
+    "occ_reappear_window: occ_reappear_window=80": 0.2438
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2444,
+     "person": {
+      "HOTA": 0.2701,
+      "DetA": 0.2913,
+      "AssA": 0.2566,
+      "IDF1": 0.304,
+      "MOTA": 0.0669,
+      "IDSW": 1264
+     },
+     "tracker_ms": 12.4
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2444,
+     "person": {
+      "HOTA": 0.2701,
+      "DetA": 0.2913,
+      "AssA": 0.2566,
+      "IDF1": 0.304,
+      "MOTA": 0.0669,
+      "IDSW": 1264
+     },
+     "tracker_ms": 17.2
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2673,
+     "person": {
+      "HOTA": 0.2362,
+      "DetA": 0.2361,
+      "AssA": 0.248,
+      "IDF1": 0.2667,
+      "MOTA": 0.0291,
+      "IDSW": 3248
+     },
+     "tracker_ms": 17.2
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2673,
+     "person": {
+      "HOTA": 0.2362,
+      "DetA": 0.2361,
+      "AssA": 0.248,
+      "IDF1": 0.2667,
+      "MOTA": 0.0291,
+      "IDSW": 3248
+     },
+     "tracker_ms": 16.7
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2851,
+     "person": {
+      "HOTA": 0.2684,
+      "DetA": 0.2482,
+      "AssA": 0.3004,
+      "IDF1": 0.3243,
+      "MOTA": 0.0717,
+      "IDSW": 2082
+     },
+     "tracker_ms": 8.1
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2658,
+     "person": {
+      "HOTA": 0.3228,
+      "DetA": 0.3075,
+      "AssA": 0.3441,
+      "IDF1": 0.3927,
+      "MOTA": 0.1159,
+      "IDSW": 720
+     },
+     "tracker_ms": 7.9
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3829,
+     "person": {
+      "HOTA": 0.3829,
+      "DetA": 0.3744,
+      "AssA": 0.4007,
+      "IDF1": 0.455,
+      "MOTA": 0.3828,
+      "IDSW": 956
+     },
+     "tracker_ms": 4.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3829,
+     "person": {
+      "HOTA": 0.3829,
+      "DetA": 0.3744,
+      "AssA": 0.4007,
+      "IDF1": 0.455,
+      "MOTA": 0.3828,
+      "IDSW": 956
+     },
+     "tracker_ms": 4.4
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4025,
+     "person": {
+      "HOTA": 0.4025,
+      "DetA": 0.3754,
+      "AssA": 0.4391,
+      "IDF1": 0.4914,
+      "MOTA": 0.4087,
+      "IDSW": 584
+     },
+     "tracker_ms": 3.8
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3109,
+     "person": {
+      "HOTA": 0.3109,
+      "DetA": 0.3722,
+      "AssA": 0.263,
+      "IDF1": 0.3943,
+      "MOTA": 0.4394,
+      "IDSW": 9533
+     },
+     "tracker_ms": 11.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3109,
+     "person": {
+      "HOTA": 0.3109,
+      "DetA": 0.3722,
+      "AssA": 0.263,
+      "IDF1": 0.3943,
+      "MOTA": 0.4394,
+      "IDSW": 9533
+     },
+     "tracker_ms": 10.4
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3246,
+     "person": {
+      "HOTA": 0.3246,
+      "DetA": 0.3672,
+      "AssA": 0.2895,
+      "IDF1": 0.4357,
+      "MOTA": 0.4544,
+      "IDSW": 5952
+     },
+     "tracker_ms": 8.7
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.38286418396871236,
+     "DetA": 0.3744194461315507,
+     "AssA": 0.40074088740686603,
+     "IDF1": 0.45504661487844,
+     "MOTA": 0.3827884983570354,
+     "IDSW": 956,
+     "replayed": false,
+     "tracker_ms": 4.492073327062934,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.40246681148081376,
+     "DetA": 0.37538845779432495,
+     "AssA": 0.4391258574192273,
+     "IDF1": 0.4913914540616685,
+     "MOTA": 0.40865739957434305,
+     "IDSW": 584,
+     "replayed": true,
+     "tracker_ms": 3.8230601141893596,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.31090126734150825,
+     "DetA": 0.37223467282175315,
+     "AssA": 0.2630270653106381,
+     "IDF1": 0.39427952404325384,
+     "MOTA": 0.4393679260083165,
+     "IDSW": 9533,
+     "replayed": false,
+     "tracker_ms": 11.643259449350031,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.32462268406028655,
+     "DetA": 0.3672330485765342,
+     "AssA": 0.28951252097473357,
+     "IDF1": 0.4357365870053599,
+     "MOTA": 0.45440475791767065,
+     "IDSW": 5952,
+     "replayed": true,
+     "tracker_ms": 8.74346697107016,
+     "run": "chosen"
+    }
+   }
+  },
+  "tracktrack|reid-|gmc-": {
+   "grid_default": {
+    "val": 0.1964068819980624,
+    "test-dev": 0.22515107307808296
+   },
+   "n_rows": 52,
+   "repro_val": {
+    "rerun": 0.1964068819980624,
+    "grid": 0.1964068819980624,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.9,
+     "min_track_len": 1,
+     "new_track_thresh": 0.5,
+     "penalty_p": 0.1,
+     "tai_thr": 0.65,
+     "track_high_thresh": 0.3,
+     "track_low_thresh": 0.15
+    },
+    "val_HOTA": 0.2652502255103395,
+    "run": "grid: match_thresh=0.9,new_track_thresh=0.5,track_high_thresh=0.3",
+    "n_val_runs": 41
+   },
+   "val_sweep": {
+    "track_high_thresh: track_high_thresh=0.3": 0.2155,
+    "track_high_thresh: track_high_thresh=0.4": 0.2098,
+    "track_high_thresh: track_high_thresh=0.5": 0.206,
+    "track_high_thresh: track_high_thresh=0.7": 0.1882,
+    "new_track_thresh: new_track_thresh=0.4": 0.2087,
+    "new_track_thresh: new_track_thresh=0.5": 0.2087,
+    "new_track_thresh: new_track_thresh=0.6": 0.2087,
+    "new_track_thresh: new_track_thresh=0.8": 0.1604,
+    "track_low_thresh: track_low_thresh=0.05": 0.2015,
+    "track_low_thresh: track_low_thresh=0.1": 0.2007,
+    "track_low_thresh: track_low_thresh=0.15": 0.2026,
+    "track_low_thresh: track_low_thresh=0.35": 0.195,
+    "match_thresh: match_thresh=0.5": 0.1795,
+    "match_thresh: match_thresh=0.6": 0.1904,
+    "match_thresh: match_thresh=0.8": 0.2183,
+    "match_thresh: match_thresh=0.9": 0.2228,
+    "track_buffer: track_buffer=15": 0.1959,
+    "track_buffer: track_buffer=60": 0.1963,
+    "track_buffer: track_buffer=90": 0.1963,
+    "min_track_len: min_track_len=1": 0.2027,
+    "min_track_len: min_track_len=2": 0.2013,
+    "min_track_len: min_track_len=4": 0.1936,
+    "min_track_len: min_track_len=5": 0.1901,
+    "tai_thr: tai_thr=0.45": 0.1964,
+    "tai_thr: tai_thr=0.65": 0.1964,
+    "tai_thr: tai_thr=0.75": 0.1964,
+    "penalty_p: penalty_p=0.1": 0.2094,
+    "penalty_p: penalty_p=0.3": 0.1976
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.1964,
+     "person": {
+      "HOTA": 0.2532,
+      "DetA": 0.1472,
+      "AssA": 0.4358,
+      "IDF1": 0.2827,
+      "MOTA": 0.1757,
+      "IDSW": 66
+     },
+     "tracker_ms": 6.3
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.1964,
+     "person": {
+      "HOTA": 0.2532,
+      "DetA": 0.1472,
+      "AssA": 0.4358,
+      "IDF1": 0.2827,
+      "MOTA": 0.1757,
+      "IDSW": 66
+     },
+     "tracker_ms": 6.0
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2252,
+     "person": {
+      "HOTA": 0.1738,
+      "DetA": 0.083,
+      "AssA": 0.3674,
+      "IDF1": 0.1707,
+      "MOTA": 0.0949,
+      "IDSW": 117
+     },
+     "tracker_ms": 7.0
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2252,
+     "person": {
+      "HOTA": 0.1738,
+      "DetA": 0.083,
+      "AssA": 0.3674,
+      "IDF1": 0.1707,
+      "MOTA": 0.0949,
+      "IDSW": 117
+     },
+     "tracker_ms": 6.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2859,
+     "person": {
+      "HOTA": 0.2563,
+      "DetA": 0.2417,
+      "AssA": 0.2824,
+      "IDF1": 0.3055,
+      "MOTA": 0.0936,
+      "IDSW": 2991
+     },
+     "tracker_ms": 15.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2653,
+     "person": {
+      "HOTA": 0.3101,
+      "DetA": 0.3109,
+      "AssA": 0.3142,
+      "IDF1": 0.3735,
+      "MOTA": 0.1623,
+      "IDSW": 1395
+     },
+     "tracker_ms": 16.3
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3505,
+     "person": {
+      "HOTA": 0.3505,
+      "DetA": 0.2648,
+      "AssA": 0.466,
+      "IDF1": 0.4157,
+      "MOTA": 0.307,
+      "IDSW": 141
+     },
+     "tracker_ms": 3.2
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3505,
+     "person": {
+      "HOTA": 0.3505,
+      "DetA": 0.2648,
+      "AssA": 0.466,
+      "IDF1": 0.4157,
+      "MOTA": 0.307,
+      "IDSW": 141
+     },
+     "tracker_ms": 2.8
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4053,
+     "person": {
+      "HOTA": 0.4053,
+      "DetA": 0.3665,
+      "AssA": 0.4536,
+      "IDF1": 0.4921,
+      "MOTA": 0.4011,
+      "IDSW": 662
+     },
+     "tracker_ms": 3.8
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2508,
+     "person": {
+      "HOTA": 0.2508,
+      "DetA": 0.1758,
+      "AssA": 0.3599,
+      "IDF1": 0.3268,
+      "MOTA": 0.2305,
+      "IDSW": 681
+     },
+     "tracker_ms": 6.4
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2508,
+     "person": {
+      "HOTA": 0.2508,
+      "DetA": 0.1758,
+      "AssA": 0.3599,
+      "IDF1": 0.3268,
+      "MOTA": 0.2305,
+      "IDSW": 681
+     },
+     "tracker_ms": 5.8
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3215,
+     "person": {
+      "HOTA": 0.3215,
+      "DetA": 0.3463,
+      "AssA": 0.3015,
+      "IDF1": 0.4335,
+      "MOTA": 0.4353,
+      "IDSW": 6114
+     },
+     "tracker_ms": 11.8
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.3505105056588511,
+     "DetA": 0.2648366454727763,
+     "AssA": 0.4660009842460895,
+     "IDF1": 0.41574245429975104,
+     "MOTA": 0.3069895010552374,
+     "IDSW": 141,
+     "replayed": false,
+     "tracker_ms": 3.1876585979843206,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.40529852145566886,
+     "DetA": 0.3665316618131186,
+     "AssA": 0.4535988598450879,
+     "IDF1": 0.4921132399199314,
+     "MOTA": 0.4011059957078105,
+     "IDSW": 662,
+     "replayed": true,
+     "tracker_ms": 3.8415896663775437,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.2507697588710537,
+     "DetA": 0.17584006584393536,
+     "AssA": 0.35989045932070657,
+     "IDF1": 0.3267691583497922,
+     "MOTA": 0.23054448473225256,
+     "IDSW": 681,
+     "replayed": false,
+     "tracker_ms": 6.376490112752074,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.3214598653555674,
+     "DetA": 0.3463249845117698,
+     "AssA": 0.30149976293083325,
+     "IDF1": 0.4335496710481323,
+     "MOTA": 0.43525287013909575,
+     "IDSW": 6114,
+     "replayed": true,
+     "tracker_ms": 11.846110899944042,
+     "run": "chosen"
+    }
+   }
+  },
+  "tracktrack|reid-|gmc+": {
+   "grid_default": {
+    "val": 0.22911901587081873,
+    "test-dev": 0.24643738265497972
+   },
+   "n_rows": 52,
+   "repro_val": {
+    "rerun": 0.22911901587081873,
+    "grid": 0.22911901587081873,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.8,
+     "min_track_len": 1,
+     "new_track_thresh": 0.5,
+     "penalty_p": 0.1,
+     "tai_thr": 0.75,
+     "track_buffer": 60,
+     "track_high_thresh": 0.4,
+     "track_low_thresh": 0.15
+    },
+    "val_HOTA": 0.2746031740651873,
+    "run": "grid: match_thresh=0.8,new_track_thresh=0.5,track_high_thresh=0.4",
+    "n_val_runs": 41
+   },
+   "val_sweep": {
+    "track_high_thresh: track_high_thresh=0.3": 0.2382,
+    "track_high_thresh: track_high_thresh=0.4": 0.2376,
+    "track_high_thresh: track_high_thresh=0.5": 0.2378,
+    "track_high_thresh: track_high_thresh=0.7": 0.2087,
+    "new_track_thresh: new_track_thresh=0.4": 0.2415,
+    "new_track_thresh: new_track_thresh=0.5": 0.2415,
+    "new_track_thresh: new_track_thresh=0.6": 0.2415,
+    "new_track_thresh: new_track_thresh=0.8": 0.1779,
+    "track_low_thresh: track_low_thresh=0.05": 0.2304,
+    "track_low_thresh: track_low_thresh=0.1": 0.2291,
+    "track_low_thresh: track_low_thresh=0.15": 0.2306,
+    "track_low_thresh: track_low_thresh=0.35": 0.2266,
+    "match_thresh: match_thresh=0.5": 0.2079,
+    "match_thresh: match_thresh=0.6": 0.2187,
+    "match_thresh: match_thresh=0.8": 0.2316,
+    "match_thresh: match_thresh=0.9": 0.2329,
+    "track_buffer: track_buffer=15": 0.2288,
+    "track_buffer: track_buffer=60": 0.2292,
+    "track_buffer: track_buffer=90": 0.2291,
+    "min_track_len: min_track_len=1": 0.2355,
+    "min_track_len: min_track_len=2": 0.2337,
+    "min_track_len: min_track_len=4": 0.226,
+    "min_track_len: min_track_len=5": 0.2232,
+    "tai_thr: tai_thr=0.45": 0.2291,
+    "tai_thr: tai_thr=0.65": 0.2296,
+    "tai_thr: tai_thr=0.75": 0.2296,
+    "penalty_p: penalty_p=0.1": 0.231,
+    "penalty_p: penalty_p=0.3": 0.2226
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2291,
+     "person": {
+      "HOTA": 0.2732,
+      "DetA": 0.1665,
+      "AssA": 0.4488,
+      "IDF1": 0.323,
+      "MOTA": 0.1953,
+      "IDSW": 38
+     },
+     "tracker_ms": 32.4
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2291,
+     "person": {
+      "HOTA": 0.2732,
+      "DetA": 0.1665,
+      "AssA": 0.4488,
+      "IDF1": 0.323,
+      "MOTA": 0.1953,
+      "IDSW": 38
+     },
+     "tracker_ms": 7.0
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2464,
+     "person": {
+      "HOTA": 0.1877,
+      "DetA": 0.0922,
+      "AssA": 0.3852,
+      "IDF1": 0.1916,
+      "MOTA": 0.1041,
+      "IDSW": 100
+     },
+     "tracker_ms": 22.6
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2464,
+     "person": {
+      "HOTA": 0.1877,
+      "DetA": 0.0922,
+      "AssA": 0.3852,
+      "IDF1": 0.1916,
+      "MOTA": 0.1041,
+      "IDSW": 100
+     },
+     "tracker_ms": 7.0
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2995,
+     "person": {
+      "HOTA": 0.2715,
+      "DetA": 0.2455,
+      "AssA": 0.3094,
+      "IDF1": 0.3285,
+      "MOTA": 0.1118,
+      "IDSW": 2271
+     },
+     "tracker_ms": 15.2
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2746,
+     "person": {
+      "HOTA": 0.3297,
+      "DetA": 0.3147,
+      "AssA": 0.3506,
+      "IDF1": 0.3993,
+      "MOTA": 0.1648,
+      "IDSW": 964
+     },
+     "tracker_ms": 39.9
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.3527,
+     "person": {
+      "HOTA": 0.3527,
+      "DetA": 0.2669,
+      "AssA": 0.4682,
+      "IDF1": 0.4184,
+      "MOTA": 0.3101,
+      "IDSW": 127
+     },
+     "tracker_ms": 15.2
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3527,
+     "person": {
+      "HOTA": 0.3527,
+      "DetA": 0.2669,
+      "AssA": 0.4682,
+      "IDF1": 0.4184,
+      "MOTA": 0.3101,
+      "IDSW": 127
+     },
+     "tracker_ms": 1.9
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4013,
+     "person": {
+      "HOTA": 0.4013,
+      "DetA": 0.3662,
+      "AssA": 0.4454,
+      "IDF1": 0.4872,
+      "MOTA": 0.4064,
+      "IDSW": 581
+     },
+     "tracker_ms": 2.9
+    },
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2533,
+     "person": {
+      "HOTA": 0.2533,
+      "DetA": 0.1767,
+      "AssA": 0.3656,
+      "IDF1": 0.3291,
+      "MOTA": 0.2316,
+      "IDSW": 693
+     },
+     "tracker_ms": 17.3
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2533,
+     "person": {
+      "HOTA": 0.2533,
+      "DetA": 0.1767,
+      "AssA": 0.3656,
+      "IDF1": 0.3291,
+      "MOTA": 0.2316,
+      "IDSW": 693
+     },
+     "tracker_ms": 6.2
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.323,
+     "person": {
+      "HOTA": 0.323,
+      "DetA": 0.3458,
+      "AssA": 0.3049,
+      "IDF1": 0.4356,
+      "MOTA": 0.4345,
+      "IDSW": 6276
+     },
+     "tracker_ms": 12.6
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_default": {
+     "person_HOTA": 0.3527035845983995,
+     "DetA": 0.2669373532071505,
+     "AssA": 0.46815943124888987,
+     "IDF1": 0.418448665161376,
+     "MOTA": 0.3100884262268805,
+     "IDSW": 127,
+     "replayed": false,
+     "tracker_ms": 15.211041294836152,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.4013392364012623,
+     "DetA": 0.36622022669983173,
+     "AssA": 0.44537562568658356,
+     "IDF1": 0.4872380425129465,
+     "MOTA": 0.40635101561039033,
+     "IDSW": 581,
+     "replayed": true,
+     "tracker_ms": 2.8602932853925767,
+     "run": "chosen"
+    },
+    "MOT20-train_default": {
+     "person_HOTA": 0.2533428084486986,
+     "DetA": 0.17667085023510368,
+     "AssA": 0.36557339737749645,
+     "IDF1": 0.3290997961840094,
+     "MOTA": 0.23160387585557732,
+     "IDSW": 693,
+     "replayed": false,
+     "tracker_ms": 17.29489777986649,
+     "run": "default (grid procedure, real)"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.32301683248880564,
+     "DetA": 0.34583779149928656,
+     "AssA": 0.30485445668759575,
+     "IDF1": 0.4356015771765476,
+     "MOTA": 0.43451164889557153,
+     "IDSW": 6276,
+     "replayed": true,
+     "tracker_ms": 12.601484269749221,
+     "run": "chosen"
+    }
+   }
+  },
+  "tracktrack|reid+|gmc-": {
+   "grid_default": {
+    "val": 0.21807640018050806,
+    "test-dev": 0.24034262712639515
+   },
+   "n_rows": 57,
+   "repro_val": {
+    "rerun": 0.21807640018050806,
+    "grid": 0.21807640018050806,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.8,
+     "min_track_len": 1,
+     "new_track_thresh": 0.5,
+     "penalty_p": 0.1,
+     "reid_weight": 1.5,
+     "track_buffer": 60,
+     "track_high_thresh": 0.4,
+     "track_low_thresh": 0.05
+    },
+    "val_HOTA": 0.2731463503146596,
+    "run": "extend reid_weight: reid_weight=1.5 on best",
+    "n_val_runs": 51
+   },
+   "val_sweep": {
+    "track_high_thresh: track_high_thresh=0.3": 0.2285,
+    "track_high_thresh: track_high_thresh=0.4": 0.2312,
+    "track_high_thresh: track_high_thresh=0.5": 0.2293,
+    "track_high_thresh: track_high_thresh=0.7": 0.1967,
+    "new_track_thresh: new_track_thresh=0.4": 0.2269,
+    "new_track_thresh: new_track_thresh=0.5": 0.2269,
+    "new_track_thresh: new_track_thresh=0.6": 0.2269,
+    "new_track_thresh: new_track_thresh=0.8": 0.1743,
+    "track_low_thresh: track_low_thresh=0.05": 0.2219,
+    "track_low_thresh: track_low_thresh=0.1": 0.2174,
+    "track_low_thresh: track_low_thresh=0.15": 0.2183,
+    "track_low_thresh: track_low_thresh=0.35": 0.2157,
+    "match_thresh: match_thresh=0.5": 0.2012,
+    "match_thresh: match_thresh=0.6": 0.2125,
+    "match_thresh: match_thresh=0.8": 0.2229,
+    "match_thresh: match_thresh=0.9": 0.226,
+    "track_buffer: track_buffer=15": 0.2173,
+    "track_buffer: track_buffer=60": 0.2183,
+    "track_buffer: track_buffer=90": 0.218,
+    "min_track_len: min_track_len=1": 0.2223,
+    "min_track_len: min_track_len=2": 0.2217,
+    "min_track_len: min_track_len=4": 0.2161,
+    "min_track_len: min_track_len=5": 0.2132,
+    "tai_thr: tai_thr=0.45": 0.2181,
+    "tai_thr: tai_thr=0.65": 0.2181,
+    "tai_thr: tai_thr=0.75": 0.2181,
+    "penalty_p: penalty_p=0.1": 0.2229,
+    "penalty_p: penalty_p=0.3": 0.2125,
+    "reid_weight: reid_weight=0.25": 0.2179,
+    "reid_weight: reid_weight=0.75": 0.2181,
+    "reid_weight: reid_weight=1.0": 0.2182
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2181,
+     "person": {
+      "HOTA": 0.2697,
+      "DetA": 0.1569,
+      "AssA": 0.4639,
+      "IDF1": 0.314,
+      "MOTA": 0.188,
+      "IDSW": 44
+     },
+     "tracker_ms": 69.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2181,
+     "person": {
+      "HOTA": 0.2697,
+      "DetA": 0.1569,
+      "AssA": 0.4639,
+      "IDF1": 0.314,
+      "MOTA": 0.188,
+      "IDSW": 44
+     },
+     "tracker_ms": 8.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2403,
+     "person": {
+      "HOTA": 0.1794,
+      "DetA": 0.0904,
+      "AssA": 0.3594,
+      "IDF1": 0.1834,
+      "MOTA": 0.1027,
+      "IDSW": 148
+     },
+     "tracker_ms": 8.4
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2909,
+     "person": {
+      "HOTA": 0.2725,
+      "DetA": 0.2413,
+      "AssA": 0.318,
+      "IDF1": 0.3328,
+      "MOTA": 0.1186,
+      "IDSW": 1881
+     },
+     "tracker_ms": 14.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4147,
+     "person": {
+      "HOTA": 0.4147,
+      "DetA": 0.3721,
+      "AssA": 0.4686,
+      "IDF1": 0.5062,
+      "MOTA": 0.3966,
+      "IDSW": 525
+     },
+     "tracker_ms": 9.8
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3342,
+     "person": {
+      "HOTA": 0.3342,
+      "DetA": 0.3707,
+      "AssA": 0.305,
+      "IDF1": 0.4514,
+      "MOTA": 0.448,
+      "IDSW": 6364
+     },
+     "tracker_ms": 35.3
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.41470586759699607,
+     "DetA": 0.3720567788139267,
+     "AssA": 0.4686145044480689,
+     "IDF1": 0.5062201171240777,
+     "MOTA": 0.3965733723964131,
+     "IDSW": 525,
+     "replayed": true,
+     "tracker_ms": 9.847126386526188,
+     "run": "chosen"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.33422009616757825,
+     "DetA": 0.37069301086386885,
+     "AssA": 0.30500824935665893,
+     "IDF1": 0.45141901189930117,
+     "MOTA": 0.4480113941833963,
+     "IDSW": 6364,
+     "replayed": true,
+     "tracker_ms": 35.307260717941446,
+     "run": "chosen"
+    }
+   }
+  },
+  "tracktrack|reid+|gmc+": {
+   "grid_default": {
+    "val": 0.22999246478109542,
+    "test-dev": 0.24883272522252808
+   },
+   "n_rows": 59,
+   "repro_val": {
+    "rerun": 0.22999246478109542,
+    "grid": 0.22999246478109542,
+    "diff": 0.0
+   },
+   "replay_identical_val": true,
+   "replay_minus_real_val": 0.0,
+   "chosen": {
+    "settings_changed": {
+     "match_thresh": 0.8,
+     "min_track_len": 1,
+     "new_track_thresh": 0.5,
+     "penalty_p": 0.1,
+     "reid_weight": 0.75,
+     "track_buffer": 90,
+     "track_high_thresh": 0.4,
+     "track_low_thresh": 0.05
+    },
+    "val_HOTA": 0.2840930319242336,
+    "run": "grid: match_thresh=0.8,new_track_thresh=0.5,track_high_thresh=0.4",
+    "n_val_runs": 49
+   },
+   "val_sweep": {
+    "track_high_thresh: track_high_thresh=0.3": 0.2371,
+    "track_high_thresh: track_high_thresh=0.4": 0.2407,
+    "track_high_thresh: track_high_thresh=0.5": 0.2393,
+    "track_high_thresh: track_high_thresh=0.7": 0.2143,
+    "new_track_thresh: new_track_thresh=0.4": 0.2414,
+    "new_track_thresh: new_track_thresh=0.5": 0.2414,
+    "new_track_thresh: new_track_thresh=0.6": 0.2414,
+    "new_track_thresh: new_track_thresh=0.8": 0.1794,
+    "track_low_thresh: track_low_thresh=0.05": 0.2322,
+    "track_low_thresh: track_low_thresh=0.1": 0.2307,
+    "track_low_thresh: track_low_thresh=0.15": 0.2316,
+    "track_low_thresh: track_low_thresh=0.35": 0.2275,
+    "match_thresh: match_thresh=0.5": 0.2201,
+    "match_thresh: match_thresh=0.6": 0.2277,
+    "match_thresh: match_thresh=0.8": 0.2319,
+    "match_thresh: match_thresh=0.9": 0.2328,
+    "track_buffer: track_buffer=15": 0.2292,
+    "track_buffer: track_buffer=60": 0.2301,
+    "track_buffer: track_buffer=90": 0.2301,
+    "min_track_len: min_track_len=1": 0.2366,
+    "min_track_len: min_track_len=2": 0.2341,
+    "min_track_len: min_track_len=4": 0.2276,
+    "min_track_len: min_track_len=5": 0.2249,
+    "tai_thr: tai_thr=0.45": 0.23,
+    "tai_thr: tai_thr=0.65": 0.2298,
+    "tai_thr: tai_thr=0.75": 0.2298,
+    "penalty_p: penalty_p=0.1": 0.2319,
+    "penalty_p: penalty_p=0.3": 0.2276,
+    "reid_weight: reid_weight=0.25": 0.23,
+    "reid_weight: reid_weight=0.75": 0.2301,
+    "reid_weight: reid_weight=1.0": 0.2301
+   },
+   "rows": [
+    {
+     "which": "default",
+     "run": "default (grid procedure, real)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.23,
+     "person": {
+      "HOTA": 0.2841,
+      "DetA": 0.1715,
+      "AssA": 0.4714,
+      "IDF1": 0.3397,
+      "MOTA": 0.2028,
+      "IDSW": 32
+     },
+     "tracker_ms": 109.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.23,
+     "person": {
+      "HOTA": 0.2841,
+      "DetA": 0.1715,
+      "AssA": 0.4714,
+      "IDF1": 0.3397,
+      "MOTA": 0.2028,
+      "IDSW": 32
+     },
+     "tracker_ms": 9.5
+    },
+    {
+     "which": "default",
+     "run": "default",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.2488,
+     "person": {
+      "HOTA": 0.1957,
+      "DetA": 0.0989,
+      "AssA": 0.3905,
+      "IDF1": 0.2047,
+      "MOTA": 0.1119,
+      "IDSW": 102
+     },
+     "tracker_ms": 9.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3081,
+     "person": {
+      "HOTA": 0.2917,
+      "DetA": 0.2467,
+      "AssA": 0.354,
+      "IDF1": 0.3636,
+      "MOTA": 0.12,
+      "IDSW": 1220
+     },
+     "tracker_ms": 24.5
+    },
+    {
+     "which": "default",
+     "run": "default | INT8 conf 0.23 + flight post-filter",
+     "split": "val",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.2241,
+     "person": {
+      "HOTA": 0.2709,
+      "DetA": 0.1625,
+      "AssA": 0.4523,
+      "IDF1": 0.3182,
+      "MOTA": 0.1938,
+      "IDSW": 33
+     },
+     "tracker_ms": 9.6
+    },
+    {
+     "which": "chosen",
+     "run": "chosen | INT8 conf 0.23 + flight post-filter",
+     "split": "val",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.2663,
+     "person": {
+      "HOTA": 0.3454,
+      "DetA": 0.3081,
+      "AssA": 0.3922,
+      "IDF1": 0.4436,
+      "MOTA": 0.2203,
+      "IDSW": 470
+     },
+     "tracker_ms": 12.2
+    },
+    {
+     "which": "default",
+     "run": "default | INT8 conf 0.23 + flight post-filter",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.244,
+     "person": {
+      "HOTA": 0.1851,
+      "DetA": 0.0887,
+      "AssA": 0.3897,
+      "IDF1": 0.1894,
+      "MOTA": 0.0995,
+      "IDSW": 86
+     },
+     "tracker_ms": 7.9
+    },
+    {
+     "which": "chosen",
+     "run": "chosen | INT8 conf 0.23 + flight post-filter",
+     "split": "test-dev",
+     "det": "vd_mav_cl_s42_int8",
+     "post_filter": {
+      "person": 0.23,
+      "vehicle": 0.29
+     },
+     "replayed": true,
+     "class_avg_HOTA": 0.2961,
+     "person": {
+      "HOTA": 0.2746,
+      "DetA": 0.2268,
+      "AssA": 0.3414,
+      "IDF1": 0.3394,
+      "MOTA": 0.1366,
+      "IDSW": 1085
+     },
+     "tracker_ms": 12.7
+    },
+    {
+     "which": "chosen",
+     "run": "chosen (real, for ms)",
+     "split": "val",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": false,
+     "class_avg_HOTA": 0.2841,
+     "person": {
+      "HOTA": 0.3526,
+      "DetA": 0.3174,
+      "AssA": 0.3956,
+      "IDF1": 0.4488,
+      "MOTA": 0.18,
+      "IDSW": 494
+     },
+     "tracker_ms": 118.9
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT17-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.4137,
+     "person": {
+      "HOTA": 0.4137,
+      "DetA": 0.3783,
+      "AssA": 0.4584,
+      "IDF1": 0.5043,
+      "MOTA": 0.4019,
+      "IDSW": 449
+     },
+     "tracker_ms": 10.7
+    },
+    {
+     "which": "chosen",
+     "run": "chosen",
+     "split": "MOT20-train",
+     "det": "vd_mav_cl_s42",
+     "post_filter": null,
+     "replayed": true,
+     "class_avg_HOTA": 0.3303,
+     "person": {
+      "HOTA": 0.3303,
+      "DetA": 0.3726,
+      "AssA": 0.2964,
+      "IDF1": 0.4437,
+      "MOTA": 0.4493,
+      "IDSW": 6775
+     },
+     "tracker_ms": 35.2
+    }
+   ],
+   "mot_people_only": {
+    "MOT17-train_tuned": {
+     "person_HOTA": 0.41370579078159214,
+     "DetA": 0.3782545659900695,
+     "AssA": 0.45836613580814267,
+     "IDF1": 0.5043210805208699,
+     "MOTA": 0.4019252517876702,
+     "IDSW": 449,
+     "replayed": true,
+     "tracker_ms": 10.661274131820146,
+     "run": "chosen"
+    },
+    "MOT20-train_tuned": {
+     "person_HOTA": 0.33029338353001025,
+     "DetA": 0.372642614560224,
+     "AssA": 0.2964456467046214,
+     "IDF1": 0.44370201433701767,
+     "MOTA": 0.44926909063346654,
+     "IDSW": 6775,
+     "replayed": true,
+     "tracker_ms": 35.168556012294935,
+     "run": "chosen"
+    }
+   }
+  }
+ },
+ "files": {
+  "rows": "tracker_tuning_all_vd_mav_cl_s42.jsonl",
+  "logs": "tracker_tuning_all_logs",
+  "script": "tracker_tuning_all.py"
+ }
+}

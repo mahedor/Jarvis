@@ -25,7 +25,8 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
-| `test_*.py` | 184 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), and the flight log + its annotations (`test_flight_log.py`) |
+| `time_trackers.py` | Laptop-CPU speed of the 15 tuned tracker setups (tracker update only, on the flight detector's boxes cached once per frame; settings read from `results/followme_tracker_tuning_all_summary.json`). See Tracker speed below |
+| `test_*.py` | 195 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), and the tracker speed timer (`test_time_trackers.py`) |
 
 ## Folders
 
@@ -62,7 +63,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 ```bash
 cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
 source ~/jarvis-follow/bin/activate
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 184 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py   # expect 195 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads   # backfill the flight log, copy it where Windows sees it
@@ -187,8 +188,47 @@ rule: never guess; anything not recorded by the program says where it came from.
   logged**. A key that matches no run folder, an unknown entry key, or a `drone` override without a reason is ignored
   with a `flight log WARNING` line; a missing or broken file never stops the log.
 
+## Tracker speed (laptop CPU, Michael 11-27)
+
+FPS of the 15 tracker setups of the 11-27 Colab tuning, each at its tuned settings, measured on Michael's laptop
+(Ryzen 7 7735HS, CPU only: his rule, talk speed numbers come only from there), to show next to their tuned HOTA.
+
+```bash
+source ~/jarvis-follow/bin/activate
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme && python time_trackers.py
+python time_trackers.py --save ../results/followme_tracker_speed.json      # also keep a copy in results/
+python time_trackers.py --video ~/follow_logs/<run>/video_000.mp4 --frames 600 --start 300
+```
+
+- Frames: the newest real flight's clean `video_*.mp4` under `~/follow_logs` (never `overlay_*.mp4`, never a fake-drone
+  run), or `--video` (file or run folder); the first `--frames` (600) after `--start`.
+- Detector: the flight detector exactly as `live_follow.py` resolves it (`resolve_detection`: INT8 export + its F1-max
+  cutoffs, stops if missing; `Detector`'s model and arguments: imgsz 640, conf = the lower cutoff), run **once** per
+  frame; the boxes are cached in memory and every setup gets the same boxes on the same frames.
+- Setups and settings: the 15 labels of `results/followme_tracker_tuning_all_summary.json` (byte-exact from Drive
+  `jarvis_det/tracker_tuning_all_vd_mav_cl_s42_summary.json`, written by `tracker_tuning_all.py`), each built the way
+  that script built it (the tracker's Ultralytics YAML + `with_reid` / `gmc_method` / re-ID model `yolo26n-cls.pt` on
+  box crops) plus that setup's `chosen.settings_changed`. All six trackers are Ultralytics built-ins (ByteTrack,
+  BoT-SORT, OC-SORT, Deep OC-SORT, FastTrack, TrackTrack; tuned under 8.4.184, whose tracker YAMLs and code equal
+  8.4.216's); boxmot is not used. Every row uses the summary's `chosen` block, so BoT-SORT + CMC is timed
+  at match 0.95 (the summary's chosen, beside its val HOTA 0.2788), not the flight's 0.90 or the bot sweep's 0.975.
+- Timing: `time.perf_counter` around `tracker.update(boxes, frame)` only, which includes camera-motion compensation and
+  the re-ID encoder (forced to the CPU) where the setup has them. Fresh tracker per setup; the first 20 frames
+  (`--warmup`) run untimed. Per setup: mean ms/frame, p95 ms, FPS = 1000 / mean; the detector's ms for reference.
+- Output: a 15-row table (with each setup's tuned val HOTA from the summary), `~/follow_logs/tracker_speed_<YYYYMMDD_HHMMSS>.json`
+  (CPU model from `/proc/cpuinfo`, thread counts, library versions, video, detector, every row), and a copy at `--save`.
+  If `yolo26n-cls.pt` is not in `weights/`, it says so and Ultralytics downloads it there (5.5 MB) when the first re-ID
+  setup is built. A setup that cannot be built or fails mid-run prints its error in its row; the others still run.
+  Expect roughly 5-10 minutes for 600 frames (most of it the six re-ID setups; more boxes per frame = slower).
+
 ## Change log
 
+- **2026-11-27 (Michael): tracker speed timer.** New `time_trackers.py` (see Tracker speed) and the tuning summary it
+  reads, `results/followme_tracker_tuning_all_summary.json` (byte-exact from Drive). 11 new tests in
+  `test_time_trackers.py` (15 setups with the summary's settings and the grid's construction, a changed file changes the
+  settings, tuned keys exist in the installed tracker YAMLs, all 15 real trackers run on a tiny synthetic video with a
+  fake detector called once per frame and kept out of the timing, build / mid-run failures stay in their row, JSON +
+  `--save` copy, video choice, missing INT8 export stops, re-ID weights note): 195 in all.
 - **2026-11-27 (Michael): flight log annotations.** New committed `flight_log_annotations.json`, merged by
   `flight_log.py` on every regenerate (`load_annotations`, `annotate`; new `history` column in csv and md, `update(...,
   annotations=PATH)`): `drone` corrections shown with their reason and the program's value, and `history` notes from
