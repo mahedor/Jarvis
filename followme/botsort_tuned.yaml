@@ -1,0 +1,45 @@
+# followme flight tracker: Ultralytics BoT-SORT with five settings tuned (Michael 2026-11-27).
+#
+# What this is: Ultralytics' own cfg/trackers/botsort.yaml (AGPL-3.0, https://ultralytics.com/license), copied from the
+# installed ultralytics 8.4.216. Below this header ONLY the five values marked TUNED differ from that file (their
+# comments say the stock value). Everything else is stock (tracker_type botsort, fuse_score
+# True, camera-motion compensation gmc_method sparseOptFlow, tracker re-ID off with_reid False, proximity_thresh 0.5,
+# appearance_thresh 0.8, model auto). Ultralytics needs every key its version expects, so a newer ultralytics may add
+# keys: re-copy its stock file and change only these five (test_live_follow.py checks the keys against the installed one).
+#
+# Decision record: results/followme_tracker_settings_choice.json (chosen values, the alternatives with their scores,
+# the reason). live_follow.py stops if the five values here differ from it; test_live_follow.py checks the same, and
+# checks every number in the record against the sweep's own rows.
+# Evidence (byte-exact from Drive jarvis_det/): results/followme_tracker_settings_sweep.jsonl (79 rows) and
+# results/followme_tracker_settings_sweep_summary.json, written by tracker_settings_sweep.py (Colab 2026-11-27): settings
+# swept on VisDrone-MOT val (class-average HOTA, TrackEval, the tracker benchmark's own scoring code and cached
+# detections of vd_mav_cl_s42), checked on test-dev, MOT17 / MOT20 train and with the flight-like INT8 detector
+# (conf 0.23 + per-class cutoffs 0.23 / 0.29).
+#
+# Michael 11-27: match_thresh 0.90, NOT the val-best 0.975: 0.975 was only +0.0026 on val (0.2802 vs 0.2776), inside
+# his +-0.003 seed-noise figure, and fell below the stock settings on MOT20 (0.3166 vs 0.3173); 0.90 beats stock on
+# every set, the INT8 detector included (class-average HOTA, stock -> these: val 0.2658 -> 0.2776, test-dev
+# 0.2927 -> 0.2996, MOT17 0.3946 -> 0.4040, MOT20 0.3173 -> 0.3326, INT8 val 0.2508 -> 0.2574, INT8 test-dev
+# 0.2823 -> 0.2925).
+#
+# How these act in flight (Ultralytics byte_tracker.py): live_follow passes conf = min(person, vehicle cutoff) = 0.23 to
+# model.track, so no box under 0.23 reaches the tracker and track_low_thresh 0.05 changes nothing below 0.23. A box
+# needs >= 0.40 (new_track_thresh) to START a track; boxes 0.23-0.40 only keep an existing track alive (second-stage
+# match). track_buffer counts tracker updates, i.e. detector passes (one per processed frame), not video frames.
+
+tracker_type: botsort # (str) Tracker backend: botsort
+track_high_thresh: 0.40 # TUNED 11-27 (stock 0.25). (float) First-stage match threshold; raise for cleaner tracks, lower to keep more
+track_low_thresh: 0.05 # TUNED 11-27 (stock 0.1). (float) Second-stage threshold for low-score matches; balances recovery vs drift
+new_track_thresh: 0.40 # TUNED 11-27 (stock 0.25). (float) Start a new track if no match ≥ this; higher reduces false tracks
+track_buffer: 60 # TUNED 11-27 (stock 30). (int) Frames to keep lost tracks alive; higher handles occlusion, increases ID switches risk
+match_thresh: 0.90 # TUNED 11-27 (stock 0.8). (float) Association similarity threshold (IoU/cost); tune with detector quality
+fuse_score: True # (bool) Fuse detection score with motion/IoU for matching; stabilizes weak detections
+
+# BoT-SORT specifics
+gmc_method: sparseOptFlow # (str) Global motion compensation: sparseOptFlow|orb|sift|ecc|none; helps moving camera scenes
+
+# ReID model related thresh
+proximity_thresh: 0.5 # (float) Min IoU to consider tracks proximate for ReID; higher is stricter
+appearance_thresh: 0.8 # (float) Min appearance similarity for ReID; raise to avoid identity swaps
+with_reid: False # (bool) Enable ReID model use; needs extra model and compute
+model: auto # (str) ReID model name/path; "auto" uses detector features if available

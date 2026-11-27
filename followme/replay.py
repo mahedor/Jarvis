@@ -8,8 +8,8 @@ WOULD send, next to what the flight recorded) and replay_info.json (settings che
   python replay.py --source clip.mp4 --window                         # any video / image folder: click to lock
 
 Michael 11-26: "replay always matches whatever we're flying, unless I state explicitly otherwise", and any deviation
-must be brought to his attention. So this file has NO settings of its own: the flags, the detector, the cutoffs, the
-tracker, the input size, re-ID, MATCH_SIM, click-to-lock, LOST_S / STALE_S and the 360-degree two-way search all come
+must be brought to his attention. So this file has NO settings of its own: the flags, the detector and its precision
+(read from the model files, 11-27), the cutoffs, the tracker (botsort_tuned.yaml, 11-27), the input size, re-ID, MATCH_SIM, click-to-lock, LOST_S / STALE_S and the 360-degree two-way search all come
 from live_follow.py / lockon.py (add_flight_args, resolve_detection, Detector.process, make_follow_logic). Before
 anything runs, the same check as live_follow's pre-flight compares the settings with flight_decisions.json and STOPS on
 any difference unless --off-decisions; with it, a DEVIATION banner is printed, saved in replay_info.json and stamped on
@@ -301,19 +301,23 @@ def main(argv=None):
     if not src.exists():
         sys.exit(f"STOP: no such source: {src}")
     cut_p, cut_v, cut_src = lf.resolve_detection(args)
+    prec = lf.detector_precision(args.model, args.imgsz, fake=args.fake_detector)   # same reading as live (11-27)
+    trk = lf.resolve_tracker(args.tracker)
     # ---- the same check as live_follow's pre-flight: what replay is about to run vs. flight_decisions.json ----
     modes = {"replay"} | ({"--fake-detector"} if args.fake_detector else set())
-    actual = lf.running_settings(args, drone_profile_applied=False, cutoffs=(cut_p, cut_v))
+    actual = lf.running_settings(args, drone_profile_applied=False, cutoffs=(cut_p, cut_v), precision=prec["precision"])
     preflight = lf.enforce_decisions(lf.check_decisions(actual, lf.load_decisions(), modes), args.off_decisions,
                                      program="replay")
     print("KNOWN OFFLINE DEVIATIONS (replay cannot do these the way the flight does):")
     for x in OFFLINE_DEVIATIONS:
         print("  -", x)
-    print(f"detector: {args.model}" + (" (fake: tracks the ball)" if args.fake_detector else ""))
+    for line in lf.precision_lines(prec, args.model):
+        print(line)
     print(f"cutoffs: person >= {cut_p:.2f}, vehicle >= {cut_v:.2f}  ({cut_src})")
+    print(lf.tracker_line(trk))
     embedder, reid_note = lockon.make_embedder(args.reid)
     print(reid_note)
-    det = lf.Detector(args.model, args.tracker, args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
+    det = lf.Detector(args.model, trk["path"], args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
     names = det.names
     person_ids = {k for k, v in names.items() if str(v).lower() in PERSON_NAMES}
     logic = lf.make_follow_logic(person_ids, args)
@@ -353,7 +357,8 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
     info_doc = dict(program="replay.py", source=str(src), running=actual, preflight=preflight,
                     offline_deviations=OFFLINE_DEVIATIONS, cutoffs=dict(person=cut_p, vehicle=cut_v, source=cut_src),
-                    reid=reid_note, lock_source=lock_source, flight_differs=flight_differs, notes=notes)
+                    reid=reid_note, lock_source=lock_source, flight_differs=flight_differs, notes=notes,
+                    detector=prec, tracker=dict(file=trk["label"], settings=trk["settings"]))
     (out / "replay_info.json").write_text(json.dumps(info_doc, indent=1, default=str))
     banner = ("DEVIATION (--off-decisions): " + ", ".join(f"{x['name']} {x['actual']!r} (flown {x['decided']!r})"
                                                          for x in preflight["deviations"])) if preflight["deviations"] else ""

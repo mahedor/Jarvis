@@ -1,0 +1,52 @@
+{
+ "_about": "Decision record, written by hand on 2026-11-27 (NOT a program output). The five BoT-SORT settings the follow-me flight tracker runs with (followme/botsort_tuned.yaml). Michael chose them among the measured options of the 11-27 tracker-settings sweep; match_thresh 0.90 is his judgment, not the sweep's argmax (the script's own pick was 0.975, see sweep_auto_pick). live_follow.py stops if botsort_tuned.yaml's values differ from 'chosen'. Every score below is checked against the sweep's own rows (results/followme_tracker_settings_sweep.jsonl, committed byte-exact) by followme/test_live_follow.py.",
+ "decided_by": "Michael",
+ "date": "2026-11-27",
+ "chosen": {"track_high_thresh": 0.4, "new_track_thresh": 0.4, "track_low_thresh": 0.05, "match_thresh": 0.9, "track_buffer": 60, "fuse_score": true},
+ "unchanged": "Every other key is Ultralytics' stock botsort.yaml: tracker_type botsort, gmc_method sparseOptFlow (camera-motion compensation on), with_reid False (tracker re-ID off), proximity_thresh 0.5, appearance_thresh 0.8, model auto.",
+ "decision": "track_high_thresh 0.40, new_track_thresh 0.40, track_low_thresh 0.05, match_thresh 0.90, track_buffer 60, fuse_score True, everything else as the stock botsort.yaml.",
+ "reason": "match_thresh 0.90, not the val-best 0.975: 0.975 was only +0.0026 class-average HOTA on val (0.2802 vs 0.2776), within Michael's +-0.003 seed-noise figure (his figure; this sweep has one run per setting and does not measure noise), and fell below the stock settings on MOT20 (0.3166 vs 0.3173). 0.90 beats the stock settings on every set, including the flight-like INT8 detector.",
+ "evidence": {
+  "sweep": "results/followme_tracker_settings_sweep.jsonl",
+  "summary": "results/followme_tracker_settings_sweep_summary.json",
+  "from": "Drive jarvis_det/tracker_settings_sweep_vd_mav_cl_s42.jsonl (79 rows) and tracker_settings_sweep_vd_mav_cl_s42_summary.json, written by jarvis_det/tracker_settings_sweep.py (Colab, 2026-11-27; the script is not committed). Scoring: jarvis_det/jarvis_track_v5.py = cell 3 of followme_tracker_comparison_v5.ipynb, the tracker benchmark's own code (TrackEval HOTA, 8 VisDrone classes, class average over classes with ground truth). Its default-settings rerun reproduces results/followme_tracker_scores.jsonl's botsort|reid-|gmc+ class-average HOTA on all four sets (exactly; val within 1e-6; summary reproduction_default_real_gmc_vs_grid)."
+ },
+ "metric": "HOTA from the row's scores, rounded to 4 decimals: class_avg_HOTA = scores.class_avg.HOTA (the number the sweep chose on), person_HOTA = scores.person.HOTA. MOT17 / MOT20 are person-only, so the two are equal there.",
+ "sets": {
+  "val": "VisDrone-MOT val, detector vd_mav_cl_s42 (.pt, imgsz 640, conf 0.05, the benchmark's cached detections), no post-filter. The set the settings were chosen on.",
+  "test-dev": "VisDrone-MOT test-dev, same detector inputs. Held out.",
+  "MOT17-train": "MOT17 train, same detector. Held out.",
+  "MOT20-train": "MOT20 train, same detector. Held out.",
+  "INT8 val": "VisDrone-MOT val, detector vd_mav_cl_s42_int8 (the INT8 OpenVINO export that flies), conf 0.23 + per-class cutoffs person 0.23 / vehicle 0.29: flight-like.",
+  "INT8 test-dev": "VisDrone-MOT test-dev, INT8 detector, flight-like as above.",
+  ".pt conf 0.23 val": "VisDrone-MOT val, .pt detections with boxes under 0.23 removed + cutoffs 0.23 / 0.29 (detector row vd_mav_cl_s42_pt_c023).",
+  ".pt conf 0.23 test-dev": "VisDrone-MOT test-dev, as the line above."
+ },
+ "sweep_auto_pick": {
+  "settings": {"track_high_thresh": 0.4, "new_track_thresh": 0.4, "track_low_thresh": 0.05, "match_thresh": 0.975, "track_buffer": 60, "fuse_score": true},
+  "val_class_avg_HOTA": 0.2802,
+  "note": "The summary file's 'chosen' block: the script's argmax over its 50 val runs. Not what flies (see reason)."
+ },
+ "options": [
+  {"name": "stock botsort.yaml",
+   "settings": {"track_high_thresh": 0.25, "new_track_thresh": 0.25, "track_low_thresh": 0.1, "match_thresh": 0.8, "track_buffer": 30, "fuse_score": true},
+   "class_avg_HOTA": {"val": 0.2658, "test-dev": 0.2927, "MOT17-train": 0.3946, "MOT20-train": 0.3173, "INT8 val": 0.2508, "INT8 test-dev": 0.2823, ".pt conf 0.23 val": 0.2588, ".pt conf 0.23 test-dev": 0.2882},
+   "person_HOTA": {"val": 0.3162, "test-dev": 0.2692, "MOT17-train": 0.3946, "MOT20-train": 0.3173, "INT8 val": 0.2953, "INT8 test-dev": 0.2509, ".pt conf 0.23 val": 0.322, ".pt conf 0.23 test-dev": 0.2656},
+   "note": "What flew until 11-27 (Ultralytics' botsort.yaml, decided 11-26)."},
+  {"name": "chosen: match_thresh 0.90",
+   "settings": {"track_high_thresh": 0.4, "new_track_thresh": 0.4, "track_low_thresh": 0.05, "match_thresh": 0.9, "track_buffer": 60, "fuse_score": true},
+   "class_avg_HOTA": {"val": 0.2776, "test-dev": 0.2996, "MOT17-train": 0.404, "MOT20-train": 0.3326, "INT8 val": 0.2574, "INT8 test-dev": 0.2925, ".pt conf 0.23 val": 0.2637, ".pt conf 0.23 test-dev": 0.3022},
+   "person_HOTA": {"val": 0.3448, "test-dev": 0.2864, "MOT17-train": 0.404, "MOT20-train": 0.3326, "INT8 val": 0.3266, "INT8 test-dev": 0.2646, ".pt conf 0.23 val": 0.3378, ".pt conf 0.23 test-dev": 0.2767},
+   "note": "Michael 11-27."},
+  {"name": "val-best: match_thresh 0.975",
+   "settings": {"track_high_thresh": 0.4, "new_track_thresh": 0.4, "track_low_thresh": 0.05, "match_thresh": 0.975, "track_buffer": 60, "fuse_score": true},
+   "class_avg_HOTA": {"val": 0.2802, "test-dev": 0.3016, "MOT17-train": 0.4022, "MOT20-train": 0.3166, "INT8 val": 0.2547, "INT8 test-dev": 0.2928, ".pt conf 0.23 val": 0.2697, ".pt conf 0.23 test-dev": 0.2995},
+   "person_HOTA": {"val": 0.3405, "test-dev": 0.2865, "MOT17-train": 0.4022, "MOT20-train": 0.3166, "INT8 val": 0.3277, "INT8 test-dev": 0.2674, ".pt conf 0.23 val": 0.3371, ".pt conf 0.23 test-dev": 0.2768},
+   "note": "The sweep's own pick; rejected (see reason)."},
+  {"name": "earlier pick: high/new 0.35, match 0.90, buffer 30",
+   "settings": {"track_high_thresh": 0.35, "new_track_thresh": 0.35, "track_low_thresh": 0.05, "match_thresh": 0.9, "track_buffer": 30, "fuse_score": true},
+   "class_avg_HOTA": {"val": 0.2766, "test-dev": 0.2993, "INT8 val": 0.2582, "INT8 test-dev": 0.2892, ".pt conf 0.23 val": 0.2638, ".pt conf 0.23 test-dev": 0.2947},
+   "person_HOTA": {"val": 0.3332, "test-dev": 0.2861, "INT8 val": 0.3284, "INT8 test-dev": 0.2659, ".pt conf 0.23 val": 0.3361, ".pt conf 0.23 test-dev": 0.2774},
+   "note": "The script's pick before its grid was extended; not run on MOT17 / MOT20."}
+ ]
+}

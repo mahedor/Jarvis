@@ -13,6 +13,12 @@
    "date": "2026-11-22",
    "skip_with": ["--fake-detector"]
   },
+  "detector_precision": {
+   "value": "INT8",
+   "source": "Michael 11-22: fly the INT8 quantized detector (README change log 2026-11-22). Read at startup from the model files themselves (live_follow.detector_precision: the OpenVINO export's metadata.yaml args.int8 / args.quantize, cross-checked against the FakeQuantize layers in its .xml), not from the folder name; a precision the files do not record is a deviation. Michael 11-27: quantization must be impossible to miss.",
+   "date": "2026-11-22",
+   "skip_with": ["--fake-detector"]
+  },
   "detection_cutoffs": {
    "value": "results/followme_cutoffs_balanced_int8.json",
    "source": "Michael 11-26: fly at the per-class F1-max cutoffs from thresholds_balanced.py, read from the evidence file, not set by hand (README change log 2026-11-26; commit f36ad29). Michael 11-26 (later): rerun the sweep on the INT8 export itself and fly the measured INT8 cutoffs, so the flight model's cutoffs come from this file's vd_mav_cl_s42_int8 entry (person 0.23, vehicle 0.29; curves in results/followme_thresholds_balanced_int8.json), not from the .pt entry in results/followme_cutoffs_balanced.json (0.24 / 0.28). The Oct 29 note that INT8 kept the .pt's best cutoffs was wrong. Path is relative to the repo root; it is the file live_follow.cutoffs_file_for() picks for the INT8 model.",
@@ -20,9 +26,9 @@
    "skip_with": []
   },
   "tracker": {
-   "value": "botsort.yaml",
-   "source": "Tracker benchmark (followme_tracker_comparison_v5, Ultralytics 8.4.184 built-in trackers, TrackEval; results/followme_tracker_scores.jsonl, byte-exact from Drive): with the flight detector vd_mav_cl_s42, BoT-SORT with camera-motion compensation and tracker re-ID off ('botsort|reid-|gmc+' = Ultralytics' default botsort.yaml) has the highest class-average HOTA on all four sets: VisDrone-MOT val 0.2658, test-dev 0.2927, MOT17 train 0.3946, MOT20 train 0.3173 (MOT17/MOT20: 5 configs each; runner-up 0.2641 BoT-SORT+re-ID, 0.2907 BoT-SORT+re-ID, 0.3850, 0.3163). Person-only HOTA on VisDrone is higher with tracker re-ID (val: Deep OC-SORT+re-ID+GMC 0.3276 vs 0.3162; test-dev: BoT-SORT+re-ID+GMC 0.2738 vs 0.2692) at ~270 vs ~21-30 ms/frame and more ID switches; re-ID was rejected for that (11-15). Michael 11-26: keep it. Flown on every flight (never overridden in a run command).",
-   "date": "2026-11-26",
+   "value": "botsort_tuned.yaml",
+   "source": "Michael 11-27: fly BoT-SORT with five settings tuned: track_high_thresh 0.40, new_track_thresh 0.40, track_low_thresh 0.05, match_thresh 0.90, track_buffer 60 (fuse_score True and everything else as Ultralytics' stock botsort.yaml: camera-motion compensation sparseOptFlow on, tracker re-ID off). followme/botsort_tuned.yaml; decision record results/followme_tracker_settings_choice.json (live_follow stops if the yaml differs from it). Evidence: results/followme_tracker_settings_sweep.jsonl + _summary.json (tracker_settings_sweep.py, Colab 11-27, byte-exact from Drive): chosen on VisDrone-MOT val class-average HOTA, checked on test-dev, MOT17, MOT20 and the flight-like INT8 detector. Stock -> tuned: val 0.2658 -> 0.2776, test-dev 0.2927 -> 0.2996, MOT17 0.3946 -> 0.4040, MOT20 0.3173 -> 0.3326, INT8 val 0.2508 -> 0.2574, INT8 test-dev 0.2823 -> 0.2925. match_thresh 0.90, not the val-best 0.975: 0.975 was only +0.0026 on val (within Michael's +-0.003 seed-noise figure) and fell below stock on MOT20 (0.3166 vs 0.3173). The tracker itself: Michael 11-26 kept BoT-SORT + camera-motion compensation, tracker re-ID off, the tracker benchmark winner on all four sets (followme_tracker_comparison_v5, results/followme_tracker_scores.jsonl: val 0.2658, test-dev 0.2927, MOT17 0.3946, MOT20 0.3173 at default settings; tracker re-ID rejected 11-15 for ~270 vs ~21-30 ms/frame). Flights until 11-27 ran the stock botsort.yaml.",
+   "date": "2026-11-27",
    "skip_with": ["--fake-detector"]
   },
   "imgsz": {

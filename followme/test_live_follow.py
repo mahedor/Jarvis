@@ -270,7 +270,8 @@ def test_code_defaults_are_the_decided_settings():
     assert dec["detector_model"] == lf._rel(lf.INT8_MODEL, HERE)
     assert dec["detector_int8"] is True and lf.INT8_MODEL.name.endswith(lf.INT8_SUFFIX)
     assert dec["detection_cutoffs"] == lf._rel(lf.cutoffs_file_for(lf.INT8_MODEL)) == lf._rel(lf.CUTOFFS_FILE_INT8)
-    assert dec["tracker"] == lf.TRACKER and dec["imgsz"] == lf.IMGSZ
+    assert dec["tracker"] == lf.TRACKER == "botsort_tuned.yaml" and dec["imgsz"] == lf.IMGSZ
+    assert dec["detector_precision"] == "INT8"                        # Michael 11-22, read from the model files (11-27)
     assert dec["match_sim"] == lockon.MATCH_SIM
     assert dec["search_deg"] == lf.SEARCH_DEG and dec["search_both_ways"] == lf.SEARCH_BOTH
     assert dec["lost_s"] == lf.LOST_S == 1.0                          # Michael 11-26: keep the 1 second hover
@@ -289,7 +290,7 @@ def test_check_decisions_finds_every_kind_of_deviation():
                                                                         "imgsz", "reid"}
     r = lf.check_decisions(bad, dec, {"--fake-detector"})             # only the detector/tracker checks are skipped
     assert {x["name"] for x in r["deviations"]} == {"reid"}
-    assert {s["name"] for s in r["skipped"]} == {"detector_model", "detector_int8", "tracker", "imgsz"}
+    assert {s["name"] for s in r["skipped"]} == {"detector_model", "detector_int8", "detector_precision", "tracker", "imgsz"}
     assert lf.profile_ok("drone settings match drone_profile.json") and lf.profile_ok("applied drone_profile.json (2 changed)")
     assert not lf.profile_ok("applied drone_profile.json (2 changed); FAILED: {'x': 'failed: y'}")
     assert not lf.profile_ok("no drone_profile.json yet (run drone_settings.py --save on drone A)")
@@ -301,9 +302,9 @@ def test_preflight_pass_is_logged():
     pf = _latest_drone_json()["preflight"]
     assert pf["passed"] and not pf["deviations"] and not pf["off_decisions"]
     assert {"reid", "match_sim", "detection_cutoffs", "search_deg"} <= set(pf["checked"])
-    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "tracker", "imgsz",
-                                                  "drone_profile_applied", "click_to_lock"}
-    assert _latest_drone_json()["running"]["tracker"] == "botsort.yaml"
+    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "detector_precision", "tracker",
+                                                  "imgsz", "drone_profile_applied", "click_to_lock"}
+    assert _latest_drone_json()["running"]["tracker"] == "botsort_tuned.yaml"
     assert _latest_drone_json()["running"]["imgsz"] == 640
 
 
@@ -340,10 +341,278 @@ def test_tracker_decision_is_the_benchmark_winner():
         best[split] = (hota[0][1], round(hota[0][0], 4))
     assert best == {"val": ("botsort|reid-|gmc+", 0.2658), "test-dev": ("botsort|reid-|gmc+", 0.2927),
                     "MOT17-train": ("botsort|reid-|gmc+", 0.3946), "MOT20-train": ("botsort|reid-|gmc+", 0.3173)}
-    assert lf.load_decisions()["tracker"]["value"] == lf.TRACKER == "botsort.yaml"
+    # what flies since 11-27 is that tracker (BoT-SORT, GMC on, re-ID off) with five settings tuned
+    assert lf.load_decisions()["tracker"]["value"] == lf.TRACKER == "botsort_tuned.yaml"
+    cfg = lf.resolve_tracker(lf.TRACKER)["settings"]
+    assert cfg["tracker_type"] == "botsort" and cfg["with_reid"] is False and cfg["gmc_method"] == "sparseOptFlow"
+
+
+# ---- 11-27: the tuned BoT-SORT settings (botsort_tuned.yaml) and their decision record ----
+
+RESULTS = HERE.parent / "results"
+SWEEP = RESULTS / "followme_tracker_settings_sweep.jsonl"
+SWEEP_SUMMARY = RESULTS / "followme_tracker_settings_sweep_summary.json"
+CUTS_FLIGHT = {"person": 0.23, "vehicle": 0.29}
+# record set name -> (sweep row "detector", "split", "post_filter")
+SETS = {"val": ("vd_mav_cl_s42", "val", None), "test-dev": ("vd_mav_cl_s42", "test-dev", None),
+        "MOT17-train": ("vd_mav_cl_s42", "MOT17-train", None), "MOT20-train": ("vd_mav_cl_s42", "MOT20-train", None),
+        "INT8 val": ("vd_mav_cl_s42_int8", "val", CUTS_FLIGHT),
+        "INT8 test-dev": ("vd_mav_cl_s42_int8", "test-dev", CUTS_FLIGHT),
+        ".pt conf 0.23 val": ("vd_mav_cl_s42_pt_c023", "val", CUTS_FLIGHT),
+        ".pt conf 0.23 test-dev": ("vd_mav_cl_s42_pt_c023", "test-dev", CUTS_FLIGHT)}
+
+
+def _record():
+    return lf.load_tracker_choice()
+
+
+def _sweep_rows():
+    assert SWEEP.is_file(), f"{SWEEP} is committed evidence and must exist"
+    return [__import__("json").loads(x) for x in SWEEP.read_text().splitlines() if x.strip()]
+
+
+def _rows_for(rows, set_name, settings):
+    det, split, pf = SETS[set_name]
+    return [r for r in rows if r["detector"] == det and r["split"] == split and r["post_filter"] == pf
+            and r["settings"] == settings and r["config"] == "botsort|reid-|gmc+"]
+
+
+def _opt(name_start):
+    return next(o for o in _record()["options"] if o["name"].startswith(name_start))
+
+
+def test_tuned_yaml_equals_the_decision_record_and_is_stock_otherwise():
+    import yaml
+    cfg = yaml.safe_load((HERE / lf.TRACKER).read_text(encoding="utf-8"))
+    rec = _record()
+    assert {k: cfg[k] for k in rec["chosen"]} == rec["chosen"]
+    assert rec["chosen"] == dict(track_high_thresh=0.4, new_track_thresh=0.4, track_low_thresh=0.05, match_thresh=0.9,
+                                 track_buffer=60, fuse_score=True)                    # Michael 11-27
+    assert rec["chosen"] == _opt("chosen")["settings"]
+    stock_rec = _opt("stock")["settings"]
+    for k in rec["chosen"]:                                       # fuse_score is the only one of the six left stock
+        assert (cfg[k] == stock_rec[k]) == (k == "fuse_score"), k
     import pytest
     pytest.importorskip("ultralytics")
-    from ultralytics.utils import YAML
-    from ultralytics.utils.checks import check_yaml
-    cfg = YAML.load(check_yaml(lf.TRACKER))
-    assert cfg["tracker_type"] == "botsort" and cfg["with_reid"] is False and cfg["gmc_method"] == "sparseOptFlow"
+    import ultralytics
+    stock = yaml.safe_load((Path(ultralytics.__file__).parent / "cfg" / "trackers" / "botsort.yaml").read_text(encoding="utf-8"))
+    assert set(cfg) == set(stock), "re-copy the installed ultralytics' botsort.yaml and change only the five values"
+    assert {k: v for k, v in cfg.items() if k not in rec["chosen"] or k == "fuse_score"} == \
+           {k: v for k, v in stock.items() if k not in rec["chosen"] or k == "fuse_score"}
+    assert {k: stock[k] for k in stock_rec} == stock_rec          # the record's "stock" row is Ultralytics' file
+
+
+def test_every_number_in_the_tracker_record_is_a_sweep_row():
+    rows = _sweep_rows()
+    assert len(rows) == 79
+    rec = _record()
+    assert RESULTS.parent / rec["evidence"]["sweep"] == SWEEP and RESULTS.parent / rec["evidence"]["summary"] == SWEEP_SUMMARY
+    assert set(rec["sets"]) == set(SETS)
+    for o in rec["options"]:
+        for metric, path in (("class_avg_HOTA", "class_avg"), ("person_HOTA", "person")):
+            for set_name in SETS:
+                m = _rows_for(rows, set_name, o["settings"])
+                if set_name not in o[metric]:
+                    assert not m, f"{o['name']}: {set_name} was run, record leaves it out"
+                    continue
+                assert m, f"{o['name']}: no sweep row for {set_name}"
+                got = {round(r["scores"][path]["HOTA"], 4) for r in m}      # real-GMC and replayed-GMC rows agree
+                assert got == {o[metric][set_name]}, (o["name"], metric, set_name, got)
+    # the script's own pick, as the summary states it
+    summ = __import__("json").loads(SWEEP_SUMMARY.read_text())
+    assert summ["chosen"]["settings"] == rec["sweep_auto_pick"]["settings"] == _opt("val-best")["settings"]
+    assert round(summ["chosen"]["val_hota"], 4) == rec["sweep_auto_pick"]["val_class_avg_HOTA"] == _opt("val-best")["class_avg_HOTA"]["val"]
+    val_runs = [r for r in rows if r["split"] == "val" and r["detector"] == "vd_mav_cl_s42"]
+    assert max(round(r["scores"]["class_avg"]["HOTA"], 4) for r in val_runs) == rec["sweep_auto_pick"]["val_class_avg_HOTA"]
+
+
+def test_the_reason_in_the_tracker_record_is_what_the_numbers_say():
+    stock, chosen, best = (_opt(n)["class_avg_HOTA"] for n in ("stock", "chosen", "val-best"))
+    assert round(best["val"] - chosen["val"], 4) == 0.0026                 # "+0.0026 on val"
+    assert best["MOT20-train"] < stock["MOT20-train"]                       # "fell below default on MOT20"
+    assert set(chosen) == set(stock) and all(chosen[k] > stock[k] for k in stock)   # "beats the default on every set"
+    assert "0.0026" in _record()["reason"] and "0.3166" in _record()["reason"]
+
+
+def test_live_and_replay_resolve_to_botsort_tuned():
+    import replay
+    live = lf.build_parser().parse_args([])
+    rep = replay.build_parser().parse_args(["--source", "x"])
+    assert live.tracker == rep.tracker == lf.TRACKER == "botsort_tuned.yaml"
+    for a in (live, rep):
+        t = lf.resolve_tracker(a.tracker)
+        assert Path(t["path"]) == HERE / "botsort_tuned.yaml" and t["label"] == "botsort_tuned.yaml"
+        assert lf.running_settings(a, True, precision="INT8")["tracker"] == "botsort_tuned.yaml"
+    assert "match_thresh 0.9" in lf.tracker_line(lf.resolve_tracker(lf.TRACKER))
+    stock = lf.resolve_tracker("botsort.yaml")                        # an Ultralytics built-in name, passed through
+    assert stock == dict(path="botsort.yaml", label="botsort.yaml", settings=None)
+
+
+def test_preflight_fails_on_stock_botsort_unless_off_decisions():
+    import pytest
+    import replay
+    dec = lf.load_decisions()
+    for program, parser, extra in (("live_follow", lf.build_parser(), []), ("replay", replay.build_parser(), ["--source", "x"])):
+        a = parser.parse_args(extra + ["--tracker", "botsort.yaml"])
+        r = lf.check_decisions(lf.running_settings(a, True, precision="INT8"), dec, {"replay"} if program == "replay" else set())
+        assert [(x["name"], x["decided"], x["actual"]) for x in r["deviations"]] == \
+               [("tracker", "botsort_tuned.yaml", "botsort.yaml")]
+        with pytest.raises(SystemExit):
+            lf.enforce_decisions(r, False, program=program)
+        assert lf.enforce_decisions(r, True, program=program)["off_decisions"] is True
+
+
+def test_preflight_stops_on_stock_botsort_end_to_end(tmp_path):
+    """A real start (fake drone, INT8-like export folder, no --fake-detector) with --tracker botsort.yaml: the banner
+    shows the precision read from the export, then the pre-flight check stops before anything flies."""
+    model = make_ov_export(tmp_path)
+    cmd = [sys.executable, str(HERE / "live_follow.py"), "--fake", "--headless", "--seconds", "2", "--model", str(model),
+           "--tracker", "botsort.yaml", "--out", str(tmp_path / "out")]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=HERE)
+    assert p.returncode != 0 and "STOP: not flying what was decided" in p.stderr
+    assert "tracker: decided 'botsort_tuned.yaml', about to run 'botsort.yaml'" in p.stderr
+    assert "detector_precision" not in p.stderr                        # the export says INT8: no deviation there
+    assert "detector: INT8 OpenVINO, static 384x640" in p.stdout
+    assert "tracker: botsort.yaml (Ultralytics built-in file, its stock settings)" in p.stdout
+    assert not (tmp_path / "out").exists()
+
+
+def test_edited_or_missing_tuned_yaml_stops(tmp_path, monkeypatch):
+    import json
+    import pytest
+    rec = _record()
+    rec["chosen"] = dict(rec["chosen"], match_thresh=0.975)           # the yaml no longer matches its record
+    (tmp_path / "rec.json").write_text(json.dumps(rec))
+    with pytest.raises(SystemExit, match="differs from its decision record"):
+        lf.resolve_tracker(lf.TRACKER, choice_path=tmp_path / "rec.json")
+    with pytest.raises(SystemExit, match="decision record not found"):
+        lf.resolve_tracker(lf.TRACKER, choice_path=tmp_path / "nope.json")
+    monkeypatch.setattr(lf, "HERE", tmp_path)                         # no botsort_tuned.yaml next to the program
+    with pytest.raises(SystemExit, match="tracker settings file not found"):
+        lf.resolve_tracker(lf.TRACKER)
+
+
+def test_drone_json_records_tracker_and_detector():
+    run_fake("q@1", 2)
+    info = _latest_drone_json()
+    assert info["tracker"]["file"] == "botsort_tuned.yaml"
+    assert {k: info["tracker"]["settings"][k] for k in _record()["chosen"]} == _record()["chosen"]
+    assert info["detector"]["summary"].startswith("fake detector") and info["running"]["detector_precision"] == "none (--fake-detector)"
+
+
+# ---- 11-27: detector precision read from the model files, printed, checked, logged ----
+
+# metadata.yaml of the INT8 export that flies, verbatim (Drive jarvis_det/live_models/vd_mav_cl_s42_int8_openvino_model.zip)
+REAL_INT8_META = """description: Ultralytics vd_mav_cl_s42 model trained on /content/data/arm_vd_mav_cl_3w.yaml
+author: Ultralytics
+date: '2026-10-29T21:20:16.587978'
+version: 8.4.60
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 384
+- 640
+names:
+  0: person
+  1: bicycle
+  2: car
+  3: van
+  4: truck
+  5: bus
+  6: motorcycle
+  7: three_wheeler
+args:
+  data: /content/data/int8_calib/calib.yaml
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: true
+  dynamic: false
+  nms: false
+channels: 3
+end2end: false
+"""
+
+
+def ov_xml(shape="1,3,384,640", n_fq=2, nncf=True):
+    """A minimal OpenVINO IR with the parts detector_precision reads (the real one: 67 FakeQuantize layers)."""
+    fq = "".join(f'<layer id="{i + 1}" name="fq{i}" type="FakeQuantize" version="opset1"><data levels="256" /></layer>'
+                 for i in range(n_fq))
+    rt = ('<rt_info><nncf><quantization><preset value="mixed" /><subset_size value="300" /></quantization>'
+          '<version value="3.4.0" /></nncf></rt_info>') if nncf else "<rt_info />"
+    return (f'<?xml version="1.0"?><net name="Model0" version="11"><layers><layer id="0" name="x" type="Parameter" '
+            f'version="opset1"><data shape="{shape}" element_type="f32" /></layer>{fq}</layers>{rt}</net>')
+
+
+def make_ov_export(root, meta=REAL_INT8_META, xml=None, name="vd_mav_cl_s42_int8_openvino_model"):
+    d = Path(root) / name
+    d.mkdir(parents=True)
+    if meta is not None:
+        (d / "metadata.yaml").write_text(meta)
+    if xml is not False:
+        (d / "vd_mav_cl_s42.xml").write_text(ov_xml() if xml is None else xml)
+    return d
+
+
+def test_precision_of_the_real_int8_export(tmp_path):
+    d = make_ov_export(tmp_path)
+    r = lf.detector_precision(d)
+    assert r["precision"] == "INT8" and r["backend"] == "OpenVINO" and r["input"] == "static 384x640"
+    assert r["summary"] == "INT8 OpenVINO, static 384x640"
+    assert r["source"] == "metadata.yaml args.int8 = true; vd_mav_cl_s42.xml: 2 FakeQuantize layers"
+    ex = r["export"]
+    assert ex["ultralytics_version"] == "8.4.60" and ex["export_date"].startswith("2026-10-29")
+    assert ex["input_shape"] == "1,3,384,640" and ex["imgsz"] == [384, 640] and ex["fake_quantize_layers"] == 2
+    assert ex["calibration"] == dict(data="/content/data/int8_calib/calib.yaml", fraction=1.0,
+                                     nncf=dict(preset="mixed", subset_size="300", nncf_version="3.4.0"))
+    lines = lf.precision_lines(r, d)
+    assert lines[0] == f"detector: INT8 OpenVINO, static 384x640  ({lf._rel(d, HERE)})"
+    assert "calibration: data /content/data/int8_calib/calib.yaml (fraction 1.0), NNCF 3.4.0 preset mixed, subset_size 300" in lines[2]
+
+
+def test_precision_other_exports_and_nothing_guessed(tmp_path):
+    meta = REAL_INT8_META.replace("int8: true", "int8: false")
+    fp32 = lf.detector_precision(make_ov_export(tmp_path / "a", meta, ov_xml(n_fq=0, nncf=False), "m_openvino_model"))
+    assert fp32["summary"] == "FP32 OpenVINO, static 384x640"
+    fp16 = lf.detector_precision(make_ov_export(tmp_path / "b", meta.replace("half: false", "half: true"),
+                                                ov_xml(n_fq=0), "m_openvino_model"))
+    assert fp16["precision"] == "FP16"
+    newstyle = "args:\n  quantize: 8\n  dynamic: false\nimgsz: [384, 640]\n"         # ultralytics >= 8.4.2xx
+    assert lf.detector_precision(make_ov_export(tmp_path / "c", newstyle))["precision"] == "INT8"
+    # no metadata.yaml: the .xml's FakeQuantize layers are the only record; without them nothing is claimed
+    no_meta = lf.detector_precision(make_ov_export(tmp_path / "d", None))
+    assert no_meta["precision"] == "INT8" and "metadata.yaml records no precision" in no_meta["source"]
+    bare = lf.detector_precision(make_ov_export(tmp_path / "e", None, False))
+    assert bare["precision"] == lf.NR and bare["input"] == "input shape not recorded"
+    assert bare["export"]["calibration"] == dict(data=lf.NR, fraction=lf.NR, nncf=lf.NR)
+    # metadata and model disagree: never pick one
+    bad = lf.detector_precision(make_ov_export(tmp_path / "f", REAL_INT8_META, ov_xml(n_fq=0)))
+    assert bad["precision"].startswith("conflict")
+    dyn = lf.detector_precision(make_ov_export(tmp_path / "g", REAL_INT8_META.replace("dynamic: false", "dynamic: true"),
+                                               ov_xml(shape="?,3,?,?")))
+    assert dyn["input"].startswith("dynamic input")
+    assert lf.detector_precision("weights/vd_mav_cl_s42.pt")["summary"] == "FP32 PyTorch, imgsz 640"
+    assert lf.detector_precision(tmp_path / "missing_int8_openvino_model")["precision"] == lf.NR
+    assert lf.detector_precision("x", fake=True)["precision"] == "none (--fake-detector)"
+    assert lf.precision_lines(lf.detector_precision("weights/vd_mav_cl_s42.pt"), "weights/vd_mav_cl_s42.pt")[0].endswith(
+        "<-- NOT the INT8 model (decided 11-22)")
+
+
+def test_precision_is_a_preflight_decision(tmp_path):
+    import pytest
+    dec = lf.load_decisions()
+    assert dec["detector_precision"]["value"] == "INT8" and dec["detector_precision"]["skip_with"] == ["--fake-detector"]
+    a = lf.build_parser().parse_args([])
+    good = lf.detector_precision(make_ov_export(tmp_path / "int8"))["precision"]
+    assert not [x for x in lf.check_decisions(lf.running_settings(a, True, precision=good), dec, set())["deviations"]
+                if x["name"] == "detector_precision"]
+    for bad in ("FP32", lf.NR, "conflict (x)"):
+        r = lf.check_decisions(lf.running_settings(a, True, precision=bad), dec, set())
+        assert [x["name"] for x in r["deviations"]] == ["detector_precision"]
+        with pytest.raises(SystemExit):
+            lf.enforce_decisions(r, False)
+    # read from the files when not passed in: the default model's precision is whatever its folder says
+    assert lf.running_settings(a, True)["detector_precision"] == lf.detector_precision(a.model)["precision"]

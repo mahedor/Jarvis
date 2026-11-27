@@ -1,7 +1,7 @@
 # followme/ — follow-me drone (Parrot ANAFI 4K)
 
-The live follow-me loop: drone video → YOLOv8n person/vehicle detector → BoT-SORT tracker
-(with camera-motion compensation) → lock-on with OSNet re-ID → yaw/forward-back commands back to
+The live follow-me loop: drone video → YOLOv8n person/vehicle detector (INT8 OpenVINO) → BoT-SORT tracker
+(with camera-motion compensation, five settings tuned 11-27) → lock-on with OSNet re-ID → yaw/forward-back commands back to
 the drone over Olympe. Laptop = brain, drone = body. Moved here from the laptop's `Downloads`
 folder on 2026-11-19 so it lives with the rest of Jarvis.
 
@@ -19,12 +19,13 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `record.py` | Olympe connection, telemetry (incl. GPS), and the fake drone used by tests |
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
 | `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
-| `flight_log.py` | The flight log: one row per flight in `~/follow_logs`, newest first, with the settings it flew under (drone, model + INT8, cutoffs + source, tracker, imgsz, re-ID + cutoff, pre-flight result) and what happened (duration, FOLLOW time, re-locks, battery, video files) → `flight_log.csv` + `flight_log.md`. Runs by itself at the end of every `live_follow.py` run; `python flight_log.py [--root DIR]` backfills |
+| `botsort_tuned.yaml` | The tracker settings that fly (Michael 11-27): Ultralytics' `botsort.yaml` with only five values changed (high / new 0.40, low 0.05, match 0.90, buffer 60). Decision record `results/followme_tracker_settings_choice.json`; `live_follow.py` stops if the file differs from it |
+| `flight_log.py` | The flight log: one row per flight in `~/follow_logs`, newest first, with the settings it flew under (drone, model + INT8, detector precision, cutoffs + source, tracker (+ tuned values), imgsz, re-ID + cutoff, pre-flight result) and what happened (duration, FOLLOW time, re-locks, battery, video files) → `flight_log.csv` + `flight_log.md`. Runs by itself at the end of every `live_follow.py` run; `python flight_log.py [--root DIR]` backfills |
 | `flight_index.py` | Older quick table of every flight (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv`; `flight_log.py` is the full log |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
-| `test_*.py` | 155 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), and the flight log (`test_flight_log.py`) |
+| `test_*.py` | 168 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), and the flight log (`test_flight_log.py`) |
 
 ## Folders
 
@@ -56,7 +57,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 155 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 168 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 ```
@@ -130,6 +131,9 @@ closed and the drone has landed) `flight_log.update()` rescans the logs root and
 `flight_log.md` there, newest first. If that fails (e.g. Excel has the csv open) it prints a warning with the backfill
 command and the program exits normally. Backfill or refresh by hand: `python flight_log.py [--root DIR] [--rebuild]`.
 
+- `precision`: the detector's precision as flown, from drone.json's `detector` record (since 11-27, e.g. `INT8 OpenVINO,
+  static 384x640`); older runs say `INT8 (derived from the model path; precision not logged)` only when the recorded
+  model path ends in `_int8_openvino_model`, otherwise **not logged**.
 - Every field is read from the run's own `drone.json` and `follow.csv`; a field that version of `live_follow.py` did not
   record shows **not logged** (never guessed: e.g. the 11-15 / 11-22 flights show no model, because drone.json had no
   model field until aae2f0f). The md lists which drone.json fields exist since which commit.
@@ -141,6 +145,44 @@ command and the program exits normally. Backfill or refresh by hand: `python fli
 - Unchanged run folders come from a cache (`.flight_log_cache.json`), so the call at the end of a flight is fast.
 
 ## Change log
+
+- **2026-11-27 (Michael): fly the tuned BoT-SORT settings; the detector's precision can't be missed.**
+  - Tracker settings sweep (Colab today, `tracker_settings_sweep.py`; Ultralytics `botsort.yaml`, camera-motion
+    compensation sparseOptFlow, re-ID off; chosen on VisDrone-MOT val class-average HOTA with the benchmark's own scoring
+    and cached detections, checked on test-dev, MOT17 / MOT20 train and the flight-like INT8 detector). Committed
+    byte-exact from Drive: `results/followme_tracker_settings_sweep.jsonl` (79 rows) and
+    `results/followme_tracker_settings_sweep_summary.json`.
+  - Michael chose **track_high_thresh 0.40, new_track_thresh 0.40, track_low_thresh 0.05, match_thresh 0.90,
+    track_buffer 60**, fuse_score True, everything else stock. Not the val-best match_thresh 0.975: only +0.0026 on val
+    (0.2802 vs 0.2776), within his ±0.003 seed-noise figure, and below stock on MOT20 (0.3166 vs 0.3173). 0.90 beats
+    stock on every set (class-average HOTA, stock → tuned): val 0.2658 → 0.2776, test-dev 0.2927 → 0.2996, MOT17
+    0.3946 → 0.4040, MOT20 0.3173 → 0.3326, INT8 val 0.2508 → 0.2574, INT8 test-dev 0.2823 → 0.2925.
+  - New `botsort_tuned.yaml` (the installed ultralytics' stock file, five values edited, header citing the evidence)
+    is the `--tracker` default for `live_follow.py` and so for `replay.py`; `flight_decisions.json` `tracker` is now
+    `botsort_tuned.yaml`, so stock `botsort.yaml` **stops** the pre-flight / replay check unless `--off-decisions`.
+    Decision record `results/followme_tracker_settings_choice.json`: the chosen values, four options (stock, 0.90,
+    0.975, the sweep's earlier 0.35 / 0.90 / 30 pick) with class-average and person HOTA on all eight sets, the reason.
+    `live_follow.resolve_tracker` stops if the yaml's five values differ from the record or the file is missing.
+    In flight: live_follow hands the tracker only boxes >= 0.23, so a box needs >= 0.40 to start a track and 0.23-0.40
+    only keeps one alive; `track_buffer` counts detector passes, not video frames.
+  - Precision: `live_follow.detector_precision` reads it from the model files, never the folder name: the OpenVINO
+    export's `metadata.yaml` (`args.int8` / `args.half`, or `args.quantize` on newer Ultralytics; `dynamic`, `imgsz`,
+    calibration `data` / `fraction`) cross-checked against the FakeQuantize layers in its `.xml` (plus the NNCF
+    parameters saved there), and the input shape from the `.xml`. Metadata and model disagreeing → `conflict`;
+    nothing recorded → `not recorded`. A `.pt` is FP32 PyTorch (no half / quantize is passed). The flight export reads
+    as INT8 (`args.int8 = true`, 67 FakeQuantize layers), static 384x640, Ultralytics 8.4.60, calibration
+    `/content/data/int8_calib/calib.yaml` (fraction 1.0), NNCF 3.4.0 preset mixed, subset_size 300.
+  - Startup (live and replay) now prints `detector: INT8 OpenVINO, static 384x640  (weights/…)`, where it came from,
+    the export details, and a `tracker:` line with the five values. New decision `detector_precision` = `INT8`
+    (Michael 11-22; skipped under `--fake-detector`). drone.json adds `detector` (the whole record),
+    `running.detector_precision` and `tracker` (file + settings); replay_info.json the same.
+  - `flight_log.py`: new `precision` column (csv + md; older runs: INT8 only from an `_int8_openvino_model` path, else
+    not logged) and the tuned values in the `tracker` column; cache schema 2.
+  - 13 new tests: yaml = record and stock otherwise (keys checked against the installed ultralytics), every number in
+    the record found in the sweep rows, the stated reason re-checked, live and replay resolve to `botsort_tuned.yaml`,
+    stock `botsort.yaml` stops (functions and an end-to-end start), edited / missing yaml or record stops, precision of
+    the real export's metadata and of FP32 / FP16 / new-style / missing / conflicting / dynamic exports, precision as a
+    pre-flight decision, drone.json records, flight-log column: 168 in all.
 
 - **2026-11-27 (Michael): automatic flight log.** New `flight_log.py` (stdlib only) writes `flight_log.csv` +
   `flight_log.md` in the logs root, one row per flight, newest first: date/time, run folder, drone (+ serial,

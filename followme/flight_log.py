@@ -28,11 +28,15 @@ from datetime import datetime
 from pathlib import Path
 
 NL = "not logged"
-SCHEMA = 1                      # bump when a column's meaning changes: invalidates the cache
+SCHEMA = 2                      # bump when a column's meaning changes: invalidates the cache (2: precision, 11-27)
 CACHE = ".flight_log_cache.json"
 CSV_NAME, MD_NAME = "flight_log.csv", "flight_log.md"
 AIRBORNE = {"takingoff", "hovering", "flying", "landing"}       # ANAFI flying_state values with the drone in the air
-TRACKER_NAMES = {"botsort.yaml": "BoT-SORT", "bytetrack.yaml": "ByteTrack"}   # Ultralytics' built-in tracker files
+TRACKER_NAMES = {"botsort.yaml": "BoT-SORT", "bytetrack.yaml": "ByteTrack",   # Ultralytics' built-in tracker files
+                 "botsort_tuned.yaml": "BoT-SORT tuned"}                      # followme/, Michael 11-27
+TUNED_KEYS = (("track_high_thresh", "high"), ("new_track_thresh", "new"), ("track_low_thresh", "low"),
+              ("match_thresh", "match"), ("track_buffer", "buffer"))
+INT8_SUFFIX = "_int8_openvino_model"            # live_follow.INT8_SUFFIX (this file stays stdlib-only)
 
 # what drone.json holds, by the live_follow.py commit that added it (git log -L on the drone.json write)
 FIELD_HISTORY = [
@@ -44,17 +48,22 @@ FIELD_HISTORY = [
                               "profile applied, click-to-lock, search), `preflight` (pass / deviations)"),
     ("2026-11-26", "3f29585", "`running.tracker`, `running.imgsz`"),
     ("2026-11-26", "9f549ff", "`running.lost_s`"),
+    ("2026-11-27", "COMMIT_TBD", "`detector` (precision, backend, input shape, the export's metadata.yaml / FakeQuantize / "
+                                 "calibration), `running.detector_precision`, `tracker` (file + settings); tracker "
+                                 "botsort_tuned.yaml from here on"),
 ]
 
 COLUMNS = ["date/time", "run folder", "drone", "serial", "firmware", "duration", "frames", "FPS", "airborne", "battery",
-           "model", "cutoffs", "tracker", "imgsz", "re-ID", "preflight", "drone profile", "FOLLOW time", "re-locks",
+           "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID", "preflight", "drone profile", "FOLLOW time", "re-locks",
            "locks (clicks / N)", "spin searches", "LOOK/GO time", "video", "other settings", "notes.txt", "notes"]
-MD_COLUMNS = ["date/time", "run folder", "drone", "duration", "model", "cutoffs", "tracker", "imgsz", "re-ID",
+MD_COLUMNS = ["date/time", "run folder", "drone", "duration", "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID",
               "preflight", "FOLLOW time", "re-locks", "video", "notes"]
 # drone.json keys shown in their own columns; anything else ends up in "other settings" (so new fields show up)
 _SHOWN_TOP = {"drone_product_name", "drone_nickname", "drone_serial", "drone_firmware", "name", "ip", "model",
-              "conf_person", "conf_vehicle", "conf_source", "reid", "profile", "running", "preflight"}
-_SHOWN_RUNNING = {"detector_model", "detector_int8", "detection_cutoffs", "tracker", "imgsz", "reid", "match_sim"}
+              "conf_person", "conf_vehicle", "conf_source", "reid", "profile", "running", "preflight", "detector",
+              "tracker"}
+_SHOWN_RUNNING = {"detector_model", "detector_int8", "detector_precision", "detection_cutoffs", "tracker", "imgsz", "reid",
+                  "match_sim"}
 _RUN_NAME = re.compile(r"^(\d{8})_(\d{6})")
 
 
@@ -181,6 +190,20 @@ def _fmt_val(v):
     return f"{v:g}" if isinstance(v, float) else str(v)
 
 
+def precision(info, run, model):
+    """The detector's precision as flown. Since 11-27 drone.json records it (`detector`, read from the model files);
+    older runs: INT8 only if the recorded model path is an INT8 export (<name>_int8_openvino_model), else not logged
+    (a .pt path alone does not say what precision it ran at in that version)."""
+    det = info.get("detector") if isinstance(info.get("detector"), dict) else {}
+    if det.get("summary"):
+        return str(det["summary"])
+    if run.get("detector_precision"):
+        return str(run["detector_precision"])
+    if model and Path(str(model)).name.endswith(INT8_SUFFIX):
+        return "INT8 (derived from the model path; precision not logged)"
+    return NL
+
+
 def settings(info):
     """drone.json -> the settings columns. Only what was written; nothing inferred from dates or notes."""
     run = info.get("running") if isinstance(info.get("running"), dict) else {}
@@ -196,10 +219,11 @@ def settings(info):
     if model:
         int8 = run.get("detector_int8")
         if int8 is None:                      # 'model' only: INT8 is a property of that exact path (live_follow.is_int8)
-            int8 = Path(str(model)).name.endswith("_int8_openvino_model")
+            int8 = Path(str(model)).name.endswith(INT8_SUFFIX)
         out["model"] = f"{Path(str(model)).name} ({'INT8' if int8 else 'not INT8'})"
     else:
         out["model"] = NL
+    out["precision"] = precision(info, run, model)
     # cutoffs (+ source)
     cp, cv = info.get("conf_person"), info.get("conf_vehicle")
     if cp is not None or cv is not None:
@@ -212,6 +236,9 @@ def settings(info):
     tr = run.get("tracker")
     out["tracker"] = (f"{TRACKER_NAMES[Path(str(tr)).name]} ({tr})" if tr and Path(str(tr)).name in TRACKER_NAMES
                       else str(tr) if tr else NL)
+    tset = info["tracker"].get("settings") if isinstance(info.get("tracker"), dict) else None
+    if isinstance(tset, dict) and tr:                    # the yaml's values as flown (since 11-27)
+        out["tracker"] += ": " + " / ".join(f"{short} {_fmt_val(tset[k])}" for k, short in TUNED_KEYS if k in tset)
     out["imgsz"] = _fmt_val(run["imgsz"]) if run.get("imgsz") is not None else NL
     # re-ID + its re-lock cutoff
     kind = run.get("reid")

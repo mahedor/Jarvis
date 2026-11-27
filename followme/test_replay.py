@@ -21,6 +21,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import live_follow as lf  # noqa: E402
 import replay  # noqa: E402
+from test_live_follow import make_ov_export  # noqa: E402  (an INT8-like OpenVINO export folder, 11-27)
 
 # flags only replay has: where to read/write and how to watch, none of which changes what the program decides
 REPLAY_ONLY = {"source", "lock_id", "max_frames", "window"}
@@ -31,10 +32,16 @@ def _defaults(parser):
     return {a.dest: a.default for a in parser._actions}
 
 
-def test_replay_runs_live_follows_settings_for_every_decision():
+def _int8_precision(tmp_path):
+    """What detector_precision reads from the flight export's own metadata.yaml (the weights are not in the repo)."""
+    return lf.detector_precision(make_ov_export(tmp_path))["precision"]
+
+
+def test_replay_runs_live_follows_settings_for_every_decision(tmp_path):
     live = lf.build_parser().parse_args([])
     rep = replay.build_parser().parse_args(["--source", "x"])
-    a_live, a_rep = lf.running_settings(live, True), lf.running_settings(rep, False)
+    prec = _int8_precision(tmp_path)
+    a_live, a_rep = lf.running_settings(live, True, precision=prec), lf.running_settings(rep, False, precision=prec)
     decisions = lf.load_decisions()
     for name, d in decisions.items():
         assert name in a_live, f"{name}: no reading in running_settings (would be a deviation in every run)"
@@ -45,7 +52,7 @@ def test_replay_runs_live_follows_settings_for_every_decision():
     assert lf.follow_kwargs(rep) == lf.follow_kwargs(live)
 
 
-def test_replay_of_the_int8_model_gets_the_int8_cutoffs_and_passes_the_check():
+def test_replay_of_the_int8_model_gets_the_int8_cutoffs_and_passes_the_check(tmp_path):
     """11-26: the INT8 export flies at its own measured cutoffs (0.23 / 0.29, results/followme_cutoffs_balanced_int8.json);
     replay of the same model must get the same pair from the same file, and its settings check (real detector, i.e.
     nothing skipped but drone_profile_applied) must pass."""
@@ -55,7 +62,7 @@ def test_replay_of_the_int8_model_gets_the_int8_cutoffs_and_passes_the_check():
     got = lf.resolve_cutoffs(rep.model, rep.conf_person, rep.conf_vehicle)
     assert got == lf.resolve_cutoffs(live.model, live.conf_person, live.conf_vehicle)
     assert got == (0.23, 0.29, "F1-max sweep for vd_mav_cl_s42_int8, results/followme_cutoffs_balanced_int8.json")
-    actual = lf.running_settings(rep, drone_profile_applied=False, cutoffs=got[:2])
+    actual = lf.running_settings(rep, drone_profile_applied=False, cutoffs=got[:2], precision=_int8_precision(tmp_path))
     assert actual["detection_cutoffs"] == "results/followme_cutoffs_balanced_int8.json"
     r = lf.check_decisions(actual, lf.load_decisions(), {"replay"})
     assert r["passed"], r["deviations"]
@@ -64,7 +71,8 @@ def test_replay_of_the_int8_model_gets_the_int8_cutoffs_and_passes_the_check():
     pt = replay.build_parser().parse_args(["--source", "x", "--model", "weights/vd_mav_cl_s42.pt"])
     assert lf.resolve_cutoffs(pt.model)[:2] == (0.24, 0.28)
     r = lf.check_decisions(lf.running_settings(pt, False, (0.24, 0.28)), lf.load_decisions(), {"replay"})
-    assert {x["name"] for x in r["deviations"]} == {"detector_model", "detector_int8", "detection_cutoffs"}
+    assert {x["name"] for x in r["deviations"]} == {"detector_model", "detector_int8", "detector_precision",
+                                                    "detection_cutoffs"}             # a .pt is FP32 (11-27)
 
 
 def test_replay_has_no_settings_of_its_own():
@@ -74,7 +82,7 @@ def test_replay_has_no_settings_of_its_own():
     assert set(d_rep) - set(d_live) == REPLAY_ONLY
     for dest in (set(d_rep) & set(d_live)) - SAME_FLAG_OTHER_DEFAULT:
         assert d_rep[dest] == d_live[dest], f"replay --{dest} default {d_rep[dest]!r} != live {d_live[dest]!r}"
-    for name in ("LOST_S", "STALE_S", "MATCH_SIM", "TRACKER", "IMGSZ", "INT8_MODEL", "CUTOFFS_FILE", "CUTOFFS_FILE_INT8",
+    for name in ("LOST_S", "STALE_S", "MATCH_SIM", "TRACKER", "TRACKER_CHOICE_FILE", "IMGSZ", "INT8_MODEL", "CUTOFFS_FILE", "CUTOFFS_FILE_INT8",
                  "SEARCH_S",
                  "SEARCH_YAW", "SEARCH_DEG", "SEARCH_BOTH", "MARGIN"):
         assert not hasattr(replay, name), f"replay.{name} would be a second source for a flight setting"
@@ -132,8 +140,9 @@ def test_replay_of_a_flight_runs_the_flight_program(flight, tmp_path):
     info = json.loads((tmp_path / "replay_info.json").read_text())
     pf = info["preflight"]
     assert pf["passed"] and not pf["off_decisions"]
-    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "tracker", "imgsz",
-                                                  "drone_profile_applied"}
+    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "detector_precision", "tracker",
+                                                  "imgsz", "drone_profile_applied"}
+    assert info["tracker"]["file"] == "botsort_tuned.yaml" and info["detector"]["precision"] == "none (--fake-detector)"
     assert {"click_to_lock", "lost_s", "match_sim", "search_deg", "search_both_ways", "reid"} <= set(pf["checked"])
     assert info["offline_deviations"] == replay.OFFLINE_DEVIATIONS
     assert info["lock_source"].startswith("flight log: 1 recorded lock") and info["summary"]["locks_placed"] == 1

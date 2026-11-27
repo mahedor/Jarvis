@@ -196,8 +196,8 @@ with an injected clock.
 
 ## Follow-me drone (`followme/`)
 
-The live follow-me loop for a Parrot ANAFI 4K: YOLOv8n detector → BoT-SORT (+ camera-motion
-compensation) → lock-on with OSNet re-ID (`lockon.py`) → Olympe commands. `lookhere.py` adds the two-drone "look here / go there"
+The live follow-me loop for a Parrot ANAFI 4K: YOLOv8n detector (INT8 OpenVINO) → BoT-SORT (+ camera-motion
+compensation, settings tuned 11-27) → lock-on with OSNet re-ID (`lockon.py`) → Olympe commands. `lookhere.py` adds the two-drone "look here / go there"
 (share a clicked ground spot over a file or MQTT; built 2026-11-22, not yet flown). Runs in WSL from its own
 uv venv (`~/jarvis-follow`), not the repo `.venv`; see `followme/README.md`. **Nothing in `demo/`
 imports it.** Flown once (2026-11-15): follow, re-ID re-locks and the two-way spin search ran on the
@@ -207,7 +207,7 @@ real drone; map position (`geo.py`) logged numbers but is unchecked against grou
 300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. `flight_log.py` (stdlib only) rewrites
 `~/follow_logs/flight_log.csv` + `flight_log.md` (one row per real flight, newest first, settings from each run's
 `drone.json`, stats from `follow.csv`, "not logged" where a run didn't record a field, typed csv notes kept) at the end of
-every `live_follow.py` run, inside a try so a failure only warns; `python flight_log.py [--root DIR]` backfills. The folder's 155 tests are run from inside it
+every `live_follow.py` run, inside a try so a failure only warns; `python flight_log.py [--root DIR]` backfills. The folder's 168 tests are run from inside it
 (`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
@@ -224,8 +224,22 @@ options, nothing computes it. Its evidence is committed byte-exact beside it (`f
 `followme_reid_scores_osnet_x0_25.npz`, the two `followme_reid_replay_1029*.json` replays), and
 `test_reid_evidence.py` checks every number in the record against them. At startup `live_follow.py` compares what is
 about to run with `followme/flight_decisions.json` (only settings with a recorded decision, now including the tracker
-`botsort.yaml`, backed by `results/followme_tracker_scores.jsonl`, `--imgsz 640`, and `lost_s` 1.0) and stops on any
+`botsort_tuned.yaml`, the detector precision `INT8`, `--imgsz 640`, and `lost_s` 1.0) and stops on any
 difference unless `--off-decisions`; the result is written into each flight's `drone.json`.
+
+The tracker is BoT-SORT (camera-motion compensation on, tracker re-ID off: the winner of
+`results/followme_tracker_scores.jsonl` at default settings) run from `followme/botsort_tuned.yaml`: the installed
+ultralytics' stock `botsort.yaml` with only five values changed (Michael 11-27: track_high / new_track 0.40,
+track_low 0.05, match 0.90, buffer 60). The decision record `results/followme_tracker_settings_choice.json` holds the
+values, four measured options and the reason (0.90, not the val-best 0.975: +0.0026 on val, within his seed-noise figure,
+and below stock on MOT20); its evidence is the 11-27 Colab sweep, byte-exact (`results/followme_tracker_settings_sweep.jsonl`
++ `_summary.json`). `live_follow.resolve_tracker` stops if the yaml differs from the record; the tests check the yaml
+against the record and the installed ultralytics' keys, and every number in the record against the sweep rows. Stock
+`botsort.yaml` is a decisions deviation. The detector's precision is read from the model files
+(`live_follow.detector_precision`: the OpenVINO export's `metadata.yaml` int8 / half / quantize, dynamic, imgsz,
+calibration, cross-checked with the FakeQuantize layers and NNCF parameters in its `.xml`; "not recorded" or "conflict"
+otherwise, never guessed), printed at startup (`detector: INT8 OpenVINO, static 384x640`), checked as the
+`detector_precision` decision, saved in `drone.json` as `detector`, and shown in the flight log's `precision` column.
 
 `replay.py` (replay a flight or video without flying) has no settings of its own (Michael 11-26: replay always
 matches what flies unless he says otherwise): its flags, detector pass, `FollowLogic` and decisions check all come

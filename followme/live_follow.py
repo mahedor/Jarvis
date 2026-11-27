@@ -5,11 +5,13 @@ Run in WSL (Olympe env + ultralytics):
   python live_follow.py                                          # real drone (INT8 detector + OSNet re-ID; stops if either is missing)
   python live_follow.py --fake --fake-detector --seconds 20      # no drone, no model: tests the loop + safety logic
 
-Pre-flight self-check (11-26): before anything flies, the settings about to run (detector, INT8, cutoffs source,
-tracker, input size, re-ID, match_sim, drone profile, click-to-lock, search) are compared with flight_decisions.json.
+Pre-flight self-check (11-26): before anything flies, the settings about to run (detector, INT8, precision read from
+the model files, cutoffs source, tracker, input size, re-ID, match_sim, drone profile, click-to-lock, search) are
+compared with flight_decisions.json.
 Any difference STOPS the program unless --off-decisions is passed; the result (pass, or the deliberate deviations) goes
-into drone.json. --fake-detector skips the detector, tracker and input-size checks, --fake skips the drone-profile and
-click-to-lock checks.
+into drone.json. --fake-detector skips the detector, precision, tracker and input-size checks, --fake skips the
+drone-profile and click-to-lock checks. drone.json also records `detector` (precision, backend, input shape and the
+export's own record: metadata.yaml, FakeQuantize layers, calibration) and `tracker` (the yaml's settings).
 
 It starts in MANUAL (same keys as record.py). Follow mode only runs when YOU turn it on, and any movement key
 takes control back instantly.
@@ -275,10 +277,16 @@ INT8_MODEL = HERE / "weights" / ("vd_mav_cl_s42" + INT8_SUFFIX)   # live detecto
 # falls back to its .pt entry. Missing file or entry -> stop, unless --conf-person and --conf-vehicle are both given.
 CUTOFFS_FILE = REPO / "results" / "followme_cutoffs_balanced.json"
 CUTOFFS_FILE_INT8 = REPO / "results" / "followme_cutoffs_balanced_int8.json"
-TRACKER = "botsort.yaml"    # Ultralytics BoT-SORT: camera-motion compensation on, tracker re-ID off. Won the tracker
-                            # benchmark (results/followme_tracker_scores.jsonl); Michael 11-26: keep it.
+# Tracker: Ultralytics BoT-SORT (camera-motion compensation on, tracker re-ID off) won the tracker benchmark at its
+# default settings (results/followme_tracker_scores.jsonl; Michael 11-26: keep it). Michael 11-27: fly five of its
+# settings tuned by the 11-27 sweep (results/followme_tracker_settings_sweep*.json*): botsort_tuned.yaml in this folder =
+# Ultralytics' botsort.yaml with only those five changed. Its values must equal the decision record
+# (results/followme_tracker_settings_choice.json) or the program stops; plain "botsort.yaml" is Ultralytics' stock file.
+TRACKER = "botsort_tuned.yaml"
+TRACKER_CHOICE_FILE = REPO / "results" / "followme_tracker_settings_choice.json"
 IMGSZ = 640                 # detector input size: trained, F1-swept and benchmarked at 640; Michael 11-26: keep it.
 DECISIONS_FILE = HERE / "flight_decisions.json"
+NR = "not recorded"         # what the model files say nothing about (never guessed)
 
 
 def _rel(p, base=REPO):
@@ -333,6 +341,152 @@ def resolve_cutoffs(model_path, conf_person=None, conf_vehicle=None, path=None):
         src += " (one value overridden on the command line)"
     return (conf_person if conf_person is not None else table[key]["person"],
             conf_vehicle if conf_vehicle is not None else table[key]["vehicle"], src)
+
+
+def load_tracker_choice(path=TRACKER_CHOICE_FILE):
+    p = Path(path)
+    if not p.is_file():
+        sys.exit(f"STOP: tracker settings decision record not found: {p}\n  It is committed in results/; restore it.")
+    return json.loads(p.read_text())
+
+
+def resolve_tracker(name, choice_path=TRACKER_CHOICE_FILE):
+    """--tracker -> {path: what Ultralytics gets, label: what the decisions check and drone.json see, settings}.
+    A file in followme/ (or an existing path) is used as a file; the decided botsort_tuned.yaml must hold exactly the
+    values of its decision record, else STOP. Any other name is an Ultralytics built-in tracker file (botsort.yaml =
+    stock settings), which the decisions check reports as a deviation. Missing botsort_tuned.yaml -> STOP."""
+    p = Path(str(name))
+    for f in ([p] if p.is_absolute() else [HERE / p] if str(name) == TRACKER else [HERE / p, p]):
+        if f.is_file():
+            import yaml
+            cfg = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            if f.resolve() == (HERE / TRACKER).resolve():
+                chosen = load_tracker_choice(choice_path)["chosen"]
+                diff = [f"{k}: file {cfg.get(k)!r}, record {v!r}" for k, v in chosen.items() if cfg.get(k) != v]
+                if diff:
+                    sys.exit(f"STOP: {TRACKER} differs from its decision record {_rel(choice_path)}:\n  "
+                             + "\n  ".join(diff) + "\n  Restore the file, or fly other values from another file "
+                             "with --tracker <file> --off-decisions.")
+            return dict(path=str(f.resolve()), label=_rel(f, HERE), settings=cfg)
+    if str(name) == TRACKER:
+        sys.exit(f"STOP: tracker settings file not found: {HERE / TRACKER}. It is committed in followme/; restore it.")
+    return dict(path=str(name), label=str(name), settings=None)
+
+
+def _ov_xml_facts(xml_path):
+    """The OpenVINO IR itself: input shape, number of FakeQuantize layers (what INT8 quantization inserts), and the
+    NNCF quantization parameters it saved in rt_info. -> (shape or None, count, dict or NR)."""
+    import xml.etree.ElementTree as ET
+    root = ET.parse(xml_path).getroot()
+    shape = next((ly.find("data").get("shape") for ly in root.iter("layer")
+                  if ly.get("type") == "Parameter" and ly.find("data") is not None), None)
+    fq = sum(1 for ly in root.iter("layer") if ly.get("type") == "FakeQuantize")
+    nncf = root.find("rt_info/nncf")
+    q = nncf.find("quantization") if nncf is not None else None
+    if q is None:
+        return shape, fq, NR
+    nn = {c.tag: c.get("value") for c in q if c.get("value") is not None}
+    if nncf.find("version") is not None:
+        nn["nncf_version"] = nncf.find("version").get("value")
+    return shape, fq, nn
+
+
+_QUANTIZE = {"8": "INT8", "int8": "INT8", "16": "FP16", "fp16": "FP16", "32": "FP32", "fp32": "FP32", "none": "FP32"}
+
+
+def _openvino_precision(d):
+    meta_p, xmls = d / "metadata.yaml", sorted(d.glob("*.xml"))
+    meta = {}
+    if meta_p.is_file():
+        import yaml
+        meta = yaml.safe_load(meta_p.read_text(encoding="utf-8")) or {}
+    a = meta.get("args") if isinstance(meta.get("args"), dict) else {}
+    shape, fq, nn = _ov_xml_facts(xmls[0]) if len(xmls) == 1 else (None, NR, NR)
+    xml_name = xmls[0].name if len(xmls) == 1 else NR
+    # the export's own record first (Ultralytics metadata.yaml: args.int8 / args.half up to 8.4.x, args.quantize later)
+    if "quantize" in a:
+        prec = _QUANTIZE.get(str(a["quantize"]).lower(), NR)
+        src = f"metadata.yaml args.quantize = {a['quantize']!r}"
+    elif a.get("int8") is True:
+        prec, src = "INT8", "metadata.yaml args.int8 = true"
+    elif a.get("half") is True:
+        prec, src = "FP16", "metadata.yaml args.half = true"
+    elif a.get("int8") is False and a.get("half") is False:
+        prec, src = "FP32", "metadata.yaml args.int8 = false, args.half = false"
+    elif isinstance(fq, int) and fq > 0:
+        prec, src = "INT8", f"{xml_name}: {fq} FakeQuantize layers (metadata.yaml records no precision)"
+    else:
+        prec, src = NR, "neither metadata.yaml nor the model .xml records it"
+    if isinstance(fq, int):                                  # the model file must agree with the record
+        if "FakeQuantize" not in src:
+            src += f"; {xml_name}: {fq} FakeQuantize layers"
+        if (prec == "INT8") != (fq > 0) and prec != NR:
+            prec = f"conflict ({src})"
+    dims = [x.strip() for x in shape.split(",")] if shape else []
+    if a.get("dynamic") is True or (dims and not all(x.isdigit() for x in dims)):
+        inp = "dynamic input" + (f" {shape}" if shape else "")
+    elif len(dims) == 4:
+        inp = f"static {dims[2]}x{dims[3]}"
+    elif a.get("dynamic") is False and isinstance(meta.get("imgsz"), list) and len(meta["imgsz"]) == 2:
+        inp = f"static {meta['imgsz'][0]}x{meta['imgsz'][1]} (metadata.yaml imgsz)"
+    else:
+        inp = "input shape " + NR
+    export = dict(folder=d.name, metadata_yaml="metadata.yaml" if meta_p.is_file() else NR, model_xml=xml_name,
+                  ultralytics_version=meta.get("version", NR), export_date=str(meta.get("date", NR)),
+                  args=a or NR, imgsz=meta.get("imgsz", NR), input_shape=shape or NR, fake_quantize_layers=fq,
+                  calibration=dict(data=a.get("data", NR), fraction=a.get("fraction", NR), nncf=nn))
+    return dict(precision=prec, backend="OpenVINO", input=inp, summary=f"{prec} OpenVINO, {inp}", source=src,
+                export=export)
+
+
+def detector_precision(model_path, imgsz=IMGSZ, fake=False):
+    """The precision the detector runs at, read from the model itself (Michael 11-27: quantization must be impossible
+    to miss). OpenVINO export folder -> metadata.yaml + the .xml; .pt -> FP32 PyTorch (live_follow passes no half /
+    quantize to model.track, and Ultralytics computes a .pt in FP32 unless asked). Anything not recorded says so."""
+    if fake:
+        return dict(precision="none (--fake-detector)", backend="none", input="none",
+                    summary="fake detector (tracks the fake video's ball), no model", source="--fake-detector")
+    p = Path(str(model_path))
+    if p.name.endswith("_openvino_model"):
+        if p.is_dir():
+            return _openvino_precision(p)
+        return dict(precision=NR, backend="OpenVINO", input=NR, summary=f"{NR} (OpenVINO folder not found)",
+                    source=f"{p} not found")
+    if p.suffix == ".pt":
+        return dict(precision="FP32", backend="PyTorch", input=f"imgsz {imgsz} (--imgsz; a .pt has no fixed input shape)",
+                    summary=f"FP32 PyTorch, imgsz {imgsz}",
+                    source="a .pt runs in FP32: live_follow passes no half / quantize to model.track")
+    return dict(precision=NR, backend=f"unknown ({p.suffix or p.name})", input=NR,
+                summary=f"{NR} precision, unknown backend ({p.name})", source=f"no reader for {p.name}")
+
+
+def precision_lines(rec, model_path):
+    """The startup banner lines for the detector (live_follow and replay print the same)."""
+    lines = [f"detector: {rec['summary']}  ({_rel(model_path, HERE)})"
+             + ("" if rec["precision"] in ("INT8", "none (--fake-detector)") else "   <-- NOT the INT8 model (decided 11-22)")]
+    if rec.get("precision") != "none (--fake-detector)":
+        lines.append(f"  precision from: {rec['source']}")
+    ex = rec.get("export")
+    if ex:
+        c = ex["calibration"]
+        nn = c["nncf"]
+        nn_txt = (f"NNCF {nn.get('nncf_version', NR)} preset {nn.get('preset', NR)}, subset_size {nn.get('subset_size', NR)}"
+                  if isinstance(nn, dict) else f"NNCF parameters {NR}")
+        lines.append(f"  export: Ultralytics {ex['ultralytics_version']} ({ex['export_date'][:10]}), input {ex['input_shape']}; "
+                     f"calibration: data {c['data']} (fraction {c['fraction']}), {nn_txt}")
+    return lines
+
+
+TRACKER_KEYS = ("track_high_thresh", "new_track_thresh", "track_low_thresh", "match_thresh", "track_buffer", "fuse_score")
+
+
+def tracker_line(trk):
+    """The startup banner line for the tracker (live_follow and replay)."""
+    s = trk["settings"]
+    if not s:
+        return f"tracker: {trk['label']} (Ultralytics built-in file, its stock settings)"
+    return (f"tracker: {trk['label']} ({s.get('tracker_type')}: " + ", ".join(f"{k} {s.get(k)}" for k in TRACKER_KEYS)
+            + f"; gmc {s.get('gmc_method')}, re-ID {'on' if s.get('with_reid') else 'off'})")
 
 
 def load_decisions(path=DECISIONS_FILE):
@@ -409,7 +563,9 @@ def add_flight_args(ap):
     ap.add_argument("--model", default=str(INT8_MODEL),
                     help="detector (default: the INT8 OpenVINO model, ~3x faster than .pt; Michael 11-22). No silent "
                          "fallback: if it's missing the program stops. Pass a .pt here only on purpose.")
-    ap.add_argument("--tracker", default=TRACKER)
+    ap.add_argument("--tracker", default=TRACKER,
+                    help="tracker settings: a yaml in followme/ or a path, else an Ultralytics built-in name (default "
+                         "botsort_tuned.yaml, Michael 11-27; botsort.yaml = Ultralytics' stock settings, a deviation)")
     ap.add_argument("--imgsz", type=int, default=IMGSZ)
     ap.add_argument("--conf-person", type=float, default=None,
                     help="person cutoff (default: this model's F1-max from its sweep file: results/followme_cutoffs_balanced_int8.json "
@@ -479,15 +635,18 @@ def make_follow_logic(person_ids, args):
     return FollowLogic(person_ids, **follow_kwargs(args))
 
 
-def running_settings(args, drone_profile_applied, cutoffs=(None, None)):
+def running_settings(args, drone_profile_applied, cutoffs=(None, None), precision=None):
     """{decision name: the value about to run}, for check_decisions. Same function for live and replay.
-    cutoffs: the resolved (person, vehicle) pair, used only to describe hand-set cutoffs."""
+    cutoffs: the resolved (person, vehicle) pair, used only to describe hand-set cutoffs.
+    precision: detector_precision()'s answer if already read (else it is read here from the model files)."""
     fk = follow_kwargs(args)
     cut_p, cut_v = cutoffs
-    return dict(detector_model=_rel(args.model, HERE), detector_int8=is_int8(args.model),
+    if precision is None:
+        precision = detector_precision(args.model, args.imgsz, fake=args.fake_detector)["precision"]
+    return dict(detector_model=_rel(args.model, HERE), detector_int8=is_int8(args.model), detector_precision=precision,
                 detection_cutoffs=(_rel(cutoffs_file_for(args.model)) if args.conf_person is None and args.conf_vehicle is None
                                    else f"command line: person {cut_p}, vehicle {cut_v}"),
-                tracker=args.tracker, imgsz=args.imgsz, reid=args.reid, match_sim=fk["match_sim"],
+                tracker=resolve_tracker(args.tracker)["label"], imgsz=args.imgsz, reid=args.reid, match_sim=fk["match_sim"],
                 drone_profile_applied=drone_profile_applied, click_to_lock=not fk["auto_lock"],
                 search_deg=fk["search_deg"], search_both_ways=fk["search_both"], lost_s=fk["lost_s"])
 
@@ -506,13 +665,17 @@ def draw_follow(img, tracks, names, logic, cmd, info, mode, fps, tel, n, total=0
 def main():
     args = build_parser().parse_args()
     cut_p, cut_v, cut_src = resolve_detection(args)
+    prec = detector_precision(args.model, args.imgsz, fake=args.fake_detector)   # read from the model files (11-27)
+    trk = resolve_tracker(args.tracker)
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
     share_target, last_share_t, last_rx_print = False, 0.0, 0.0
 
     d = record.connect_fake(tuple(args.fake_stall)) if args.fake else record.connect_real(args.ip)
     ident = d["identity"]() if "identity" in d else {}
-    print(f"detector: {args.model}" + ("" if "int8" in str(args.model).lower() else "   <-- NOT the INT8 model (slower)"))
+    for line in precision_lines(prec, args.model):
+        print(line)
     print(f"cutoffs: person >= {cut_p:.2f}, vehicle >= {cut_v:.2f}  ({cut_src})")
+    print(tracker_line(trk))
     print(f"drone: {ident.get('drone_nickname')} ({ident.get('drone_product_name')}, firmware {ident.get('drone_firmware')})")
     nick = ident.get("drone_nickname")
     args.name = args.name or (nick if nick not in (None, "unknown", "fake") else
@@ -532,13 +695,13 @@ def main():
     # ---- pre-flight self-check: what is about to run vs. what was decided (replaces reading the printout) ----
     modes = {f for f, on in (("--fake", args.fake), ("--fake-detector", args.fake_detector)) if on}
     actual = running_settings(args, "apply_profile" in d and not args.no_profile and profile_ok(profile_note),
-                              (cut_p, cut_v))
+                              (cut_p, cut_v), precision=prec["precision"])
     try:
         preflight = enforce_decisions(check_decisions(actual, load_decisions(), modes), args.off_decisions)
     except SystemExit:
         d["close"]()                                           # still on the ground: disconnect cleanly, then stop
         raise
-    det = Detector(args.model, args.tracker, args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
+    det = Detector(args.model, trk["path"], args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
     person_ids = {k for k, v in det.names.items() if str(v).lower() in replay.PERSON_NAMES}
     logic = make_follow_logic(person_ids, args)
     det.want_fn = lambda tr, t, W, H: logic.wants_embedding(tr, t, W, H)   # lock-on runs in MANUAL too (11-20)
@@ -554,7 +717,9 @@ def main():
     (out / "drone.json").write_text(json.dumps(dict(ident, name=args.name, ip=args.ip, model=str(args.model),
                                                     conf_person=cut_p, conf_vehicle=cut_v, conf_source=cut_src,
                                                     reid=reid_note, profile=profile_note, running=actual,
-                                                    preflight=preflight), indent=1))
+                                                    preflight=preflight, detector=prec,
+                                                    tracker=dict(file=trk["label"], settings=trk["settings"])),
+                                               indent=1, default=str))
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
     mode, speed, gimbal_pitch, flying = "MANUAL", 20, 0.0, False

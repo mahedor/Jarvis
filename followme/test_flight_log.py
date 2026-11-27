@@ -98,6 +98,7 @@ def test_new_format_run_every_column(tmp_path):
     assert r["duration"] == "0m10s" and r["frames"] == "101" and r["FPS"] == "10.0"
     assert r["battery"] == "95% -> 80%" and r["airborne"] == "0m09s"
     assert r["model"] == "vd_mav_cl_s42_int8_openvino_model (INT8)"
+    assert r["precision"] == "INT8 (derived from the model path; precision not logged)"      # 11-26 format
     assert r["cutoffs"] == ("person 0.23 / vehicle 0.29 (F1-max sweep for vd_mav_cl_s42_int8, "
                             "results/followme_cutoffs_balanced_int8.json)")
     assert r["tracker"] == "BoT-SORT (botsort.yaml)" and r["imgsz"] == "640"
@@ -131,6 +132,7 @@ def test_deviations_are_spelled_out(tmp_path):
     fl.update(tmp_path, quiet=True)
     r = by_folder(tmp_path)["20261127_110000_droneB"]
     assert r["model"] == "vd_mav_cl_s42.pt (not INT8)"
+    assert r["precision"] == NL                         # a .pt path alone does not say what precision it ran at
     assert r["preflight"] == ("DEVIATIONS (--off-decisions): detector_model: decided "
                               "'weights/vd_mav_cl_s42_int8_openvino_model', ran 'weights/vd_mav_cl_s42.pt' "
                               "(skipped: click_to_lock)")
@@ -140,13 +142,14 @@ def test_deviations_are_spelled_out(tmp_path):
     # cc9bbc3 (11-22): identity only
     (dict(drone_product_name="ANAFI-J102372", drone_nickname="droneB", drone_serial="X", drone_firmware="1.5.7",
           name="droneB", ip="192.168.53.1"),
-     dict(drone="droneB (ANAFI-J102372)", model=NL, cutoffs=NL, tracker=NL, imgsz=NL, **{"re-ID": NL}, preflight=NL)),
+     dict(drone="droneB (ANAFI-J102372)", model=NL, precision=NL, cutoffs=NL, tracker=NL, imgsz=NL, **{"re-ID": NL}, preflight=NL)),
     # aae2f0f (11-22): + model path; INT8 is a property of that exact path
     (dict(name="droneA", drone_nickname="droneA", model="/x/weights/vd_mav_cl_s42.pt"),
-     dict(drone="droneA", model="vd_mav_cl_s42.pt (not INT8)", cutoffs=NL, tracker=NL, preflight=NL)),
+     dict(drone="droneA", model="vd_mav_cl_s42.pt (not INT8)", precision=NL, cutoffs=NL, tracker=NL, preflight=NL)),
     # f36ad29 (11-26): + cutoffs, no source
     (dict(name="droneA", model="/x/weights/vd_mav_cl_s42_int8_openvino_model", conf_person=0.24, conf_vehicle=0.28),
-     dict(model="vd_mav_cl_s42_int8_openvino_model (INT8)", cutoffs="person 0.24 / vehicle 0.28 (source not logged)",
+     dict(model="vd_mav_cl_s42_int8_openvino_model (INT8)", precision="INT8 (derived from the model path; precision not logged)",
+          cutoffs="person 0.24 / vehicle 0.28 (source not logged)",
           tracker=NL, imgsz=NL)),
     # ee40f91 (11-26): running + preflight, but no tracker / imgsz / lost_s yet
     (dict(name="droneA", model="m", conf_person=0.24, conf_vehicle=0.28, conf_source="F1-max sweep for vd_mav_cl_s42",
@@ -170,7 +173,7 @@ def test_pre_drone_json_run_guesses_nothing(tmp_path):
     make_run(tmp_path, "20261115_143000", None, flight_rows(), cols=old_cols)
     fl.update(tmp_path, quiet=True)
     r = by_folder(tmp_path)["20261115_143000"]
-    for k in ("drone", "serial", "firmware", "model", "cutoffs", "tracker", "imgsz", "re-ID", "preflight",
+    for k in ("drone", "serial", "firmware", "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID", "preflight",
               "drone profile", "airborne", "battery", "re-locks", "locks (clicks / N)", "other settings"):
         assert r[k] == NL, k
     assert r["duration"] == "0m10s" and r["FOLLOW time"] == "0m06s (on target 0m05s)"
@@ -304,3 +307,41 @@ def test_log_failure_warns_and_never_breaks_shutdown(tmp_path):
     assert p.returncode == 0, p.stderr[-2000:]
     assert "Landing..." in p.stdout and "Saved" in p.stdout
     assert "WARNING: flight log not updated" in p.stdout and "python flight_log.py --root" in p.stdout
+
+
+# ---- 11-27: the detector's precision and the tuned tracker ----
+
+# drone.json as live_follow.py writes it from 11-27: + detector (read from the model files), tracker file + settings
+INFO_1127 = json.loads(json.dumps(NEW_INFO))
+INFO_1127["running"].update(tracker="botsort_tuned.yaml", detector_precision="INT8")
+INFO_1127["detector"] = {"precision": "INT8", "backend": "OpenVINO", "input": "static 384x640",
+                         "summary": "INT8 OpenVINO, static 384x640", "source": "metadata.yaml args.int8 = true",
+                         "export": {"fake_quantize_layers": 67}}
+INFO_1127["tracker"] = {"file": "botsort_tuned.yaml", "settings": {
+    "tracker_type": "botsort", "track_high_thresh": 0.4, "track_low_thresh": 0.05, "new_track_thresh": 0.4,
+    "track_buffer": 60, "match_thresh": 0.9, "fuse_score": True, "gmc_method": "sparseOptFlow", "with_reid": False}}
+
+
+def test_precision_column_from_drone_json(tmp_path):
+    make_run(tmp_path, "20261128_100000_droneA", INFO_1127, flight_rows())
+    only_running = json.loads(json.dumps(INFO_1127))
+    del only_running["detector"]
+    make_run(tmp_path, "20261128_110000_droneA", only_running, flight_rows())
+    fl.update(tmp_path, quiet=True)
+    r = by_folder(tmp_path)
+    a, b = r["20261128_100000_droneA"], r["20261128_110000_droneA"]
+    assert a["precision"] == "INT8 OpenVINO, static 384x640" and b["precision"] == "INT8"
+    assert a["tracker"] == "BoT-SORT tuned (botsort_tuned.yaml): high 0.4 / new 0.4 / low 0.05 / match 0.9 / buffer 60"
+    assert "detector=" not in a["other settings"] and "detector_precision" not in a["other settings"]
+    md = (tmp_path / fl.MD_NAME).read_text()
+    assert "precision" in fl.MD_COLUMNS and "| INT8 OpenVINO, static 384x640 |" in md
+    assert fl.FIELD_HISTORY[-1][0] == "2026-11-27" and "detector" in fl.FIELD_HISTORY[-1][2]
+
+
+def test_precision_column_on_a_run_live_follow_wrote(tmp_path):
+    p = _fly(tmp_path)
+    assert p.returncode == 0, p.stderr[-2000:]
+    fl.update(tmp_path, include_fake=True, quiet=True)
+    (row,) = by_folder(tmp_path).values()
+    assert row["precision"] == "fake detector (tracks the fake video's ball), no model"
+    assert row["tracker"].startswith("BoT-SORT tuned (botsort_tuned.yaml): high 0.4 / new 0.4")
