@@ -242,7 +242,7 @@ def test_cutoffs_from_f1_sweep():
     """Michael 11-26: the flight model flies at its F1-max cutoffs, per class; unknown models must be explicit."""
     import pytest
     import live_follow as lf
-    assert lf.resolve_cutoffs("weights/vd_mav_cl_s42_int8_openvino_model")[:2] == (0.24, 0.28)
+    assert lf.resolve_cutoffs("weights/vd_mav_cl_s42_int8_openvino_model")[:2] == (0.23, 0.29)   # INT8's own sweep
     assert lf.resolve_cutoffs("weights/vd_mav_cl_s42.pt")[:2] == (0.24, 0.28)
     assert lf.resolve_cutoffs("other.pt", 0.3, 0.4)[:2] == (0.3, 0.4)
     with pytest.raises(SystemExit):
@@ -264,7 +264,7 @@ def test_code_defaults_are_the_decided_settings():
     dec = {k: v["value"] for k, v in lf.load_decisions().items()}
     assert dec["detector_model"] == lf._rel(lf.INT8_MODEL, HERE)
     assert dec["detector_int8"] is True and lf.INT8_MODEL.name.endswith(lf.INT8_SUFFIX)
-    assert dec["detection_cutoffs"] == lf._rel(lf.CUTOFFS_FILE)
+    assert dec["detection_cutoffs"] == lf._rel(lf.cutoffs_file_for(lf.INT8_MODEL)) == lf._rel(lf.CUTOFFS_FILE_INT8)
     assert dec["tracker"] == lf.TRACKER and dec["imgsz"] == lf.IMGSZ
     assert dec["match_sim"] == lockon.MATCH_SIM
     assert dec["search_deg"] == lf.SEARCH_DEG and dec["search_both_ways"] == lf.SEARCH_BOTH

@@ -45,6 +45,28 @@ def test_replay_runs_live_follows_settings_for_every_decision():
     assert lf.follow_kwargs(rep) == lf.follow_kwargs(live)
 
 
+def test_replay_of_the_int8_model_gets_the_int8_cutoffs_and_passes_the_check():
+    """11-26: the INT8 export flies at its own measured cutoffs (0.23 / 0.29, results/followme_cutoffs_balanced_int8.json);
+    replay of the same model must get the same pair from the same file, and its settings check (real detector, i.e.
+    nothing skipped but drone_profile_applied) must pass."""
+    rep = replay.build_parser().parse_args(["--source", "x"])
+    live = lf.build_parser().parse_args([])
+    assert rep.model == live.model == str(lf.INT8_MODEL)
+    got = lf.resolve_cutoffs(rep.model, rep.conf_person, rep.conf_vehicle)
+    assert got == lf.resolve_cutoffs(live.model, live.conf_person, live.conf_vehicle)
+    assert got == (0.23, 0.29, "F1-max sweep for vd_mav_cl_s42_int8, results/followme_cutoffs_balanced_int8.json")
+    actual = lf.running_settings(rep, drone_profile_applied=False, cutoffs=got[:2])
+    assert actual["detection_cutoffs"] == "results/followme_cutoffs_balanced_int8.json"
+    r = lf.check_decisions(actual, lf.load_decisions(), {"replay"})
+    assert r["passed"], r["deviations"]
+    assert "detection_cutoffs" in r["checked"] and [s["name"] for s in r["skipped"]] == ["drone_profile_applied"]
+    # a .pt replay reads the .pt entry, and is (correctly) a deviation from what flies
+    pt = replay.build_parser().parse_args(["--source", "x", "--model", "weights/vd_mav_cl_s42.pt"])
+    assert lf.resolve_cutoffs(pt.model)[:2] == (0.24, 0.28)
+    r = lf.check_decisions(lf.running_settings(pt, False, (0.24, 0.28)), lf.load_decisions(), {"replay"})
+    assert {x["name"] for x in r["deviations"]} == {"detector_model", "detector_int8", "detection_cutoffs"}
+
+
 def test_replay_has_no_settings_of_its_own():
     """Every flag replay shares with live_follow has live_follow's default; a new replay-only flag must be added to
     REPLAY_ONLY on purpose (i.e. someone decides it does not change what replay runs)."""
@@ -52,7 +74,8 @@ def test_replay_has_no_settings_of_its_own():
     assert set(d_rep) - set(d_live) == REPLAY_ONLY
     for dest in (set(d_rep) & set(d_live)) - SAME_FLAG_OTHER_DEFAULT:
         assert d_rep[dest] == d_live[dest], f"replay --{dest} default {d_rep[dest]!r} != live {d_live[dest]!r}"
-    for name in ("LOST_S", "STALE_S", "MATCH_SIM", "TRACKER", "IMGSZ", "INT8_MODEL", "CUTOFFS_FILE", "SEARCH_S",
+    for name in ("LOST_S", "STALE_S", "MATCH_SIM", "TRACKER", "IMGSZ", "INT8_MODEL", "CUTOFFS_FILE", "CUTOFFS_FILE_INT8",
+                 "SEARCH_S",
                  "SEARCH_YAW", "SEARCH_DEG", "SEARCH_BOTH", "MARGIN"):
         assert not hasattr(replay, name), f"replay.{name} would be a second source for a flight setting"
 

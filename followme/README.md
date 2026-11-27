@@ -23,7 +23,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
-| `test_*.py` | 132 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweep's curves (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), and replay running the flight program's settings (`test_replay.py`) |
+| `test_*.py` | 138 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), and replay running the flight program's settings (`test_replay.py`) |
 
 ## Folders
 
@@ -53,7 +53,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py   # expect 132 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py   # expect 138 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 ```
@@ -121,6 +121,26 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
 
 ## Change log
 
+- **2026-11-26 (Michael): the INT8 model flies at its own measured cutoffs, person 0.23 / vehicle 0.29.** Rerun of the
+  INT8 sweep, then "fly the measured INT8 cutoffs". Until now the INT8 export that flies took the `.pt`'s cutoffs
+  (0.24 / 0.28) on the strength of an Oct 29 note that INT8 kept the same best cutoffs. **That note was wrong.**
+  - Measured tonight (Colab, `thresholds_balanced.py`, same method; only change: one image per predict call at
+    `imgsz=[384,640]`, because the export is static 384x640, the way `quantize_int8.py` scored it): **person 0.23**
+    (mean F1 0.5364), **vehicle 0.29** (mean F1 0.5989) for `vd_mav_cl_s42_int8`. A `.pt` rerun in the same session
+    reproduced 0.24 / 0.28 with identical curves; the older Drive file `jarvis_det/int8/int8_report.json` also says
+    0.23 / 0.29.
+  - Committed byte-exact from Drive: `results/followme_cutoffs_balanced_int8.json` and
+    `results/followme_thresholds_balanced_int8.json` (the INT8 curves on the three sets).
+  - `live_follow.resolve_cutoffs`: an INT8 export (`<name>_int8_openvino_model`) reads entry `<name>_int8` from the INT8
+    file; anything else reads `<name>` / `<name>.pt` from `results/followme_cutoffs_balanced.json`. Exact names only and
+    **no fallback** from INT8 to the `.pt` entry: missing INT8 file or entry → **stops**. Startup now prints
+    `cutoffs: person >= 0.23, vehicle >= 0.29  (F1-max sweep for vd_mav_cl_s42_int8, results/followme_cutoffs_balanced_int8.json)`.
+  - `flight_decisions.json` `detection_cutoffs` is now `results/followme_cutoffs_balanced_int8.json` (still "cutoffs read
+    from the evidence file"); a `.pt` `--model` deviates on it as well as on the detector.
+  - `test_cutoffs_evidence.py` recomputes the INT8 argmax from the INT8 curves and checks INT8 → 0.23 / 0.29,
+    `.pt` → 0.24 / 0.28, INT8 entry or file missing → stop; `test_replay.py` checks a replay of the INT8 model gets
+    0.23 / 0.29 and passes its settings check. 6 new tests: 138 in all.
+
 - **2026-11-26 (Michael): replay runs what we fly.** "Replay lets you test things without flying", so it "always
   matches whatever we're flying, unless I state explicitly otherwise", and any deviation must be brought to his
   attention. Until now `replay.py` ran stock `yolov8n.pt` at one cutoff of 0.10 and grabbed the nearest/biggest person
@@ -164,10 +184,11 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
     (one person + one vehicle cutoff per model) and `results/followme_thresholds_balanced.json` (every model's F1 curve
     on each of the three sets). `live_follow.py` reads the cutoffs from the first file; the hardcoded `MODEL_CUTOFFS`
     is gone. Missing file, or a model not in it → **stops**, unless `--conf-person` and `--conf-vehicle` are both given.
-    Model names must match an entry exactly (`<key>`, `<key>.pt` or `<key>_int8_openvino_model`), no prefix guessing.
+    Model names must match an entry exactly (`<key>` or `<key>.pt`), no prefix guessing.
     `test_cutoffs_evidence.py` recomputes the argmax of the equal-weight mean F1 from the curves for all 9 models ×
-    2 classes and fails if it no longer equals the cutoffs file. The INT8 model uses its `.pt` entry (Oct 29 note: INT8
-    kept the same best cutoffs); that INT8 sweep itself is not in the repo.
+    2 classes and fails if it no longer equals the cutoffs file. (At this point the INT8 model used its `.pt` entry on
+    the strength of an Oct 29 note that INT8 kept the same best cutoffs. Wrong: INT8 measures 0.23 / 0.29 and now has
+    its own file; see the later 11-26 entry.)
   - `flight_decisions.json` lists the decided settings: INT8 detector, cutoffs from the results file, OSNet re-ID,
     match_sim 0.70, drone profile applied, click-to-lock, 360° search both ways. At startup the program compares what
     is about to run with it and **stops** on any difference; `--off-decisions` flies the deviations on purpose. Either
@@ -179,7 +200,8 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
 - **2026-11-26 (Michael): fly at the F1-max cutoffs, per class.** The program used one cutoff, 0.25, for every
   class: Ultralytics' default, never chosen for this model. The F1-max sweep (`thresholds_balanced.py`, Oct 28-29:
   confidence 0.05-0.95 in 0.01 steps, IoU >= 0.5, equal-weight average of F1 on VisDrone val, MAVREC val (aerial) and a
-  COCO holdout) picked **0.24 for people and 0.28 for vehicles** for `vd_mav_cl_s42`; INT8 kept the same best cutoffs.
+  COCO holdout) picked **0.24 for people and 0.28 for vehicles** for `vd_mav_cl_s42` (the `.pt`; the INT8 export's own sweep
+  picks 0.23 / 0.29, see the later 11-26 entry; the old note that INT8 kept the same cutoffs was wrong).
   These are now built in (`MODEL_CUTOFFS` in `live_follow.py`), printed at startup and saved in `drone.json`. `--conf`
   is gone; `--conf-person` / `--conf-vehicle` override on purpose. A model with no known cutoffs **stops** unless both are
   given. The Oct 29-30 flights passed `--conf 0.24` (one cutoff, so vehicles also ran at 0.24); from Nov 15 the flag

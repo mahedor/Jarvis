@@ -14,8 +14,8 @@
    "skip_with": ["--fake-detector"]
   },
   "detection_cutoffs": {
-   "value": "results/followme_cutoffs_balanced.json",
-   "source": "Michael 11-26: fly at the per-class F1-max cutoffs from thresholds_balanced.py (Oct 28-29), read from this file, not set by hand (README change log 2026-11-26; commit f36ad29). Path is relative to the repo root.",
+   "value": "results/followme_cutoffs_balanced_int8.json",
+   "source": "Michael 11-26: fly at the per-class F1-max cutoffs from thresholds_balanced.py, read from the evidence file, not set by hand (README change log 2026-11-26; commit f36ad29). Michael 11-26 (later): rerun the sweep on the INT8 export itself and fly the measured INT8 cutoffs, so the flight model's cutoffs come from this file's vd_mav_cl_s42_int8 entry (person 0.23, vehicle 0.29; curves in results/followme_thresholds_balanced_int8.json), not from the .pt entry in results/followme_cutoffs_balanced.json (0.24 / 0.28). The Oct 29 note that INT8 kept the .pt's best cutoffs was wrong. Path is relative to the repo root; it is the file live_follow.cutoffs_file_for() picks for the INT8 model.",
    "date": "2026-11-26",
    "skip_with": []
   },

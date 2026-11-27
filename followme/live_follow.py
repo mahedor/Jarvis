@@ -69,7 +69,7 @@ GIMBAL_MIN, GIMBAL_MAX = -90.0, 0.0
 
 class Detector(threading.Thread):
     """Runs model.track on the newest frame it is given; publishes (tracks, names, frame_time, ms)."""
-    def __init__(self, model_path, tracker, imgsz, cutoffs=(0.24, 0.28), fake=False, embedder=None, want_fn=None):
+    def __init__(self, model_path, tracker, imgsz, cutoffs, fake=False, embedder=None, want_fn=None):
         super().__init__(daemon=True)
         self.fake = fake
         self.embedder, self.want_fn = embedder, want_fn     # re-ID: only the crops lock-on asks for (usually 0-1)
@@ -261,15 +261,20 @@ REPO = HERE.parent
 INT8_SUFFIX = "_int8_openvino_model"
 INT8_MODEL = HERE / "weights" / ("vd_mav_cl_s42" + INT8_SUFFIX)   # live detector (Michael 11-22)
 
-# Detection cutoffs per model, from the F1-max sweep (thresholds_balanced.py, Oct 28-29, Colab): confidence swept
-# 0.05-0.95 in 0.01 steps, IoU >= 0.5, equal-weight average of F1 on VisDrone val, MAVREC val (aerial) and a COCO
-# holdout; one cutoff for people, one for all vehicle classes. Michael 11-26: fly at these instead of the old single
-# --conf 0.25 (Ultralytics' default, never chosen for this model). The numbers are READ from the sweep's own output,
-# committed byte-exact from Drive; test_cutoffs_evidence.py recomputes them from the full curves
-# (results/followme_thresholds_balanced.json) so the two can't drift. A model's INT8 export uses its .pt's entry
-# (the INT8 run kept the same best cutoffs, Oct 29; that INT8 sweep is not in the repo). No silent fallback: missing
-# file or a model not in it -> stop, unless --conf-person and --conf-vehicle are both given on purpose.
+# Detection cutoffs per model, from the F1-max sweep (thresholds_balanced.py, Colab): confidence swept 0.05-0.95 in
+# 0.01 steps, IoU >= 0.5, equal-weight average of F1 on VisDrone val, MAVREC val (aerial) and a COCO holdout; one
+# cutoff for people, one for all vehicle classes. Michael 11-26: fly at these instead of the old single --conf 0.25
+# (Ultralytics' default, never chosen for this model). The numbers are READ from the sweep's own output, committed
+# byte-exact from Drive; test_cutoffs_evidence.py recomputes them from the full curves so the two can't drift.
+#   .pt models  -> CUTOFFS_FILE      (Oct 28-29 sweep; curves in results/followme_thresholds_balanced.json)
+#   INT8 export -> CUTOFFS_FILE_INT8 (11-26 sweep of the INT8 export itself, same method, static 384x640 input;
+#                                     curves in results/followme_thresholds_balanced_int8.json). Michael 11-26: fly
+#                                     the measured INT8 cutoffs (0.23 / 0.29), not the .pt's (0.24 / 0.28). The Oct 29
+#                                     note "INT8 kept the same best cutoffs" was wrong.
+# Exact entry names only: <name> or <name>.pt in the .pt file, <name>_int8 in the INT8 file. An INT8 model NEVER
+# falls back to its .pt entry. Missing file or entry -> stop, unless --conf-person and --conf-vehicle are both given.
 CUTOFFS_FILE = REPO / "results" / "followme_cutoffs_balanced.json"
+CUTOFFS_FILE_INT8 = REPO / "results" / "followme_cutoffs_balanced_int8.json"
 TRACKER = "botsort.yaml"    # Ultralytics BoT-SORT: camera-motion compensation on, tracker re-ID off. Won the tracker
                             # benchmark (results/followme_tracker_scores.jsonl); Michael 11-26: keep it.
 IMGSZ = 640                 # detector input size: trained, F1-swept and benchmarked at 640; Michael 11-26: keep it.
@@ -290,20 +295,38 @@ def load_cutoffs(path=CUTOFFS_FILE):
     return json.loads(p.read_text())
 
 
+def is_int8(model_path):
+    return Path(str(model_path)).name.endswith(INT8_SUFFIX)
+
+
+def cutoffs_file_for(model_path):
+    """The evidence file this model's cutoffs come from: the INT8 sweep for an INT8 export, else the .pt sweep."""
+    return CUTOFFS_FILE_INT8 if is_int8(model_path) else CUTOFFS_FILE
+
+
 def cutoff_key(model_path, table):
-    """The cutoffs-file entry for this model: exact name, name.pt, or name + INT8_SUFFIX. No prefix guessing."""
+    """This model's entry in its cutoffs file, by exact name; None if absent. No prefix guessing, no fallback:
+    <name>_int8_openvino_model -> "<name>_int8" only; anything else -> "<name>" or "<name>.pt"."""
     stem = Path(str(model_path)).name
-    return next((k for k in table if stem in (k, k + ".pt", k + INT8_SUFFIX)), None)
+    if is_int8(stem):
+        key = stem[:-len(INT8_SUFFIX)] + "_int8"
+        return key if key in table else None
+    return next((k for k in table if stem in (k, k + ".pt")), None)
 
 
-def resolve_cutoffs(model_path, conf_person=None, conf_vehicle=None, path=CUTOFFS_FILE):
-    """-> (person, vehicle, source). Explicit values win; else the model's entry in the cutoffs file; else stop."""
+def resolve_cutoffs(model_path, conf_person=None, conf_vehicle=None, path=None):
+    """-> (person, vehicle, source). Explicit values win; else the model's entry in its own cutoffs file
+    (cutoffs_file_for; `path` overrides the file, for tests); else stop."""
     if conf_person is not None and conf_vehicle is not None:
         return conf_person, conf_vehicle, "set on the command line"
+    path = cutoffs_file_for(model_path) if path is None else path
     table = load_cutoffs(path)
     key = cutoff_key(model_path, table)
     if key is None:
-        sys.exit(f"STOP: no F1-max cutoffs for {Path(str(model_path)).name} in {_rel(path)}. "
+        name = Path(str(model_path)).name
+        why = (f" (looked for entry {name[:-len(INT8_SUFFIX)]}_int8; an INT8 model never uses its .pt entry)"
+               if is_int8(name) else "")
+        sys.exit(f"STOP: no F1-max cutoffs for {name} in {_rel(path)}{why}. "
                  f"Pass --conf-person and --conf-vehicle on purpose.")
     src = f"F1-max sweep for {key}, {_rel(path)}"
     if conf_person is not None or conf_vehicle is not None:
@@ -389,9 +412,10 @@ def add_flight_args(ap):
     ap.add_argument("--tracker", default=TRACKER)
     ap.add_argument("--imgsz", type=int, default=IMGSZ)
     ap.add_argument("--conf-person", type=float, default=None,
-                    help="person cutoff (default: this model's F1-max from results/followme_cutoffs_balanced.json)")
+                    help="person cutoff (default: this model's F1-max from its sweep file: results/followme_cutoffs_balanced_int8.json "
+                         "for an INT8 export, results/followme_cutoffs_balanced.json for a .pt)")
     ap.add_argument("--conf-vehicle", type=float, default=None,
-                    help="vehicle cutoff (default: this model's F1-max from results/followme_cutoffs_balanced.json)")
+                    help="vehicle cutoff (default: same file as --conf-person)")
     ap.add_argument("--max-speed", type=float, default=20.0, help="cap on FOLLOW yaw and forward/back, %% of max")
     ap.add_argument("--follow-dist", type=float, default=replay.FOLLOW_DIST_M, help="metres to keep from the target")
     ap.add_argument("--reid", default="osnet", choices=["osnet", "hist", "none"],
@@ -460,8 +484,8 @@ def running_settings(args, drone_profile_applied, cutoffs=(None, None)):
     cutoffs: the resolved (person, vehicle) pair, used only to describe hand-set cutoffs."""
     fk = follow_kwargs(args)
     cut_p, cut_v = cutoffs
-    return dict(detector_model=_rel(args.model, HERE), detector_int8=Path(args.model).name.endswith(INT8_SUFFIX),
-                detection_cutoffs=(_rel(CUTOFFS_FILE) if args.conf_person is None and args.conf_vehicle is None
+    return dict(detector_model=_rel(args.model, HERE), detector_int8=is_int8(args.model),
+                detection_cutoffs=(_rel(cutoffs_file_for(args.model)) if args.conf_person is None and args.conf_vehicle is None
                                    else f"command line: person {cut_p}, vehicle {cut_v}"),
                 tracker=args.tracker, imgsz=args.imgsz, reid=args.reid, match_sim=fk["match_sim"],
                 drone_profile_applied=drone_profile_applied, click_to_lock=not fk["auto_lock"],

@@ -204,14 +204,18 @@ imports it.** Flown once (2026-11-15): follow, re-ID re-locks and the two-way sp
 real drone; map position (`geo.py`) logged numbers but is unchecked against ground truth.
 
 `followme/weights/` (detector + OSNet `.pt`) is gitignored. Flight logs (per-run video + `follow.csv`,
-300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 132 tests are run from inside the folder
+300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 138 tests are run from inside the folder
 (`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
-Detection cutoffs are read from `results/followme_cutoffs_balanced.json` (the Colab F1-max sweep's own output,
-committed 11-26 with its full curves in `results/followme_thresholds_balanced.json`); `test_cutoffs_evidence.py`
-recomputes them from the curves, the way `tests/test_pipeline_config.py` guards the face threshold. The engineering
-log does not read these two files. The re-ID re-lock cutoff `lockon.MATCH_SIM` (0.70) is read from
+Detection cutoffs are read from the Colab F1-max sweep's own output, per model by exact name: the INT8 export that
+flies (`vd_mav_cl_s42_int8_openvino_model`) from entry `vd_mav_cl_s42_int8` of `results/followme_cutoffs_balanced_int8.json`
+(person 0.23, vehicle 0.29; swept on the INT8 export itself 11-26, curves in `results/followme_thresholds_balanced_int8.json`),
+a `.pt` from `results/followme_cutoffs_balanced.json` (Oct 28-29 sweep, `vd_mav_cl_s42` 0.24 / 0.28, curves in
+`results/followme_thresholds_balanced.json`). An INT8 model never falls back to its `.pt` entry: missing INT8 file or
+entry stops the program (the Oct 29 note that INT8 kept the `.pt`'s cutoffs was wrong). `test_cutoffs_evidence.py`
+recomputes both from their curves, the way `tests/test_pipeline_config.py` guards the face threshold. The engineering
+log does not read these four files. The re-ID re-lock cutoff `lockon.MATCH_SIM` (0.70) is read from
 `results/followme_reid_cutoff.json`, a hand-written decision record: Michael chose 0.70 by judgment among measured
 options, nothing computes it. Its evidence is committed byte-exact beside it (`followme_reid_bench_v3.json` +
 `followme_reid_scores_osnet_x0_25.npz`, the two `followme_reid_replay_1029*.json` replays), and

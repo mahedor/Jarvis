@@ -1,0 +1,19 @@
+{
+ "vd_mav_cl_s42_int8": {
+  "label": "vd_mav_cl_s42_int8",
+  "person": 0.23,
+  "person_mean_f1": 0.5364,
+  "person_f1_per_set": {
+   "visdrone_val": 0.4351,
+   "mavrec_val": 0.5274,
+   "coco_holdout": 0.6467
+  },
+  "vehicle": 0.29,
+  "vehicle_mean_f1": 0.5989,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.5718,
+   "mavrec_val": 0.7226,
+   "coco_holdout": 0.5025
+  }
+ }
+}
