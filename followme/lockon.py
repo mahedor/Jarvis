@@ -24,10 +24,14 @@ and no automatic "biggest person" (that is only available as auto_lock=True, use
 Vehicles (11-19): a clicked vehicle can be the target. OSNet only knows people, so a lost vehicle is not re-acquired
 automatically (click it again) until a vehicle re-ID model is added.
 
-MATCH_SIM / MARGIN are PLACEHOLDERS until the re-ID benchmark (MOT17 + VisDrone-MOT crops) measures them.
+MATCH_SIM is READ from results/followme_reid_cutoff.json (Michael's 11-21 choice among measured options: the re-ID
+benchmark and the 10-29 replay, both committed in results/); test_reid_evidence.py checks it against them. Missing
+file -> stop. MARGIN is still a placeholder: nothing has measured it.
 Pure logic + a thin embedder wrapper; no drone I/O, so it is unit-tested.
 """
+import json
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -38,9 +42,23 @@ MIN_BOX_H_ADD = 40          # px; tiny crops make junk vectors
 ISOLATION_IOU = 0.0         # target must overlap no other person box to be added to the gallery
 EDGE_MARGIN = 4             # px; a box touching the frame edge is a partial body (2026-11-14: first gallery sample
                             # on the real flight was a blurry close-up face at takeoff) -> never a gallery sample
-MATCH_SIM = 0.70            # Michael 11-21: keep 0.70 (set 11-14 from the 10-29 18:20 flight). Re-ID benchmark: 1% of
-                            # strangers pass at 0.789. 10-29 replay with the search fixes below: every re-lock was him
-                            # (0.70-0.91), highest clean stranger 0.621.
+REID_CUTOFF_FILE = Path(__file__).resolve().parent.parent / "results" / "followme_reid_cutoff.json"
+
+
+def load_match_sim(path=REID_CUTOFF_FILE):
+    """The re-lock cutoff from its decision record (no default in code); missing file -> stop."""
+    p = Path(path)
+    if not p.is_file():
+        raise SystemExit(f"STOP: re-ID re-lock cutoff file not found: {p}\n"
+                         f"  It is committed in results/ next to its evidence; restore it.")
+    return float(json.loads(p.read_text())["match_sim"])
+
+
+# Michael 11-21: keep 0.70 (set 11-14 from the 10-29 18:20 flight). Chosen by judgment, not computed: re-ID benchmark
+# (OSNet x0_25, ROC-AUC 0.965) passes 8.1% of single stranger looks at 0.70 and 1% at 0.789; the 10-29 replay had no
+# wrong re-lock at any cutoff 0.65-0.85, but at 0.79 he scored 0.779 and stayed lost ~2.5 min. With the search fixes
+# below every re-lock was him (0.70-0.91), highest clean stranger 0.621. All in results/followme_reid_*.
+MATCH_SIM = load_match_sim()
 MARGIN = 0.05               # best match must beat the runner-up by this much
 CHECKS_PER_TRACK = 3        # quick checks of a candidate track when it first appears while lost
 RECHECK_S = 0.3             # ...no more often than this

@@ -23,7 +23,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` checks against it at startup and stops on any difference |
-| `test_*.py` | 100 tests: logic on made-up inputs, full runs against the fake drone, and the cutoffs recomputed from the sweep's curves (`test_cutoffs_evidence.py`) |
+| `test_*.py` | 122 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweep's curves (`test_cutoffs_evidence.py`), and the re-lock cutoff checked against its evidence (`test_reid_evidence.py`) |
 
 ## Folders
 
@@ -52,7 +52,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py   # expect 100 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py   # expect 122 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 ```
@@ -94,6 +94,25 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
 (heading unverified on the ANAFI 4K); the ground is assumed flat.
 
 ## Change log
+
+- **2026-11-26: re-lock cutoff read from its evidence; tracker and input size enforced.**
+  - `lockon.MATCH_SIM` (0.70) is now read from `results/followme_reid_cutoff.json`; missing file → **stops**. That file
+    is a hand-written decision record, because 0.70 was Michael's judgment (11-21) among measured options, not a
+    computed number. The evidence is committed byte-exact next to it: `followme_reid_bench_v3.json` and
+    `followme_reid_scores_osnet_x0_25.npz` (re-ID benchmark, Colab 11-22: OSNet x0_25 ROC-AUC 0.965; at 0.70, 8.1% of
+    single stranger looks pass and 87% of returning-target looks; 1% of strangers pass at 0.789), and the 10-29 flight
+    replays (`followme_reid_replay_1029_before_fix.json`, 7 cutoffs 0.65-0.85, the table he chose from;
+    `followme_reid_replay_1029.json`, 0.70 / 0.725 / 0.75 with the search fixes). No wrong re-lock at any cutoff; at
+    0.79 he came back at 0.779 and stayed lost ~2½ min. `test_reid_evidence.py` recomputes the benchmark summary from
+    the raw scores, reads each option's stranger / target rate from them, checks the replay numbers, and requires the
+    chosen value to be a replayed option with no wrong re-lock and to equal what runs. `MARGIN` (0.05) is still unmeasured.
+  - `flight_decisions.json` adds `tracker` = `botsort.yaml` and `imgsz` = 640 (Michael 11-26: keep both; skipped under
+    `--fake-detector`). Tracker benchmark (`results/followme_tracker_scores.jsonl`, byte-exact from Drive): with
+    `vd_mav_cl_s42`, BoT-SORT + camera-motion compensation, tracker re-ID off (Ultralytics' default `botsort.yaml`) has
+    the top class-average HOTA on VisDrone-MOT val 0.266, test-dev 0.293, MOT17 0.395, MOT20 0.317. Person-only HOTA
+    on VisDrone is a little higher with tracker re-ID (Deep OC-SORT + re-ID 0.328 vs 0.316 on val), at ~270 vs ~25 ms
+    per frame and more ID switches. 640 has been the default since the first version and no flight command changed it.
+    A test re-derives the winner from the scores file; `drone.json` now records `tracker` and `imgsz` under `running`.
 
 - **2026-11-26: cutoffs read from the evidence; automatic pre-flight check instead of reading the printout.**
   - The sweep's own output now lives in the repo, byte-exact from Drive: `results/followme_cutoffs_balanced.json`

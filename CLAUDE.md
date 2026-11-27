@@ -204,16 +204,21 @@ imports it.** Flown once (2026-11-15): follow, re-ID re-locks and the two-way sp
 real drone; map position (`geo.py`) logged numbers but is unchecked against ground truth.
 
 `followme/weights/` (detector + OSNet `.pt`) is gitignored. Flight logs (per-run video + `follow.csv`,
-300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 100 tests are run from inside the folder
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py`) and are **not** part of the
+300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 122 tests are run from inside the folder
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
 Detection cutoffs are read from `results/followme_cutoffs_balanced.json` (the Colab F1-max sweep's own output,
 committed 11-26 with its full curves in `results/followme_thresholds_balanced.json`); `test_cutoffs_evidence.py`
 recomputes them from the curves, the way `tests/test_pipeline_config.py` guards the face threshold. The engineering
-log does not read these two files. At startup `live_follow.py` compares what is about to run with
-`followme/flight_decisions.json` (only settings with a recorded decision) and stops on any difference unless
-`--off-decisions`; the result is written into each flight's `drone.json`.
+log does not read these two files. The re-ID re-lock cutoff `lockon.MATCH_SIM` (0.70) is read from
+`results/followme_reid_cutoff.json`, a hand-written decision record: Michael chose 0.70 by judgment among measured
+options, nothing computes it. Its evidence is committed byte-exact beside it (`followme_reid_bench_v3.json` +
+`followme_reid_scores_osnet_x0_25.npz`, the two `followme_reid_replay_1029*.json` replays), and
+`test_reid_evidence.py` checks every number in the record against them. At startup `live_follow.py` compares what is
+about to run with `followme/flight_decisions.json` (only settings with a recorded decision, now including the tracker
+`botsort.yaml`, backed by `results/followme_tracker_scores.jsonl`, and `--imgsz 640`) and stops on any difference
+unless `--off-decisions`; the result is written into each flight's `drone.json`.
 
 ## Engineering log
 

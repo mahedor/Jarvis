@@ -6,9 +6,10 @@ Run in WSL (Olympe env + ultralytics):
   python live_follow.py --fake --fake-detector --seconds 20      # no drone, no model: tests the loop + safety logic
 
 Pre-flight self-check (11-26): before anything flies, the settings about to run (detector, INT8, cutoffs source,
-re-ID, match_sim, drone profile, click-to-lock, search) are compared with flight_decisions.json. Any difference STOPS
-the program unless --off-decisions is passed; the result (pass, or the deliberate deviations) goes into drone.json.
---fake-detector skips the two detector checks, --fake skips the drone-profile and click-to-lock checks.
+tracker, input size, re-ID, match_sim, drone profile, click-to-lock, search) are compared with flight_decisions.json.
+Any difference STOPS the program unless --off-decisions is passed; the result (pass, or the deliberate deviations) goes
+into drone.json. --fake-detector skips the detector, tracker and input-size checks, --fake skips the drone-profile and
+click-to-lock checks.
 
 It starts in MANUAL (same keys as record.py). Follow mode only runs when YOU turn it on, and any movement key
 takes control back instantly.
@@ -258,6 +259,9 @@ INT8_MODEL = HERE / "weights" / ("vd_mav_cl_s42" + INT8_SUFFIX)   # live detecto
 # (the INT8 run kept the same best cutoffs, Oct 29; that INT8 sweep is not in the repo). No silent fallback: missing
 # file or a model not in it -> stop, unless --conf-person and --conf-vehicle are both given on purpose.
 CUTOFFS_FILE = REPO / "results" / "followme_cutoffs_balanced.json"
+TRACKER = "botsort.yaml"    # Ultralytics BoT-SORT: camera-motion compensation on, tracker re-ID off. Won the tracker
+                            # benchmark (results/followme_tracker_scores.jsonl); Michael 11-26: keep it.
+IMGSZ = 640                 # detector input size: trained, F1-swept and benchmarked at 640; Michael 11-26: keep it.
 DECISIONS_FILE = HERE / "flight_decisions.json"
 
 
@@ -354,8 +358,8 @@ def main():
     ap.add_argument("--model", default=str(INT8_MODEL),
                     help="detector (default: the INT8 OpenVINO model, ~3x faster than .pt; Michael 11-22). No silent "
                          "fallback: if it's missing the program stops. Pass a .pt here only on purpose.")
-    ap.add_argument("--tracker", default="botsort.yaml")
-    ap.add_argument("--imgsz", type=int, default=640)
+    ap.add_argument("--tracker", default=TRACKER)
+    ap.add_argument("--imgsz", type=int, default=IMGSZ)
     ap.add_argument("--conf-person", type=float, default=None,
                     help="person cutoff (default: this model's F1-max from results/followme_cutoffs_balanced.json)")
     ap.add_argument("--conf-vehicle", type=float, default=None,
@@ -367,7 +371,7 @@ def main():
     ap.add_argument("--reid", default="osnet", choices=["osnet", "hist", "none"],
                     help="lock-on appearance model: osnet (default; stops if boxmot/OSNet can't load), hist = colour "
                          "histogram baseline (tests only), none = no re-ID (a lost target is never re-acquired)")
-    ap.add_argument("--match-sim", type=float, default=lockon.MATCH_SIM, help="re-ID similarity needed to re-lock (0.70, Michael 11-21)")
+    ap.add_argument("--match-sim", type=float, default=lockon.MATCH_SIM, help="re-ID similarity needed to re-lock (default: results/followme_reid_cutoff.json, 0.70, Michael 11-21)")
     ap.add_argument("--search-s", type=float, default=SEARCH_S, help="max seconds spinning to find a lost target (0 = just hover)")
     ap.add_argument("--search-yaw", type=float, default=SEARCH_YAW, help="%% yaw while spinning in place to search")
     ap.add_argument("--search-deg", type=float, default=SEARCH_DEG, help="degrees per spin direction (360 = one full turn)")
@@ -425,7 +429,7 @@ def main():
     actual = dict(detector_model=_rel(args.model, HERE), detector_int8=Path(args.model).name.endswith(INT8_SUFFIX),
                   detection_cutoffs=(_rel(CUTOFFS_FILE) if args.conf_person is None and args.conf_vehicle is None
                                      else f"command line: person {cut_p}, vehicle {cut_v}"),
-                  reid=args.reid, match_sim=args.match_sim,
+                  tracker=args.tracker, imgsz=args.imgsz, reid=args.reid, match_sim=args.match_sim,
                   drone_profile_applied="apply_profile" in d and not args.no_profile and profile_ok(profile_note),
                   click_to_lock=not args.auto_lock, search_deg=args.search_deg, search_both_ways=not args.search_one_way)
     try:

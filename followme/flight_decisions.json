@@ -19,6 +19,18 @@
    "date": "2026-11-26",
    "skip_with": []
   },
+  "tracker": {
+   "value": "botsort.yaml",
+   "source": "Tracker benchmark (followme_tracker_comparison_v5, Ultralytics 8.4.184 built-in trackers, TrackEval; results/followme_tracker_scores.jsonl, byte-exact from Drive): with the flight detector vd_mav_cl_s42, BoT-SORT with camera-motion compensation and tracker re-ID off ('botsort|reid-|gmc+' = Ultralytics' default botsort.yaml) has the highest class-average HOTA on all four sets: VisDrone-MOT val 0.2658, test-dev 0.2927, MOT17 train 0.3946, MOT20 train 0.3173 (MOT17/MOT20: 5 configs each; runner-up 0.2641 BoT-SORT+re-ID, 0.2907 BoT-SORT+re-ID, 0.3850, 0.3163). Person-only HOTA on VisDrone is higher with tracker re-ID (val: Deep OC-SORT+re-ID+GMC 0.3276 vs 0.3162; test-dev: BoT-SORT+re-ID+GMC 0.2738 vs 0.2692) at ~270 vs ~21-30 ms/frame and more ID switches; re-ID was rejected for that (11-15). Michael 11-26: keep it. Flown on every flight (never overridden in a run command).",
+   "date": "2026-11-26",
+   "skip_with": ["--fake-detector"]
+  },
+  "imgsz": {
+   "value": 640,
+   "source": "Michael 11-26: 'if that's what we've been doing this whole time then that's fine'. 640 is live_follow's default since the first version (ce5675a, and the Downloads copy before it) and no flight command passed --imgsz; the detector was trained, F1-swept (thresholds_balanced.py) and tracker-benchmarked at 640.",
+   "date": "2026-11-26",
+   "skip_with": ["--fake-detector"]
+  },
   "reid": {
    "value": "osnet",
    "source": "Michael 11-22: OSNet re-ID, stop if it can't load, no histogram fallback (README change log 2026-11-22; commit 29b47ec; lockon.make_embedder docstring).",
@@ -27,7 +39,7 @@
   },
   "match_sim": {
    "value": 0.7,
-   "source": "Michael 11-21: keep the re-ID re-lock cutoff at 0.70 (lockon.MATCH_SIM comment; commit 0f86828; README 'Search (Michael 2026-11-21)').",
+   "source": "Michael 11-21: keep the re-ID re-lock cutoff at 0.70, chosen by judgment among measured options (lockon.MATCH_SIM, read from results/followme_reid_cutoff.json; commit 0f86828; README 'Search (Michael 2026-11-21)'). Evidence: results/followme_reid_bench_v3.json + followme_reid_scores_osnet_x0_25.npz (OSNet x0_25 ROC-AUC 0.9652; 8.1% of single stranger looks pass at 0.70, 1% at 0.789) and the 10-29 replay at 0.65-0.85 (results/followme_reid_replay_1029*.json: no wrong re-lock at any cutoff; at 0.79 lost for ~2.5 min). test_reid_evidence.py checks the record against them.",
    "date": "2026-11-21",
    "skip_with": []
   },

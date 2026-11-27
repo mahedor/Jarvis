@@ -265,6 +265,7 @@ def test_code_defaults_are_the_decided_settings():
     assert dec["detector_model"] == lf._rel(lf.INT8_MODEL, HERE)
     assert dec["detector_int8"] is True and lf.INT8_MODEL.name.endswith(lf.INT8_SUFFIX)
     assert dec["detection_cutoffs"] == lf._rel(lf.CUTOFFS_FILE)
+    assert dec["tracker"] == lf.TRACKER and dec["imgsz"] == lf.IMGSZ
     assert dec["match_sim"] == lockon.MATCH_SIM
     assert dec["search_deg"] == lf.SEARCH_DEG and dec["search_both_ways"] == lf.SEARCH_BOTH
     for d in lf.load_decisions().values():
@@ -275,13 +276,14 @@ def test_check_decisions_finds_every_kind_of_deviation():
     dec = lf.load_decisions()
     ok = {k: v["value"] for k, v in dec.items()}
     assert lf.check_decisions(ok, dec, set())["passed"]
-    bad = dict(ok, detector_model="weights/vd_mav_cl_s42.pt", detector_int8=False)
+    bad = dict(ok, detector_model="weights/vd_mav_cl_s42.pt", detector_int8=False, tracker="bytetrack.yaml", imgsz=960)
     del bad["reid"]                                                   # no reading = deviation, never a silent pass
     r = lf.check_decisions(bad, dec, set())
-    assert not r["passed"] and {x["name"] for x in r["deviations"]} == {"detector_model", "detector_int8", "reid"}
-    r = lf.check_decisions(bad, dec, {"--fake-detector"})             # only the detector checks are skipped
+    assert not r["passed"] and {x["name"] for x in r["deviations"]} == {"detector_model", "detector_int8", "tracker",
+                                                                        "imgsz", "reid"}
+    r = lf.check_decisions(bad, dec, {"--fake-detector"})             # only the detector/tracker checks are skipped
     assert {x["name"] for x in r["deviations"]} == {"reid"}
-    assert {s["name"] for s in r["skipped"]} == {"detector_model", "detector_int8"}
+    assert {s["name"] for s in r["skipped"]} == {"detector_model", "detector_int8", "tracker", "imgsz"}
     assert lf.profile_ok("drone settings match drone_profile.json") and lf.profile_ok("applied drone_profile.json (2 changed)")
     assert not lf.profile_ok("applied drone_profile.json (2 changed); FAILED: {'x': 'failed: y'}")
     assert not lf.profile_ok("no drone_profile.json yet (run drone_settings.py --save on drone A)")
@@ -293,7 +295,10 @@ def test_preflight_pass_is_logged():
     pf = _latest_drone_json()["preflight"]
     assert pf["passed"] and not pf["deviations"] and not pf["off_decisions"]
     assert {"reid", "match_sim", "detection_cutoffs", "search_deg"} <= set(pf["checked"])
-    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "drone_profile_applied", "click_to_lock"}
+    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "tracker", "imgsz",
+                                                  "drone_profile_applied", "click_to_lock"}
+    assert _latest_drone_json()["running"]["tracker"] == "botsort.yaml"
+    assert _latest_drone_json()["running"]["imgsz"] == 640
 
 
 def test_preflight_mismatch_stops():
@@ -311,3 +316,28 @@ def test_preflight_override_is_logged():
     pf = _latest_drone_json()["preflight"]
     assert not pf["passed"] and pf["off_decisions"]
     assert [(x["name"], x["decided"], x["actual"]) for x in pf["deviations"]] == [("match_sim", 0.7, 0.8)]
+
+
+def test_tracker_decision_is_the_benchmark_winner():
+    """Re-derive the tracker pick from the benchmark's own output (results/followme_tracker_scores.jsonl, byte-exact
+    from Drive): with the flight detector, BoT-SORT + camera-motion compensation, tracker re-ID off, has the highest
+    class-average HOTA on every set. That config is Ultralytics' botsort.yaml unchanged, which is what flies."""
+    import json
+    p = HERE.parent / "results" / "followme_tracker_scores.jsonl"
+    assert p.is_file(), f"{p} is committed evidence and must exist"
+    rows = [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
+    best = {}
+    for split in ("val", "test-dev", "MOT17-train", "MOT20-train"):
+        mine = [r for r in rows if r["detector"] == "vd_mav_cl_s42" and r["split"] == split]
+        hota = sorted(((r["scores"]["class_avg"]["HOTA"], r["config"]) for r in mine), reverse=True)
+        assert hota[0][0] > hota[1][0], f"{split}: tie at the top"
+        best[split] = (hota[0][1], round(hota[0][0], 4))
+    assert best == {"val": ("botsort|reid-|gmc+", 0.2658), "test-dev": ("botsort|reid-|gmc+", 0.2927),
+                    "MOT17-train": ("botsort|reid-|gmc+", 0.3946), "MOT20-train": ("botsort|reid-|gmc+", 0.3173)}
+    assert lf.load_decisions()["tracker"]["value"] == lf.TRACKER == "botsort.yaml"
+    import pytest
+    pytest.importorskip("ultralytics")
+    from ultralytics.utils import YAML
+    from ultralytics.utils.checks import check_yaml
+    cfg = YAML.load(check_yaml(lf.TRACKER))
+    assert cfg["tracker_type"] == "botsort" and cfg["with_reid"] is False and cfg["gmc_method"] == "sparseOptFlow"

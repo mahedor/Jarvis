@@ -1,0 +1,48 @@
+{
+ "_about": "Decision record, written by hand on 2026-11-26 (NOT a program output). match_sim is the re-ID similarity a returning person must reach before lock-on re-locks onto them. It was chosen by Michael by judgment among measured options; no program computes 0.70 and none of the benchmark's own operating points is 0.70. lockon.py reads match_sim from this file and stops if it is missing. Every number below is checked against the evidence files (program outputs, committed byte-exact) by followme/test_reid_evidence.py.",
+ "match_sim": 0.7,
+ "decided_by": "Michael",
+ "date": "2026-11-21",
+ "decision": "'Keep 0.70', his answer at 2026-11-21 22:05Z to the cutoff question asked after the 10-29 replay (options 0.75 / keep 0.70 / 0.79 / wait). On 11-22 he asked for a 0.725 run; after the 0.70 / 0.725 / 0.75 rerun and the benchmark rates were shown, the cutoff stayed 0.70.",
+ "how_chosen": "Judgment, not an argmax. Replay: no wrong re-lock at any cutoff; 0.79 and above lost him for the last ~2.5 min (he came back at 0.779 and was refused). Benchmark: 0.70 passes more strangers per single look (see bench_stranger_pass) than the benchmark's own cutoffs below.",
+ "evidence": {
+  "benchmark": {
+   "file": "results/followme_reid_bench_v3.json",
+   "scores": "results/followme_reid_scores_osnet_x0_25.npz",
+   "model": "osnet_x0_25",
+   "from": "Drive jarvis_det/reid_bench_v3.json and reid_scores_osnet_x0_25.npz, written by reid_bench_v3.py (Colab, 2026-11-22). Trials: MOT17 train + VisDrone-MOT val, gallery of 5 crops 1 s apart, query 1/3/10 s later, strangers = every other person in the query frame."
+  },
+  "replay_before_fix": {
+   "file": "results/followme_reid_replay_1029_before_fix.json",
+   "from": "The 10-29 18:20 flight (detector vd_mav_cl_s42.pt, botsort.yaml, imgsz 640) replayed through lockon.py as of commit 2e6f29f, 2026-11-21; re-locks checked by eye. The table Michael chose from."
+  },
+  "replay_after_fix": {
+   "file": "results/followme_reid_replay_1029.json",
+   "from": "Same flight and cached tracks, lockon.py as of commit 0f86828 (refused tracks rechecked every 2 s, fragment boxes skipped), rerun 2026-11-22 at 0.70 / 0.725 / 0.75."
+  }
+ },
+ "benchmark_operating_points": {
+  "f1_cutoff": 0.7707,
+  "stranger_p99": 0.789
+ },
+ "options": [
+  {"cut": 0.65, "bench_stranger_pass": 0.1841, "bench_target_pass": 0.9535,
+   "replay_before_fix": {"right_relocks": 9, "wrong_relocks": 0, "on_me_pct": 54.6, "lost_pct": 39.3}},
+  {"cut": 0.7, "bench_stranger_pass": 0.0809, "bench_target_pass": 0.8704,
+   "replay_before_fix": {"right_relocks": 9, "wrong_relocks": 0, "on_me_pct": 54.6, "lost_pct": 39.3},
+   "replay_after_fix": {"right_relocks": 7, "wrong_relocks": 0, "on_me_pct": 54.5, "lost_pct": 39.4}},
+  {"cut": 0.725, "bench_stranger_pass": 0.0464, "bench_target_pass": 0.8106,
+   "replay_after_fix": {"right_relocks": 5, "wrong_relocks": 0, "on_me_pct": 54.5, "lost_pct": 39.4}},
+  {"cut": 0.75, "bench_stranger_pass": 0.0266, "bench_target_pass": 0.7807,
+   "replay_before_fix": {"right_relocks": 7, "wrong_relocks": 0, "on_me_pct": 54.5, "lost_pct": 39.4},
+   "replay_after_fix": {"right_relocks": 5, "wrong_relocks": 0, "on_me_pct": 54.5, "lost_pct": 39.4}},
+  {"cut": 0.77, "bench_stranger_pass": 0.0153, "bench_target_pass": 0.7309,
+   "replay_before_fix": {"right_relocks": 7, "wrong_relocks": 0, "on_me_pct": 54.5, "lost_pct": 39.4}},
+  {"cut": 0.79, "bench_stranger_pass": 0.0097, "bench_target_pass": 0.6213,
+   "replay_before_fix": {"right_relocks": 5, "wrong_relocks": 0, "on_me_pct": 33.2, "lost_pct": 60.7}},
+  {"cut": 0.8, "bench_stranger_pass": 0.0065, "bench_target_pass": 0.588,
+   "replay_before_fix": {"right_relocks": 5, "wrong_relocks": 0, "on_me_pct": 33.2, "lost_pct": 60.7}},
+  {"cut": 0.85, "bench_stranger_pass": 0.0011, "bench_target_pass": 0.3721,
+   "replay_before_fix": {"right_relocks": 3, "wrong_relocks": 0, "on_me_pct": 33.1, "lost_pct": 60.9}}
+ ]
+}
