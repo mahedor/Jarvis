@@ -781,6 +781,12 @@ def main():
         if not args.headless:
             cv2.destroyAllWindows()
         print(f"Saved {n} frames + follow.csv to {out}")
+        try:                             # flight log (11-27): logs closed, drone down; a failure only warns
+            import flight_log
+            flight_log.update(out.parent, quiet=True)
+            print(f"flight log updated: {out.parent / flight_log.MD_NAME}")
+        except Exception as e:           # noqa: BLE001 - never break the shutdown path
+            print(f"WARNING: flight log not updated ({e!r}); later: python flight_log.py --root {out.parent}")
 
 
 if __name__ == "__main__":

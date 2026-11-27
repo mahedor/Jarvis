@@ -204,8 +204,11 @@ imports it.** Flown once (2026-11-15): follow, re-ID re-locks and the two-way sp
 real drone; map position (`geo.py`) logged numbers but is unchecked against ground truth.
 
 `followme/weights/` (detector + OSNet `.pt`) is gitignored. Flight logs (per-run video + `follow.csv`,
-300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. Its 138 tests are run from inside the folder
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py`) and are **not** part of the
+300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. `flight_log.py` (stdlib only) rewrites
+`~/follow_logs/flight_log.csv` + `flight_log.md` (one row per real flight, newest first, settings from each run's
+`drone.json`, stats from `follow.csv`, "not logged" where a run didn't record a field, typed csv notes kept) at the end of
+every `live_follow.py` run, inside a try so a failure only warns; `python flight_log.py [--root DIR]` backfills. The folder's 155 tests are run from inside it
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
 Detection cutoffs are read from the Colab F1-max sweep's own output, per model by exact name: the INT8 export that

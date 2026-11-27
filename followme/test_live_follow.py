@@ -141,13 +141,18 @@ def test_click_pick_sticks():
     assert L.target_id == 5 and L.picked_by == "you"
 
 
+def latest_run(out=HERE / "_test_follow_out"):
+    """Newest run folder (the logs root also holds flight_log.csv / .md since 11-27)."""
+    return sorted(p for p in out.iterdir() if p.is_dir())[-1]
+
+
 def run_fake(script, seconds, extra=()):
     out = HERE / "_test_follow_out"
     cmd = [sys.executable, str(HERE / "live_follow.py"), "--fake", "--fake-detector", "--headless", "--auto-lock",
            "--script", script, "--seconds", str(seconds), "--out", str(out), *extra]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=HERE)
     assert p.returncode == 0, p.stderr[-2000:]
-    run = sorted(out.iterdir())[-1]
+    run = latest_run(out)
     return p.stdout, list(csv.DictReader(open(run / "follow.csv")))
 
 
@@ -220,7 +225,7 @@ def test_every_run_records_which_drone():
     assert record.nickname("ANAFI-G134762") == "droneA" and record.nickname("ANAFI-J102372") == "droneB"
     assert record.nickname("ANAFI-X999") == "ANAFI-X999" and record.nickname(None) == "unknown"
     out, rows = run_fake("q@1.5", 3)
-    run = sorted((HERE / "_test_follow_out").iterdir())[-1]
+    run = latest_run()
     assert run.name.endswith("_droneA")                                # fake drone -> default name
     info = json.loads((run / "drone.json").read_text())
     assert info["drone_nickname"] == "fake" and info["name"] == "droneA"
@@ -231,7 +236,7 @@ def test_boxes_logged_and_flight_index(tmp_path):
     import json
     import flight_index
     out, rows = run_fake("t@0.5,m@1,q@3", 4)
-    run = sorted((HERE / "_test_follow_out").iterdir())[-1]
+    run = latest_run()
     lines = [json.loads(x) for x in (run / "boxes.jsonl").read_text().splitlines()]
     assert len(lines) == len(rows) and lines[0]["names"] and any(ln["boxes"] for ln in lines)
     s = flight_index.summarize(run)
@@ -255,7 +260,7 @@ def test_cutoffs_from_f1_sweep():
 
 def _latest_drone_json():
     import json
-    return json.loads((sorted((HERE / "_test_follow_out").iterdir())[-1] / "drone.json").read_text())
+    return json.loads((latest_run() / "drone.json").read_text())
 
 
 def test_code_defaults_are_the_decided_settings():

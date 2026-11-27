@@ -113,7 +113,7 @@ def flight(tmp_path_factory):
            "--script", "t@0.5,m@1.5,q@4", "--seconds", "5", "--out", str(out)]
     p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=HERE)
     assert p.returncode == 0, p.stderr[-2000:]
-    return next(out.iterdir())
+    return next(p for p in out.iterdir() if p.is_dir())        # the root also holds flight_log.* (11-27)
 
 
 def run_replay(source, out, *extra):

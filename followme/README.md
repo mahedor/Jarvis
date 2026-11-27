@@ -19,11 +19,12 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `record.py` | Olympe connection, telemetry (incl. GPS), and the fake drone used by tests |
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
 | `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
-| `flight_index.py` | One table of every flight in `~/follow_logs` (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv` |
+| `flight_log.py` | The flight log: one row per flight in `~/follow_logs`, newest first, with the settings it flew under (drone, model + INT8, cutoffs + source, tracker, imgsz, re-ID + cutoff, pre-flight result) and what happened (duration, FOLLOW time, re-locks, battery, video files) → `flight_log.csv` + `flight_log.md`. Runs by itself at the end of every `live_follow.py` run; `python flight_log.py [--root DIR]` backfills |
+| `flight_index.py` | Older quick table of every flight (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv`; `flight_log.py` is the full log |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
-| `test_*.py` | 138 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), and replay running the flight program's settings (`test_replay.py`) |
+| `test_*.py` | 155 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), and the flight log (`test_flight_log.py`) |
 
 ## Folders
 
@@ -35,6 +36,8 @@ the real drone; map position logged numbers but is not yet checked against reali
   `lockon.py` looks in `weights/` first.
 - Flight logs are **not** kept here: every run writes `~/follow_logs/<YYYYMMDD_HHMMSS>_<droneA|droneB>/` (with `drone.json`: name, serial, firmware; a `drone` column in follow.csv; `boxes.jsonl`: every box the program saw each frame; and `overlay_*.mp4`: the on-screen view with boxes and labels exactly as shown live — `--no-overlay-video` turns it off) (video chunks +
   `follow.csv`, 300+ MB per flight) in the WSL home, outside the repo and OneDrive. `--out` changes it.
+- `~/follow_logs/flight_log.md` / `flight_log.csv` — the flight log (see Flight log below), rewritten at the end of
+  every run.
 
 ## Setup (WSL, uv-managed venv `~/jarvis-follow`)
 
@@ -53,7 +56,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py   # expect 138 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 155 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 ```
@@ -119,7 +122,36 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
 40 m away). Any movement key, SPACE or L takes control back. Needs a GPS fix and a true compass heading on both drones
 (heading unverified on the ANAFI 4K); the ground is assumed flat.
 
+## Flight log (Michael 11-27)
+
+One place listing every real flight with the context it was filmed under, so a flight video can be watched knowing the
+settings and situation. Nothing is filled in by hand: at the end of every `live_follow.py` run (after the logs are
+closed and the drone has landed) `flight_log.update()` rescans the logs root and rewrites `flight_log.csv` and
+`flight_log.md` there, newest first. If that fails (e.g. Excel has the csv open) it prints a warning with the backfill
+command and the program exits normally. Backfill or refresh by hand: `python flight_log.py [--root DIR] [--rebuild]`.
+
+- Every field is read from the run's own `drone.json` and `follow.csv`; a field that version of `live_follow.py` did not
+  record shows **not logged** (never guessed: e.g. the 11-15 / 11-22 flights show no model, because drone.json had no
+  model field until aae2f0f). The md lists which drone.json fields exist since which commit.
+- Times are measured from `t_s`, not frames / an assumed 30 fps. FOLLOW time = time in FOLLOW mode (and, in brackets,
+  on target); re-locks = re-ID re-locks (`reacquired_reid` onsets); clicks / N use `replay.recorded_locks`' rule.
+- Fake-drone runs (`drone_nickname` "fake") are left out (`--include-fake` lists them).
+- Notes (optional): a `notes.txt` in the run folder (column `notes.txt`), or type into the `notes` column of
+  `flight_log.csv`; typed notes are kept on every regenerate, matched by run folder (also if the folder is deleted).
+- Unchanged run folders come from a cache (`.flight_log_cache.json`), so the call at the end of a flight is fast.
+
 ## Change log
+
+- **2026-11-27 (Michael): automatic flight log.** New `flight_log.py` (stdlib only) writes `flight_log.csv` +
+  `flight_log.md` in the logs root, one row per flight, newest first: date/time, run folder, drone (+ serial,
+  firmware), duration, frames, FPS, airborne time, battery, model (+INT8), cutoffs (+source), tracker (+settings file),
+  imgsz, re-ID + re-lock cutoff, pre-flight pass / deviations, drone profile, FOLLOW time, re-locks, clicks / N, spin
+  searches, LOOK/GO time, video files, any other `running` setting, notes. Missing fields read "not logged".
+  `live_follow.py` calls it at the very end of its `finally` (after landing and closing the logs) inside a try: a
+  failure prints a warning, never breaks shutdown. The fake-drone tests now pick run folders only (the logs root also
+  holds the log files). `test_flight_log.py`: 17 new tests (new and old drone.json formats, missing / broken files,
+  typed notes kept, newest first, fake runs left out, cache, the hook at exit and its failure path): 155 in all.
+
 
 - **2026-11-26 (Michael): the INT8 model flies at its own measured cutoffs, person 0.23 / vehicle 0.29.** Rerun of the
   INT8 sweep, then "fly the measured INT8 cutoffs". Until now the INT8 export that flies took the `.pt`'s cutoffs
