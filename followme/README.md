@@ -118,7 +118,8 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
   COCO holdout) picked **0.24 for people and 0.28 for vehicles** for `vd_mav_cl_s42`; INT8 kept the same best cutoffs.
   These are now built in (`MODEL_CUTOFFS` in `live_follow.py`), printed at startup and saved in `drone.json`. `--conf`
   is gone; `--conf-person` / `--conf-vehicle` override on purpose. A model with no known cutoffs **stops** unless both are
-  given. Flights before this ran at 0.25 for every class.
+  given. The Oct 29-30 flights passed `--conf 0.24` (one cutoff, so vehicles also ran at 0.24); from Nov 15 the flag
+  was missing from the run commands, so flights from Nov 15 until this fix ran at 0.25 for every class.
 
 - **2026-11-22 (Michael): fly the INT8 detector from now on, and no silent fallbacks.**
   - Why: the INT8 decision (10-29: ~3x faster, -0.01 F1) was lost from the copied run command on 11-15, and the
