@@ -249,10 +249,6 @@
       }
     },
     "20261122_151520_droneA": {
-      "drone": {
-        "value": "droneB",
-        "reason": "corrected 11-27 from chat history: Michael 11-22 15:22 PST (seq 26892): 'drone B has flown on my home wifi' through its SkyController, so drone A (reached only on its own Wi-Fi) was not connected; the 15:15 and 15:17 runs are the only ones since the 15:04 controller-driver fix (seq 26882); 'droneA' is the program's fallback when it could not read the drone's name (cc9bbc3; fixed 553032f, 15:42)"
-      },
       "history": {
         "run": "drone B through its SkyController before the piloting fix. Michael 15:22 PST (seq 26892): 'not all of the keyboard controls are working ... I tried to have it follow me and it didn't seem to be working'. Claude's diagnosis (15:23 PST, seq 26900): the drone obeyed the controller's sticks, so W/A/S/D, R/F, Z/C and follow did nothing; FOLLOW time here does not mean the drone moved",
         "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (drone B's command, 11-22 15:04 PST, seq 26882: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --share-file /tmp/jarvis_spot.json --ip 192.168.53.1 --listen droneA`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
@@ -262,10 +258,6 @@
       }
     },
     "20261122_151758_droneA": {
-      "drone": {
-        "value": "droneB",
-        "reason": "corrected 11-27 from chat history: Michael 11-22 15:22 PST (seq 26892): 'drone B has flown on my home wifi' through its SkyController, so drone A (reached only on its own Wi-Fi) was not connected; the 15:15 and 15:17 runs are the only ones since the 15:04 controller-driver fix (seq 26882); 'droneA' is the program's fallback when it could not read the drone's name (cc9bbc3; fixed 553032f, 15:42)"
-      },
       "history": {
         "run": "drone B through its SkyController before the piloting fix. Michael 15:22 PST (seq 26892): 'not all of the keyboard controls are working ... I tried to have it follow me and it didn't seem to be working'. Claude's diagnosis (15:23 PST, seq 26900): the drone obeyed the controller's sticks, so W/A/S/D, R/F, Z/C and follow did nothing; FOLLOW time here does not mean the drone moved",
         "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (drone B's command, 11-22 15:04 PST, seq 26882: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --share-file /tmp/jarvis_spot.json --ip 192.168.53.1 --listen droneA`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
