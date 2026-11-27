@@ -5,6 +5,11 @@ Run in WSL (Olympe env + ultralytics):
   python live_follow.py                                          # real drone (INT8 detector + OSNet re-ID; stops if either is missing)
   python live_follow.py --fake --fake-detector --seconds 20      # no drone, no model: tests the loop + safety logic
 
+Pre-flight self-check (11-26): before anything flies, the settings about to run (detector, INT8, cutoffs source,
+re-ID, match_sim, drone profile, click-to-lock, search) are compared with flight_decisions.json. Any difference STOPS
+the program unless --off-decisions is passed; the result (pass, or the deliberate deviations) goes into drone.json.
+--fake-detector skips the two detector checks, --fake skips the drone-profile and click-to-lock checks.
+
 It starts in MANUAL (same keys as record.py). Follow mode only runs when YOU turn it on, and any movement key
 takes control back instantly.
   T takeoff   L land   Q quit (lands first)   SPACE hover + MANUAL
@@ -31,6 +36,7 @@ Detection runs in a background thread on the newest frame, so keys and stick com
 """
 import argparse
 import csv
+import json
 import sys
 import threading
 import time
@@ -238,26 +244,103 @@ class FollowLogic:
                          event=self.event)
 
 
-INT8_MODEL = Path(__file__).resolve().parent / "weights" / "vd_mav_cl_s42_int8_openvino_model"   # live detector (Michael 11-22)
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parent
+INT8_SUFFIX = "_int8_openvino_model"
+INT8_MODEL = HERE / "weights" / ("vd_mav_cl_s42" + INT8_SUFFIX)   # live detector (Michael 11-22)
 
-# Detection cutoffs per model, from the F1-max sweep (thresholds_balanced.py, Oct 28-29): confidence swept 0.05-0.95 in
-# 0.01 steps, IoU >= 0.5, equal-weight average of F1 on VisDrone val, MAVREC val (aerial) and a COCO holdout; one cutoff
-# for people, one for all vehicle classes. Michael 11-26: bake them in instead of the old single --conf 0.25 (Ultralytics'
-# default, never chosen for this model). INT8 kept the same best cutoffs (Oct 29). No silent fallback: a model not listed
-# here needs --conf-person and --conf-vehicle on purpose, or the program stops.
-MODEL_CUTOFFS = {"vd_mav_cl_s42": (0.24, 0.28)}
+# Detection cutoffs per model, from the F1-max sweep (thresholds_balanced.py, Oct 28-29, Colab): confidence swept
+# 0.05-0.95 in 0.01 steps, IoU >= 0.5, equal-weight average of F1 on VisDrone val, MAVREC val (aerial) and a COCO
+# holdout; one cutoff for people, one for all vehicle classes. Michael 11-26: fly at these instead of the old single
+# --conf 0.25 (Ultralytics' default, never chosen for this model). The numbers are READ from the sweep's own output,
+# committed byte-exact from Drive; test_cutoffs_evidence.py recomputes them from the full curves
+# (results/followme_thresholds_balanced.json) so the two can't drift. A model's INT8 export uses its .pt's entry
+# (the INT8 run kept the same best cutoffs, Oct 29; that INT8 sweep is not in the repo). No silent fallback: missing
+# file or a model not in it -> stop, unless --conf-person and --conf-vehicle are both given on purpose.
+CUTOFFS_FILE = REPO / "results" / "followme_cutoffs_balanced.json"
+DECISIONS_FILE = HERE / "flight_decisions.json"
 
 
-def resolve_cutoffs(model_path, conf_person=None, conf_vehicle=None):
-    """-> (person, vehicle, source). Explicit values win; else look the model up by name; else stop."""
+def _rel(p, base=REPO):
+    p = Path(p).resolve()
+    return p.relative_to(base).as_posix() if p.is_relative_to(base) else str(p)
+
+
+def load_cutoffs(path=CUTOFFS_FILE):
+    """{model_key: {"person": cut, "vehicle": cut, ...}} from the F1-max sweep's cutoffs file; missing -> stop."""
+    p = Path(path)
+    if not p.is_file():
+        sys.exit(f"STOP: F1-max cutoffs file not found: {p}\n"
+                 f"  It is committed in results/; restore it, or pass --conf-person and --conf-vehicle on purpose.")
+    return json.loads(p.read_text())
+
+
+def cutoff_key(model_path, table):
+    """The cutoffs-file entry for this model: exact name, name.pt, or name + INT8_SUFFIX. No prefix guessing."""
+    stem = Path(str(model_path)).name
+    return next((k for k in table if stem in (k, k + ".pt", k + INT8_SUFFIX)), None)
+
+
+def resolve_cutoffs(model_path, conf_person=None, conf_vehicle=None, path=CUTOFFS_FILE):
+    """-> (person, vehicle, source). Explicit values win; else the model's entry in the cutoffs file; else stop."""
     if conf_person is not None and conf_vehicle is not None:
         return conf_person, conf_vehicle, "set on the command line"
-    stem = Path(str(model_path)).name
-    for key, (p, v) in MODEL_CUTOFFS.items():
-        if stem.startswith(key):
-            return (conf_person if conf_person is not None else p,
-                    conf_vehicle if conf_vehicle is not None else v, f"F1-max sweep for {key}")
-    sys.exit(f"STOP: no F1-max cutoffs known for {stem}. Pass --conf-person and --conf-vehicle on purpose.")
+    table = load_cutoffs(path)
+    key = cutoff_key(model_path, table)
+    if key is None:
+        sys.exit(f"STOP: no F1-max cutoffs for {Path(str(model_path)).name} in {_rel(path)}. "
+                 f"Pass --conf-person and --conf-vehicle on purpose.")
+    src = f"F1-max sweep for {key}, {_rel(path)}"
+    if conf_person is not None or conf_vehicle is not None:
+        src += " (one value overridden on the command line)"
+    return (conf_person if conf_person is not None else table[key]["person"],
+            conf_vehicle if conf_vehicle is not None else table[key]["vehicle"], src)
+
+
+def load_decisions(path=DECISIONS_FILE):
+    p = Path(path)
+    if not p.is_file():
+        sys.exit(f"STOP: {p} not found: the pre-flight check has nothing to compare against.")
+    return json.loads(p.read_text())["decisions"]
+
+
+def check_decisions(actual, decisions, modes):
+    """Compare what is about to run with flight_decisions.json.
+    actual: {decision name: running value}; modes: active test-mode flags, e.g. {"--fake-detector"}.
+    A decision is skipped only if one of its skip_with flags is active. A decision live_follow has no reading for
+    counts as a deviation (never silently passes).
+    -> {"passed": bool, "deviations": [{name, decided, actual, source}], "skipped": [{name, because}], "checked": [...]}"""
+    res = dict(passed=True, deviations=[], skipped=[], checked=[])
+    for name, d in decisions.items():
+        because = [f for f in d.get("skip_with", []) if f in modes]
+        if because:
+            res["skipped"].append(dict(name=name, because=because))
+            continue
+        res["checked"].append(name)
+        got = actual.get(name, "<no reading in live_follow.py>")
+        if got != d["value"]:
+            res["deviations"].append(dict(name=name, decided=d["value"], actual=got, source=d["source"]))
+    res["passed"] = not res["deviations"]
+    return res
+
+
+def enforce_decisions(result, off_decisions):
+    """Stop on any deviation unless --off-decisions; -> the record saved in drone.json."""
+    if result["passed"]:
+        print(f"pre-flight check: PASS ({len(result['checked'])} decisions"
+              + (f"; skipped in this mode: {', '.join(s['name'] for s in result['skipped'])})" if result["skipped"] else ")"))
+        return dict(result, off_decisions=off_decisions)
+    lines = "\n".join(f"  {x['name']}: decided {x['decided']!r}, about to run {x['actual']!r}" for x in result["deviations"])
+    if not off_decisions:
+        sys.exit(f"STOP: not flying what was decided ({_rel(DECISIONS_FILE)}):\n{lines}\n"
+                 f"  Fix it, or pass --off-decisions to fly these deviations on purpose (they are logged in drone.json).")
+    print(f"pre-flight check: DELIBERATE DEVIATIONS (--off-decisions), logged in drone.json:\n{lines}")
+    return dict(result, off_decisions=True)
+
+
+def profile_ok(note):
+    """record.apply_profile's answer -> was drone_profile.json really applied? (missing file or a failed setting = no)"""
+    return not str(note).startswith("no drone_profile") and "FAILED" not in str(note)
 
 
 def keep_box(cls_name, conf, person_cut, vehicle_cut):
@@ -273,8 +356,10 @@ def main():
                          "fallback: if it's missing the program stops. Pass a .pt here only on purpose.")
     ap.add_argument("--tracker", default="botsort.yaml")
     ap.add_argument("--imgsz", type=int, default=640)
-    ap.add_argument("--conf-person", type=float, default=None, help="person cutoff (default: this model's F1-max, 0.24)")
-    ap.add_argument("--conf-vehicle", type=float, default=None, help="vehicle cutoff (default: this model's F1-max, 0.28)")
+    ap.add_argument("--conf-person", type=float, default=None,
+                    help="person cutoff (default: this model's F1-max from results/followme_cutoffs_balanced.json)")
+    ap.add_argument("--conf-vehicle", type=float, default=None,
+                    help="vehicle cutoff (default: this model's F1-max from results/followme_cutoffs_balanced.json)")
     ap.add_argument("--max-speed", type=float, default=20.0, help="cap on FOLLOW yaw and forward/back, %% of max")
     ap.add_argument("--follow-dist", type=float, default=replay.FOLLOW_DIST_M, help="metres to keep from the target")
     ap.add_argument("--min-battery", type=float, default=25.0)
@@ -304,6 +389,8 @@ def main():
     ap.add_argument("--no-overlay-video", action="store_true",
                     help="don't also record the on-screen view (boxes + labels exactly as shown live) to overlay_*.mp4")
     ap.add_argument("--no-profile", action="store_true", help="don't push drone_profile.json to the drone on connect")
+    ap.add_argument("--off-decisions", action="store_true",
+                    help="fly even though settings differ from flight_decisions.json (on purpose; logged in drone.json)")
     args = ap.parse_args()
     if not args.fake_detector and not Path(args.model).exists():   # no silent fallback to the .pt (Michael 11-22)
         sys.exit(f"STOP: detector not found: {args.model}\n"
@@ -324,13 +411,28 @@ def main():
     link = (lookhere.TargetLink(args.share_file or None, args.mqtt or None, drone=args.name,
                                 listen_to=args.listen or ("droneA" if args.name != "droneA" else "droneB"))
             if (args.share_file or args.mqtt) else None)
+    profile_note = "not applied (--no-profile)" if args.no_profile else "not applied (fake drone)"
     if not args.no_profile and "apply_profile" in d:
         try:
-            print("settings:", d["apply_profile"]())          # same max tilt / rotation / climb on both drones (11-22)
+            profile_note = d["apply_profile"]()                # same max tilt / rotation / climb on both drones (11-22)
+            print("settings:", profile_note)
         except Exception as e:                                 # no silent fallback (Michael 11-22)
             sys.exit(f"STOP: could not apply drone_profile.json ({e}). Fix it, or pass --no-profile on purpose.")
     embedder, reid_note = lockon.make_embedder(args.reid)
     print(reid_note)
+    # ---- pre-flight self-check: what is about to run vs. what was decided (replaces reading the printout) ----
+    modes = {f for f, on in (("--fake", args.fake), ("--fake-detector", args.fake_detector)) if on}
+    actual = dict(detector_model=_rel(args.model, HERE), detector_int8=Path(args.model).name.endswith(INT8_SUFFIX),
+                  detection_cutoffs=(_rel(CUTOFFS_FILE) if args.conf_person is None and args.conf_vehicle is None
+                                     else f"command line: person {cut_p}, vehicle {cut_v}"),
+                  reid=args.reid, match_sim=args.match_sim,
+                  drone_profile_applied="apply_profile" in d and not args.no_profile and profile_ok(profile_note),
+                  click_to_lock=not args.auto_lock, search_deg=args.search_deg, search_both_ways=not args.search_one_way)
+    try:
+        preflight = enforce_decisions(check_decisions(actual, load_decisions(), modes), args.off_decisions)
+    except SystemExit:
+        d["close"]()                                           # still on the ground: disconnect cleanly, then stop
+        raise
     det = Detector(args.model, args.tracker, args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
     person_ids = {k for k, v in det.names.items() if str(v).lower() in replay.PERSON_NAMES}
     logic = FollowLogic(person_ids, args.max_speed, search_s=args.search_s, search_yaw=args.search_yaw, search_deg=args.search_deg, search_both=not args.search_one_way,
@@ -345,8 +447,10 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     log_f = open(out / "follow.csv", "w", newline=""); log_w = None
     box_f = open(out / "boxes.jsonl", "w")    # every box the program saw, per frame: replays show exactly what it saw (11-22)
-    (out / "drone.json").write_text(__import__("json").dumps(dict(ident, name=args.name, ip=args.ip, model=str(args.model),
-                                                                         conf_person=cut_p, conf_vehicle=cut_v), indent=1))
+    (out / "drone.json").write_text(json.dumps(dict(ident, name=args.name, ip=args.ip, model=str(args.model),
+                                                    conf_person=cut_p, conf_vehicle=cut_v, conf_source=cut_src,
+                                                    reid=reid_note, profile=profile_note, running=actual,
+                                                    preflight=preflight), indent=1))
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
     mode, speed, gimbal_pitch, flying = "MANUAL", 20, 0.0, False

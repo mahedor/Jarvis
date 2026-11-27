@@ -1,0 +1,155 @@
+{
+ "yolov8n": {
+  "label": "stock",
+  "person": 0.14,
+  "person_mean_f1": 0.339,
+  "person_f1_per_set": {
+   "visdrone_val": 0.1984,
+   "mavrec_val": 0.1475,
+   "coco_holdout": 0.6713
+  },
+  "vehicle": 0.14,
+  "vehicle_mean_f1": 0.3357,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.3149,
+   "mavrec_val": 0.0995,
+   "coco_holdout": 0.5925
+  }
+ },
+ "vd_gray_s42": {
+  "label": "visdrone",
+  "person": 0.18,
+  "person_mean_f1": 0.2513,
+  "person_f1_per_set": {
+   "visdrone_val": 0.4374,
+   "mavrec_val": 0.2145,
+   "coco_holdout": 0.1021
+  },
+  "vehicle": 0.26,
+  "vehicle_mean_f1": 0.3525,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.5808,
+   "mavrec_val": 0.3523,
+   "coco_holdout": 0.1245
+  }
+ },
+ "vd_coco_m_s42": {
+  "label": "vd+cocoM",
+  "person": 0.22,
+  "person_mean_f1": 0.431,
+  "person_f1_per_set": {
+   "visdrone_val": 0.4446,
+   "mavrec_val": 0.2089,
+   "coco_holdout": 0.6396
+  },
+  "vehicle": 0.25,
+  "vehicle_mean_f1": 0.4803,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.5849,
+   "mavrec_val": 0.3319,
+   "coco_holdout": 0.524
+  }
+ },
+ "vd_coco_l_s42": {
+  "label": "vd+cocoL",
+  "person": 0.21,
+  "person_mean_f1": 0.4385,
+  "person_f1_per_set": {
+   "visdrone_val": 0.4398,
+   "mavrec_val": 0.2192,
+   "coco_holdout": 0.6565
+  },
+  "vehicle": 0.23,
+  "vehicle_mean_f1": 0.4617,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.5767,
+   "mavrec_val": 0.2674,
+   "coco_holdout": 0.5411
+  }
+ },
+ "mav_cm_s42": {
+  "label": "mavrec+cocoM",
+  "person": 0.25,
+  "person_mean_f1": 0.4635,
+  "person_f1_per_set": {
+   "visdrone_val": 0.1245,
+   "mavrec_val": 0.6098,
+   "coco_holdout": 0.6562
+  },
+  "vehicle": 0.3,
+  "vehicle_mean_f1": 0.515,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.2747,
+   "mavrec_val": 0.7877,
+   "coco_holdout": 0.4825
+  }
+ },
+ "vd_mav_cm_s42": {
+  "label": "vd+mav+cocoM",
+  "person": 0.27,
+  "person_mean_f1": 0.5505,
+  "person_f1_per_set": {
+   "visdrone_val": 0.443,
+   "mavrec_val": 0.5706,
+   "coco_holdout": 0.638
+  },
+  "vehicle": 0.31,
+  "vehicle_mean_f1": 0.616,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.5847,
+   "mavrec_val": 0.7566,
+   "coco_holdout": 0.5068
+  }
+ },
+ "vd_mav_cl_s42": {
+  "label": "vd+mav+cocoL",
+  "person": 0.24,
+  "person_mean_f1": 0.5492,
+  "person_f1_per_set": {
+   "visdrone_val": 0.4415,
+   "mavrec_val": 0.5482,
+   "coco_holdout": 0.6581
+  },
+  "vehicle": 0.28,
+  "vehicle_mean_f1": 0.6133,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.5774,
+   "mavrec_val": 0.7445,
+   "coco_holdout": 0.5178
+  }
+ },
+ "vd_mav_gnd_cm_s42": {
+  "label": "vd+mav+ground",
+  "person": 0.25,
+  "person_mean_f1": 0.5449,
+  "person_f1_per_set": {
+   "visdrone_val": 0.4362,
+   "mavrec_val": 0.5761,
+   "coco_holdout": 0.6223
+  },
+  "vehicle": 0.28,
+  "vehicle_mean_f1": 0.6079,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.578,
+   "mavrec_val": 0.7475,
+   "coco_holdout": 0.4982
+  }
+ },
+ "yolo26n": {
+  "label": "yolo26n",
+  "person": 0.21,
+  "person_mean_f1": 0.5697,
+  "person_f1_per_set": {
+   "visdrone_val": 0.4446,
+   "mavrec_val": 0.5898,
+   "coco_holdout": 0.6747
+  },
+  "vehicle": 0.26,
+  "vehicle_mean_f1": 0.6271,
+  "vehicle_f1_per_set": {
+   "visdrone_val": 0.5665,
+   "mavrec_val": 0.7687,
+   "coco_holdout": 0.5459
+  }
+ }
+}

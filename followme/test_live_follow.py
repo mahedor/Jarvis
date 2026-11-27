@@ -249,3 +249,65 @@ def test_cutoffs_from_f1_sweep():
         lf.resolve_cutoffs("other.pt")
     assert lf.keep_box("person", 0.245, 0.24, 0.28) and not lf.keep_box("car", 0.245, 0.24, 0.28)
     assert lf.keep_box("car", 0.29, 0.24, 0.28)
+
+
+# ---- pre-flight self-check against flight_decisions.json (11-26) ----
+
+def _latest_drone_json():
+    import json
+    return json.loads((sorted((HERE / "_test_follow_out").iterdir())[-1] / "drone.json").read_text())
+
+
+def test_code_defaults_are_the_decided_settings():
+    """A default changed in code without a new decision fails here, before it can fail at the airfield."""
+    import lockon
+    dec = {k: v["value"] for k, v in lf.load_decisions().items()}
+    assert dec["detector_model"] == lf._rel(lf.INT8_MODEL, HERE)
+    assert dec["detector_int8"] is True and lf.INT8_MODEL.name.endswith(lf.INT8_SUFFIX)
+    assert dec["detection_cutoffs"] == lf._rel(lf.CUTOFFS_FILE)
+    assert dec["match_sim"] == lockon.MATCH_SIM
+    assert dec["search_deg"] == lf.SEARCH_DEG and dec["search_both_ways"] == lf.SEARCH_BOTH
+    for d in lf.load_decisions().values():
+        assert d["source"] and d["date"] and set(d["skip_with"]) <= {"--fake", "--fake-detector"}
+
+
+def test_check_decisions_finds_every_kind_of_deviation():
+    dec = lf.load_decisions()
+    ok = {k: v["value"] for k, v in dec.items()}
+    assert lf.check_decisions(ok, dec, set())["passed"]
+    bad = dict(ok, detector_model="weights/vd_mav_cl_s42.pt", detector_int8=False)
+    del bad["reid"]                                                   # no reading = deviation, never a silent pass
+    r = lf.check_decisions(bad, dec, set())
+    assert not r["passed"] and {x["name"] for x in r["deviations"]} == {"detector_model", "detector_int8", "reid"}
+    r = lf.check_decisions(bad, dec, {"--fake-detector"})             # only the detector checks are skipped
+    assert {x["name"] for x in r["deviations"]} == {"reid"}
+    assert {s["name"] for s in r["skipped"]} == {"detector_model", "detector_int8"}
+    assert lf.profile_ok("drone settings match drone_profile.json") and lf.profile_ok("applied drone_profile.json (2 changed)")
+    assert not lf.profile_ok("applied drone_profile.json (2 changed); FAILED: {'x': 'failed: y'}")
+    assert not lf.profile_ok("no drone_profile.json yet (run drone_settings.py --save on drone A)")
+
+
+def test_preflight_pass_is_logged():
+    out, rows = run_fake("q@1", 2)
+    assert "pre-flight check: PASS" in out
+    pf = _latest_drone_json()["preflight"]
+    assert pf["passed"] and not pf["deviations"] and not pf["off_decisions"]
+    assert {"reid", "match_sim", "detection_cutoffs", "search_deg"} <= set(pf["checked"])
+    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "drone_profile_applied", "click_to_lock"}
+
+
+def test_preflight_mismatch_stops():
+    cmd = [sys.executable, str(HERE / "live_follow.py"), "--fake", "--fake-detector", "--headless", "--seconds", "2",
+           "--out", str(HERE / "_test_follow_out"), "--match-sim", "0.8", "--conf-person", "0.3", "--conf-vehicle", "0.3"]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=HERE)
+    assert p.returncode != 0 and "STOP: not flying what was decided" in p.stderr
+    assert "match_sim: decided 0.7, about to run 0.8" in p.stderr and "detection_cutoffs" in p.stderr
+    assert "Logging to" not in p.stdout                               # stopped before any flight folder or loop
+
+
+def test_preflight_override_is_logged():
+    out, rows = run_fake("q@1", 2, ("--match-sim", "0.8", "--off-decisions"))
+    assert "DELIBERATE DEVIATIONS" in out
+    pf = _latest_drone_json()["preflight"]
+    assert not pf["passed"] and pf["off_decisions"]
+    assert [(x["name"], x["decided"], x["actual"]) for x in pf["deviations"]] == [("match_sim", 0.7, 0.8)]

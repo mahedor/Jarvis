@@ -22,7 +22,8 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `flight_index.py` | One table of every flight in `~/follow_logs` (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv` |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `test_*.py` | 64 tests: logic on made-up inputs + one full run against the fake drone |
+| `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` checks against it at startup and stops on any difference |
+| `test_*.py` | 100 tests: logic on made-up inputs, full runs against the fake drone, and the cutoffs recomputed from the sweep's curves (`test_cutoffs_evidence.py`) |
 
 ## Folders
 
@@ -51,7 +52,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py   # expect 64 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py   # expect 100 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 ```
@@ -93,6 +94,23 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
 (heading unverified on the ANAFI 4K); the ground is assumed flat.
 
 ## Change log
+
+- **2026-11-26: cutoffs read from the evidence; automatic pre-flight check instead of reading the printout.**
+  - The sweep's own output now lives in the repo, byte-exact from Drive: `results/followme_cutoffs_balanced.json`
+    (one person + one vehicle cutoff per model) and `results/followme_thresholds_balanced.json` (every model's F1 curve
+    on each of the three sets). `live_follow.py` reads the cutoffs from the first file; the hardcoded `MODEL_CUTOFFS`
+    is gone. Missing file, or a model not in it → **stops**, unless `--conf-person` and `--conf-vehicle` are both given.
+    Model names must match an entry exactly (`<key>`, `<key>.pt` or `<key>_int8_openvino_model`), no prefix guessing.
+    `test_cutoffs_evidence.py` recomputes the argmax of the equal-weight mean F1 from the curves for all 9 models ×
+    2 classes and fails if it no longer equals the cutoffs file. The INT8 model uses its `.pt` entry (Oct 29 note: INT8
+    kept the same best cutoffs); that INT8 sweep itself is not in the repo.
+  - `flight_decisions.json` lists the decided settings: INT8 detector, cutoffs from the results file, OSNet re-ID,
+    match_sim 0.70, drone profile applied, click-to-lock, 360° search both ways. At startup the program compares what
+    is about to run with it and **stops** on any difference; `--off-decisions` flies the deviations on purpose. Either
+    way the result (pass, or the deviations) is saved in `drone.json` as `preflight`, next to `running`.
+    `--fake-detector` skips the two detector checks, `--fake` skips drone profile and click-to-lock. A profile push that
+    reports a FAILED setting now counts as not applied (it used to print and fly on). `--no-profile`, a `.pt`
+    `--model` or hand-set cutoffs now also need `--off-decisions`.
 
 - **2026-11-26 (Michael): fly at the F1-max cutoffs, per class.** The program used one cutoff, 0.25, for every
   class: Ultralytics' default, never chosen for this model. The F1-max sweep (`thresholds_balanced.py`, Oct 28-29:
