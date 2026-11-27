@@ -3,6 +3,7 @@ automatically from each run folder; nothing guessed ("not logged"), typed notes 
 and live_follow.py updates it at the end of every run without ever breaking the shutdown path."""
 import csv
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -424,3 +425,112 @@ def test_precision_column_on_a_run_live_follow_wrote(tmp_path):
     (row,) = by_folder(tmp_path).values()
     assert row["precision"] == "fake detector (tracks the fake video's ball), no model"
     assert row["tracker"].startswith("BoT-SORT tuned (botsort_tuned.yaml): high 0.4 / new 0.4")
+
+
+# ---- 11-27: annotations (flight_log_annotations.json): what the program did not record, each with its source ----
+
+def write_notes(path, runs):
+    path.write_text(json.dumps({"_about": "test", "runs": runs}))
+    return path
+
+
+INFO_1122 = dict(name="droneA", drone_serial="PI040416BA8J102372", drone_firmware="1.8.2", ip="192.168.53.1")
+
+
+def test_annotation_drone_override_shows_reason_and_program_value(tmp_path):
+    root = tmp_path / "logs"
+    make_run(root, "20261122_153153_droneA", INFO_1122, flight_rows())
+    notes = write_notes(tmp_path / "a.json", {"20261122_153153_droneA": {"drone": {
+        "value": "droneB", "reason": "corrected 11-27: serial/firmware are drone B's; folder name says droneA"}}})
+    fl.update(root, quiet=True, annotations=notes)
+    r = by_folder(root)["20261122_153153_droneA"]
+    assert r["drone"] == ("droneB (corrected 11-27: serial/firmware are drone B's; folder name says droneA; "
+                          "program logged: droneA)")
+    assert r["serial"] == "PI040416BA8J102372" and r["firmware"] == "1.8.2"          # program values untouched
+    assert r["history"] == ""
+    assert "droneB (corrected 11-27" in (root / fl.MD_NAME).read_text()
+
+
+def test_annotation_history_fills_only_empty_columns_and_is_marked(tmp_path):
+    root = tmp_path / "logs"
+    make_run(root, "20261029_150554", None, flight_rows(), cols=["frame", "t_s", "video_file", "mode", "state"])
+    make_run(root, "20261127_101500_droneA", NEW_INFO, flight_rows())
+    notes = write_notes(tmp_path / "a.json", {
+        "20261029_150554": {"history": {"run": "real flight (seq 1)", "model": "vd_int8 (seq 2)",
+                                        "cutoffs": "0.24\n  every class (seq 3)"}},
+        "20261127_101500_droneA": {"history": {"model": "something else (seq 4)", "followed": "Michael (seq 5)"}}})
+    fl.update(root, quiet=True, annotations=notes)
+    rows = by_folder(root)
+    old, new = rows["20261029_150554"], rows["20261127_101500_droneA"]
+    assert old["model"] == f"{NL}; from chat history: vd_int8 (seq 2)"
+    assert old["cutoffs"] == f"{NL}; from chat history: 0.24 every class (seq 3)"          # whitespace folded
+    assert old["tracker"] == NL                                                          # no note: stays not logged
+    assert old["history"] == "from chat history: run: real flight (seq 1)"
+    assert new["model"] == "vd_mav_cl_s42_int8_openvino_model (INT8)"                   # never overwrites the program
+    assert new["history"] == ("from chat history: model: something else (seq 4) (column shows: "
+                              "vd_mav_cl_s42_int8_openvino_model (INT8)) | followed: Michael (seq 5)")
+    md = (root / fl.MD_NAME).read_text()
+    assert "history" in fl.MD_COLUMNS and "| from chat history: run: real flight (seq 1) |" in md
+    assert "from chat history" in md.split("| date/time")[0]                             # the header explains it
+
+
+def test_annotation_unknown_keys_and_bad_entries_warn_and_are_ignored(tmp_path, capsys):
+    root = tmp_path / "logs"
+    make_run(root, "20261122_153153_droneA", INFO_1122, flight_rows())
+    notes = write_notes(tmp_path / "a.json", {
+        "20261122_153153_droneA": {"drone": {"value": "droneB"}, "colour": "red", "history": {"run": "x (seq 1)"}},
+        "20261122_999999_droneZ": {"history": {"run": "typo"}}})
+    n, _ = fl.update(root, quiet=True, annotations=notes)
+    out = capsys.readouterr().out
+    assert n == 1                                                      # the unknown key adds no row
+    assert "1 annotation(s) match no run folder" in out and "20261122_999999_droneZ" in out
+    assert "drone override needs a value and a reason; ignored" in out and "unknown key 'colour' ignored" in out
+    r = by_folder(root)["20261122_153153_droneA"]
+    assert r["drone"] == "droneA" and r["history"] == "from chat history: run: x (seq 1)"
+
+
+def test_annotation_file_missing_or_broken_never_stops_the_log(tmp_path, capsys):
+    root = tmp_path / "logs"
+    make_run(root, "20261127_101500_droneA", NEW_INFO, flight_rows())
+    assert fl.update(root, quiet=True, annotations=tmp_path / "none.json")[0] == 1        # missing: silently none
+    assert capsys.readouterr().out == ""
+    (tmp_path / "bad.json").write_text("{not json")
+    assert fl.update(root, quiet=True, annotations=tmp_path / "bad.json")[0] == 1
+    assert "bad.json unreadable" in capsys.readouterr().out
+
+
+def test_annotation_edits_apply_to_cached_rows(tmp_path, monkeypatch):
+    root = tmp_path / "logs"
+    make_run(root, "20261029_150554", None, flight_rows())
+    notes = write_notes(tmp_path / "a.json", {"20261029_150554": {"history": {"run": "first (seq 1)"}}})
+    fl.update(root, quiet=True, annotations=notes)
+    calls = []
+    monkeypatch.setattr(fl, "summarize", lambda run: calls.append(run.name))
+    write_notes(notes, {"20261029_150554": {"history": {"run": "second (seq 2)"}}})
+    fl.update(root, quiet=True, annotations=notes)
+    assert calls == []                                                 # row from the cache, annotation re-applied
+    assert by_folder(root)["20261029_150554"]["history"] == "from chat history: run: second (seq 2)"
+
+
+# the 31 run folders in Michael's flight log on 11-27 (flight_log.csv copied to Downloads)
+RUNS_1127 = """20261029_114052 20261029_114446 20261029_124431 20261029_124520 20261029_124550 20261029_124645
+20261029_150133 20261029_150554 20261029_175107 20261029_175911 20261029_180444 20261029_181145 20261029_182029
+20261029_185001 20261029_194547 20261029_194605 20261113_122844 20261115_161845 20261115_162112 20261122_135125
+20261122_140019 20261122_140502 20261122_141434 20261122_142035 20261122_142524 20261122_142748
+20261122_151520_droneA 20261122_151758_droneA 20261122_153153_droneA 20261122_162719_droneA
+20261122_162740_droneB""".split()
+
+
+def test_committed_annotations_cite_their_source():
+    runs, warns = fl.load_annotations()
+    assert warns == [] and fl.ANNOTATIONS.name == "flight_log_annotations.json"
+    assert set(runs) <= set(RUNS_1127)                                 # no typo'd folder names
+    for name, entry in runs.items():
+        assert set(entry) <= {"drone", "history"}, name
+        for field, note in entry.get("history", {}).items():
+            assert "seq " in note or re.search(r"\b[0-9a-f]{7}\b", note), (name, field)  # a chat message or a commit
+        if "drone" in entry:
+            assert entry["drone"]["reason"].startswith("corrected 11-27"), name
+    # the one serial-proven correction (Michael 11-27): drone B's serial and firmware in a folder named droneA
+    fix = runs["20261122_153153_droneA"]["drone"]
+    assert fix["value"] == "droneB" and "PI040416BA8J102372" in fix["reason"] and "1.8.2" in fix["reason"]

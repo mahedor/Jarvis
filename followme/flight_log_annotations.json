@@ -1,0 +1,312 @@
+{
+  "_about": "Michael 11-27. What the program did NOT record about a run, each note with where it came from; flight_log.py merges this into flight_log.csv / .md on every regenerate (see followme/README.md, Flight log). 'from chat history' = the chat transcript; times are Michael's local time (PDT on 10-29, PST from 11-01); 'seq' = the message number in that transcript; commit ids are this repo's. A field the chat does not clearly cover for a run is left out, so the column stays 'not logged'. Keys: run folder -> {drone: {value, reason}} (a correction) and/or {history: {field: note}}.",
+  "runs": {
+    "20261029_114052": {
+      "history": {
+        "run": "fake-drone test, not a flight: Michael pasted `python live_follow.py --fake --model ~/live_models/vd_mav_cl_s42.pt --conf 0.24 --seconds 15` and its 'Logging to .../20261029_114052' line (chat 10-29 11:41 PDT, seq 16340); Claude labelled it 'FP32 + BoT-SORT' (seq 16525)",
+        "drone": "none (--fake: simulated drone, seq 16340)",
+        "model": "vd_mav_cl_s42.pt (not INT8; Michael's pasted command, 10-29 11:41 PDT, seq 16340)",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (this run: seq 16340)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: no --tracker in the command; Claude 10-29 12:27 PDT, seq 16488: BoT-SORT 'is the default')",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_114446": {
+      "history": {
+        "run": "fake-drone test, not a flight: Michael pasted `python live_follow.py --fake --model ~/live_models/vd_mav_cl_s42.pt --conf 0.24 --seconds 15 --tracker bytetrack.yaml` and its 'Logging to .../20261029_114446' line (chat 10-29 11:45 PDT, seq 16375)",
+        "drone": "none (--fake: simulated drone, seq 16375)",
+        "model": "vd_mav_cl_s42.pt (not INT8; Michael's pasted command, 10-29 11:45 PDT, seq 16375)",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (this run: seq 16375)",
+        "tracker": "ByteTrack, bytetrack.yaml (--tracker bytetrack.yaml in Michael's pasted command, seq 16375)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_124431": {
+      "history": {
+        "run": "fake-drone test, not a flight: Claude's instructions (10-29 12:27 PDT, seq 16488) were two 15 s `--fake` runs, one with --tracker bytetrack.yaml and one without; Claude then called these four folders 'your four INT8 fake runs' and labelled this one 'INT8 + ByteTrack (1)' by run order (12:48 PDT, seq 16525); Michael's own command lines were not pasted. This run's own log fits: battery fixed at 99% (record.FakeDrone's value), never airborne",
+        "drone": "none (--fake, seq 16488 / 16525)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8), per Claude's commands (seq 16488) and its labels for these folders (seq 16525); Michael's command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (both commands Claude gave for these runs, 12:27 PDT, seq 16488)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_124520": {
+      "history": {
+        "run": "fake-drone test, not a flight: Claude's instructions (10-29 12:27 PDT, seq 16488) were two 15 s `--fake` runs, one with --tracker bytetrack.yaml and one without; Claude then called these four folders 'your four INT8 fake runs' and labelled this one 'INT8 + ByteTrack (2)' by run order (12:48 PDT, seq 16525); Michael's own command lines were not pasted. This run's own log fits: battery fixed at 99% (record.FakeDrone's value), never airborne",
+        "drone": "none (--fake, seq 16488 / 16525)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8), per Claude's commands (seq 16488) and its labels for these folders (seq 16525); Michael's command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (both commands Claude gave for these runs, 12:27 PDT, seq 16488)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_124550": {
+      "history": {
+        "run": "fake-drone test, not a flight: Claude's instructions (10-29 12:27 PDT, seq 16488) were two 15 s `--fake` runs, one with --tracker bytetrack.yaml and one without; Claude then called these four folders 'your four INT8 fake runs' and labelled this one 'INT8 + BoT-SORT (1)' by run order (12:48 PDT, seq 16525); Michael's own command lines were not pasted. This run's own log fits: battery fixed at 99% (record.FakeDrone's value), never airborne",
+        "drone": "none (--fake, seq 16488 / 16525)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8), per Claude's commands (seq 16488) and its labels for these folders (seq 16525); Michael's command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (both commands Claude gave for these runs, 12:27 PDT, seq 16488)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_124645": {
+      "history": {
+        "run": "fake-drone test, not a flight: Claude's instructions (10-29 12:27 PDT, seq 16488) were two 15 s `--fake` runs, one with --tracker bytetrack.yaml and one without; Claude then called these four folders 'your four INT8 fake runs' and labelled this one 'INT8 + BoT-SORT (2)' by run order (12:48 PDT, seq 16525); Michael's own command lines were not pasted. This run's own log fits: battery fixed at 99% (record.FakeDrone's value), never airborne",
+        "drone": "none (--fake, seq 16488 / 16525)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8), per Claude's commands (seq 16488) and its labels for these folders (seq 16525); Michael's command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (both commands Claude gave for these runs, 12:27 PDT, seq 16488)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_150133": {
+      "history": {
+        "run": "fake-drone test, not a flight: Claude gave `python live_follow.py --fake --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24 --seconds 15` (10-29 14:31 PDT, seq 16699); Michael pasted its timing breakdown for this folder (15:24 PDT, seq 16762) and said 'what I just sent you wasn't the run from the actual flight' (15:29 PDT, seq 16803)",
+        "drone": "none (--fake, seq 16699 / 16803)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8), the command Claude gave for this test (seq 16699); Michael's command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (this run: seq 16699)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: no --tracker in the command; Claude 10-29 12:27 PDT, seq 16488: BoT-SORT 'is the default')",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_150554": {
+      "history": {
+        "run": "real flight, the first with live_follow.py, flown in MANUAL the whole time (its follow.csv has no FOLLOW rows). Michael 10-29 15:24 PDT (seq 16762): 'Also I ran the demo... Even when I dropped it to ground height it still identified me'",
+        "drone": "droneA (ANAFI-G134762): drone B had not flown yet (Michael 11-15 15:49 PST, seq 24285: 'when I run the other drone by itself I'm gonna test it'; Claude's 11-22 flight-log doc, seq 27217: drone B 'first flown 11-22')",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8): Claude 10-29 15:36 PDT (seq 16845): 'The first line of what you sent shows the model was vd_mav_cl_s42_int8_openvino_model' (Michael's pasted output itself is not in the transcript)",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (flight command Claude gave 10-29 14:31 PDT, seq 16699: `python live_follow.py --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24`)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: no --tracker in the command, seq 16699; Claude 15:31 PDT, seq 16835: 'INT8 + BoT-SORT')",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_175107": {
+      "history": {
+        "run": "real flight, evening session (it began after Michael 17:40 PDT, seq 16935: 'my roommate wants to see it fly')",
+        "drone": "droneA (ANAFI-G134762): Michael's pasted connection attempts at 17:44 / 17:47 PDT name olympe.drone.ANAFI-G134762 (seq 16946 / 16965)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8): every live_follow command in the chat that evening was `python live_follow.py --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24` (Michael's pastes 10-29 17:44 / 17:47 PDT, seq 16946 / 16965; Claude's 17:49-18:18 PDT, seq 16984-17097); this run's own command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (the same commands, seq 16946-17097)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: those commands passed no --tracker, seq 16946-17097)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_175911": {
+      "history": {
+        "run": "real flight, evening session (it began after Michael 17:40 PDT, seq 16935: 'my roommate wants to see it fly')",
+        "drone": "droneA (ANAFI-G134762): Michael's pasted connection attempts at 17:44 / 17:47 PDT name olympe.drone.ANAFI-G134762 (seq 16946 / 16965)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8): every live_follow command in the chat that evening was `python live_follow.py --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24` (Michael's pastes 10-29 17:44 / 17:47 PDT, seq 16946 / 16965; Claude's 17:49-18:18 PDT, seq 16984-17097); this run's own command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (the same commands, seq 16946-17097)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: those commands passed no --tracker, seq 16946-17097)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_180444": {
+      "history": {
+        "run": "real flight, evening session (it began after Michael 17:40 PDT, seq 16935: 'my roommate wants to see it fly')",
+        "drone": "droneA (ANAFI-G134762): Michael's pasted connection attempts at 17:44 / 17:47 PDT name olympe.drone.ANAFI-G134762 (seq 16946 / 16965)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8): every live_follow command in the chat that evening was `python live_follow.py --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24` (Michael's pastes 10-29 17:44 / 17:47 PDT, seq 16946 / 16965; Claude's 17:49-18:18 PDT, seq 16984-17097); this run's own command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (the same commands, seq 16946-17097)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: those commands passed no --tracker, seq 16946-17097)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')",
+        "code edits": "Claude gave sed edits to live_follow.py / replay.py between 18:02 and 18:33 PDT (follow yaw no longer capped by --max-speed, higher follow gains, manual gears 35/60/90; seq 17044-17185); which were applied before this run is not recorded"
+      }
+    },
+    "20261029_181145": {
+      "history": {
+        "run": "real flight, evening session (it began after Michael 17:40 PDT, seq 16935: 'my roommate wants to see it fly')",
+        "drone": "droneA (ANAFI-G134762): Michael's pasted connection attempts at 17:44 / 17:47 PDT name olympe.drone.ANAFI-G134762 (seq 16946 / 16965)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8): every live_follow command in the chat that evening was `python live_follow.py --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24` (Michael's pastes 10-29 17:44 / 17:47 PDT, seq 16946 / 16965; Claude's 17:49-18:18 PDT, seq 16984-17097); this run's own command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (the same commands, seq 16946-17097)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: those commands passed no --tracker, seq 16946-17097)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')",
+        "code edits": "Claude gave sed edits to live_follow.py / replay.py between 18:02 and 18:33 PDT (follow yaw no longer capped by --max-speed, higher follow gains, manual gears 35/60/90; seq 17044-17185); which were applied before this run is not recorded"
+      }
+    },
+    "20261029_182029": {
+      "history": {
+        "run": "real flight, evening session (it began after Michael 17:40 PDT, seq 16935: 'my roommate wants to see it fly')",
+        "drone": "droneA (ANAFI-G134762): Michael's pasted connection attempts at 17:44 / 17:47 PDT name olympe.drone.ANAFI-G134762 (seq 16946 / 16965)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8): every live_follow command in the chat that evening was `python live_follow.py --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24` (Michael's pastes 10-29 17:44 / 17:47 PDT, seq 16946 / 16965; Claude's 17:49-18:18 PDT, seq 16984-17097); this run's own command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (the same commands, seq 16946-17097)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: those commands passed no --tracker, seq 16946-17097)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')",
+        "code edits": "Claude gave sed edits to live_follow.py / replay.py between 18:02 and 18:33 PDT (follow yaw no longer capped by --max-speed, higher follow gains, manual gears 35/60/90; seq 17044-17185); which were applied before this run is not recorded"
+      }
+    },
+    "20261029_185001": {
+      "history": {
+        "run": "real flight, evening session (it began after Michael 17:40 PDT, seq 16935: 'my roommate wants to see it fly')",
+        "drone": "droneA (ANAFI-G134762): Michael's pasted connection attempts at 17:44 / 17:47 PDT name olympe.drone.ANAFI-G134762 (seq 16946 / 16965)",
+        "model": "vd_mav_cl_s42_int8_openvino_model (INT8): every live_follow command in the chat that evening was `python live_follow.py --model ~/live_models/vd_mav_cl_s42_int8_openvino_model --conf 0.24` (Michael's pastes 10-29 17:44 / 17:47 PDT, seq 16946 / 16965; Claude's 17:49-18:18 PDT, seq 16984-17097); this run's own command line was not pasted",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (the same commands, seq 16946-17097)",
+        "tracker": "BoT-SORT, botsort.yaml (the default: those commands passed no --tracker, seq 16946-17097)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')",
+        "code edits": "Claude gave sed edits to live_follow.py / replay.py between 18:02 and 18:33 PDT (follow yaw no longer capped by --max-speed, higher follow gains, manual gears 35/60/90; seq 17044-17185); which were applied before this run is not recorded"
+      }
+    },
+    "20261029_194547": {
+      "history": {
+        "run": "fake-drone test, not a flight: Michael pasted `python live_follow.py --fake --model ~/live_models/yolo26n_vd_mav_cl_s42.pt --conf 0.24 --seconds 15 --tracker bytetrack.yaml` and 'Logging to .../20261029_194547' / 'Saved 289 frames' (chat 10-29 19:47 PDT, seq 17397)",
+        "drone": "none (--fake, seq 17397)",
+        "model": "yolo26n_vd_mav_cl_s42.pt (YOLO26n, not INT8; Michael's pasted command, seq 17397)",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (this run: seq 17397)",
+        "tracker": "ByteTrack, bytetrack.yaml (in the pasted command, seq 17397)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261029_194605": {
+      "history": {
+        "run": "fake-drone test, not a flight: Michael pasted `python live_follow.py --fake --model ~/live_models/vd_mav_cl_s42.pt --conf 0.24 --seconds 15 --tracker bytetrack.yaml` and 'Logging to .../20261029_194605' / 'Saved 300 frames' (chat 10-29 19:47 PDT, seq 17397)",
+        "drone": "none (--fake, seq 17397)",
+        "model": "vd_mav_cl_s42.pt (not INT8; Michael's pasted command, seq 17397)",
+        "cutoffs": "0.24 for every class: one --conf 0.24 flag (every live_follow command in the 10-29 chat passed --conf 0.24, one value for people and vehicles alike) (this run: seq 17397)",
+        "tracker": "ByteTrack, bytetrack.yaml (in the pasted command, seq 17397)",
+        "re-ID": "none: re-ID lock-on (lockon.py) was first built 11-10, after this run (Claude 11-10 23:28 PST, seq 22626: 'Lock-on is built')"
+      }
+    },
+    "20261113_122844": {
+      "history": {
+        "run": "at 11-13 12:20 PST, 8 minutes before this run, Claude asked for the fake-drone check `python live_follow.py --fake --fake-detector --headless --seconds 10` (seq 22956); Michael's command line and output were not pasted. This run's own log fits it (10 s long, battery fixed at 99% = record.FakeDrone's value, never airborne)"
+      }
+    },
+    "20261115_161845": {
+      "history": {
+        "drone": "droneA (ANAFI-G134762): drone B had not flown yet (Michael 11-15 15:49 PST, seq 24285: 'when I run the other drone by itself I'm gonna test it on THIS laptop'; Claude's 11-22 flight-log doc, seq 27217: drone B 'first flown 11-22')",
+        "model": "vd_mav_cl_s42.pt (not INT8): the flight command Claude gave (11-15 13:12 and 16:15 PST, seq 24176 / 24333: `python live_follow.py --model vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): the .pt was flown from the 11-15 flight on; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (ce5675a, the code 'as flown on 2026-11-15')",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; ce5675a)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command; with --reid osnet a failed OSNet load stops the program (it did at 16:13 PST, seq 24325 / 24328); MATCH_SIM 0.70 in ce5675a"
+      }
+    },
+    "20261115_162112": {
+      "history": {
+        "run": "first lock-on flight. Michael 16:22-16:23 PST (seq 24344 / 24367): 'It's not letting me take off' ... 'i had to press T'; a click locked onto a car (Claude 16:23-16:24 PST, seq 24356 / 24378). The code then on the laptop: M locked the biggest person and cleared the gallery; re-ID ran only in FOLLOW (Claude 16:33 / 16:36 PST, seq 24393 / 24434)",
+        "drone": "droneA (ANAFI-G134762): drone B had not flown yet (Michael 11-15 15:49 PST, seq 24285: 'when I run the other drone by itself I'm gonna test it on THIS laptop'; Claude's 11-22 flight-log doc, seq 27217: drone B 'first flown 11-22')",
+        "model": "vd_mav_cl_s42.pt (not INT8): the flight command Claude gave (11-15 13:12 and 16:15 PST, seq 24176 / 24333: `python live_follow.py --model vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): the .pt was flown from the 11-15 flight on; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (ce5675a, the code 'as flown on 2026-11-15')",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; ce5675a)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command; with --reid osnet a failed OSNet load stops the program (it did at 16:13 PST, seq 24325 / 24328); MATCH_SIM 0.70 in ce5675a"
+      }
+    },
+    "20261122_135125": {
+      "history": {
+        "run": "Michael 11-22 14:02 PST (seq 26768), just after this run: 'I THINK drone B's hover seems to be less stable than drone A'; which run was which drone is not recorded (Michael 14:49 PST, seq 26848: 'We can just fly things again')",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 12:50 and 13:44 PST, seq 26614 / 26741: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_140019": {
+      "history": {
+        "run": "Michael 11-22 14:02 PST (seq 26768), just after this run: 'I THINK drone B's hover seems to be less stable than drone A'; which run was which drone is not recorded (Michael 14:49 PST, seq 26848: 'We can just fly things again')",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 12:50 and 13:44 PST, seq 26614 / 26741: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_140502": {
+      "history": {
+        "run": "which drone flew is not recorded (before the 14:33 PST drone labels, cc9bbc3)",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 12:50 and 13:44 PST, seq 26614 / 26741: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_141434": {
+      "history": {
+        "run": "which drone flew is not recorded (before the 14:33 PST drone labels, cc9bbc3)",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 12:50 and 13:44 PST, seq 26614 / 26741: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_142035": {
+      "history": {
+        "run": "which drone flew is not recorded (before the 14:33 PST drone labels, cc9bbc3)",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 12:50 and 13:44 PST, seq 26614 / 26741: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_142524": {
+      "history": {
+        "run": "which drone flew is not recorded (before the 14:33 PST drone labels, cc9bbc3)",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 12:50 and 13:44 PST, seq 26614 / 26741: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_142748": {
+      "history": {
+        "run": "which drone flew is not recorded (before the 14:33 PST drone labels, cc9bbc3)",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 12:50 and 13:44 PST, seq 26614 / 26741: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_151520_droneA": {
+      "drone": {
+        "value": "droneB",
+        "reason": "corrected 11-27 from chat history: Michael 11-22 15:22 PST (seq 26892): 'drone B has flown on my home wifi' through its SkyController, so drone A (reached only on its own Wi-Fi) was not connected; the 15:15 and 15:17 runs are the only ones since the 15:04 controller-driver fix (seq 26882); 'droneA' is the program's fallback when it could not read the drone's name (cc9bbc3; fixed 553032f, 15:42)"
+      },
+      "history": {
+        "run": "drone B through its SkyController before the piloting fix. Michael 15:22 PST (seq 26892): 'not all of the keyboard controls are working ... I tried to have it follow me and it didn't seem to be working'. Claude's diagnosis (15:23 PST, seq 26900): the drone obeyed the controller's sticks, so W/A/S/D, R/F, Z/C and follow did nothing; FOLLOW time here does not mean the drone moved",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (drone B's command, 11-22 15:04 PST, seq 26882: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --share-file /tmp/jarvis_spot.json --ip 192.168.53.1 --listen droneA`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_151758_droneA": {
+      "drone": {
+        "value": "droneB",
+        "reason": "corrected 11-27 from chat history: Michael 11-22 15:22 PST (seq 26892): 'drone B has flown on my home wifi' through its SkyController, so drone A (reached only on its own Wi-Fi) was not connected; the 15:15 and 15:17 runs are the only ones since the 15:04 controller-driver fix (seq 26882); 'droneA' is the program's fallback when it could not read the drone's name (cc9bbc3; fixed 553032f, 15:42)"
+      },
+      "history": {
+        "run": "drone B through its SkyController before the piloting fix. Michael 15:22 PST (seq 26892): 'not all of the keyboard controls are working ... I tried to have it follow me and it didn't seem to be working'. Claude's diagnosis (15:23 PST, seq 26900): the drone obeyed the controller's sticks, so W/A/S/D, R/F, Z/C and follow did nothing; FOLLOW time here does not mean the drone moved",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (drone B's command, 11-22 15:04 PST, seq 26882: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --share-file /tmp/jarvis_spot.json --ip 192.168.53.1 --listen droneA`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_153153_droneA": {
+      "drone": {
+        "value": "droneB",
+        "reason": "corrected 11-27: serial PI040416BA8J102372 and firmware 1.8.2 are drone B's; the folder name says droneA because the program fell back to 'droneA' when the drone's name was not read in time (Claude 11-22 15:43 PST, seq 26931; fixed in 553032f)"
+      },
+      "history": {
+        "run": "drone B through its SkyController after the piloting fix: Michael 15:41 PST (seq 26916): 'I flew it and now the laptop controls work'; follow stopped when the battery fell under 25% (Claude 15:46 PST, seq 26956)",
+        "followed": "Michael (15:44 PST, seq 26935: 'It was following me all nice')",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (the drone B retest command, 11-22 15:23 PST, seq 26900: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --ip 192.168.53.1`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_162719_droneA": {
+      "history": {
+        "run": "first two-drone flight, both from one laptop (Michael 11-22 16:51 PST, seq 26987: 'I flew them both at the same time')",
+        "followed": "Michael's roommate, for part of the flight: Michael (seq 26987): 'I had one of the drones follow him around for a bit (the other drone couldn't cause its battery was too low)'; he did not say which drone (this run: 9m51s in FOLLOW; drone B's run: 0m12s)",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (drone A's window, 11-22 16:18 PST, seq 26978: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --share-file /tmp/jarvis_spot.json`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    },
+    "20261122_162740_droneB": {
+      "history": {
+        "run": "first two-drone flight, both from one laptop (Michael 11-22 16:51 PST, seq 26987: 'I flew them both at the same time')",
+        "followed": "Michael (seq 26987): one drone followed his roommate, 'the other drone couldn't cause its battery was too low'; he did not say which (this run: 0m12s in FOLLOW, battery 55% -> 5%)",
+        "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (drone B's window, 11-22 16:18 PST, seq 26978: `python live_follow.py --model weights/vd_mav_cl_s42.pt --reid osnet --share-file /tmp/jarvis_spot.json --ip 192.168.53.1 --listen droneA`); Claude 11-22 18:38 PST (seq 27267): every flight command since 11-15 said --model weights/vd_mav_cl_s42.pt; Michael's own command line was not pasted",
+        "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
+        "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
+        "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      }
+    }
+  }
+}

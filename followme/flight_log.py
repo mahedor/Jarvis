@@ -22,6 +22,14 @@ Stdlib only, so it runs with any python 3 (no OpenCV / Olympe needed).
 
 This is the only flight list (Michael 11-27): the older 11-22 quick table (flights.csv, commit 0af1cfb) was folded in
 here and deleted; its spin-search count, boxes.jsonl flag, full folder path and --copy-to live on here.
+
+Annotations (Michael 11-27): flight_log_annotations.json, committed next to this file, holds what the program did NOT
+record about a run, each with where it came from, and is merged into the rows on every regenerate:
+  * "drone": {"value", "reason"} -> a correction; the column shows "<value> (<reason>; program logged: <old>)"
+  * "history": {field: note} -> what the chat history says. A note for an empty column (model, cutoffs, tracker, ...)
+    shows there as "not logged; from chat history: <note>"; anything else (or a column the program did fill) goes in
+    the "history" column, which always starts "from chat history:". A program-logged value is never overwritten.
+A key that matches no run folder is ignored with a warning.
 """
 import argparse
 import csv
@@ -44,6 +52,10 @@ TRACKER_NAMES = {"botsort.yaml": "BoT-SORT", "bytetrack.yaml": "ByteTrack",   # 
 TUNED_KEYS = (("track_high_thresh", "high"), ("new_track_thresh", "new"), ("track_low_thresh", "low"),
               ("match_thresh", "match"), ("track_buffer", "buffer"))
 INT8_SUFFIX = "_int8_openvino_model"            # live_follow.INT8_SUFFIX (this file stays stdlib-only)
+ANNOTATIONS = Path(__file__).resolve().with_name("flight_log_annotations.json")
+FROM_CHAT = "from chat history: "               # marks every annotated value: not recorded by the program
+# columns a history note may fill when the run left them empty (anything else goes in the "history" column)
+FILLABLE = ("drone", "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID")
 
 # what drone.json holds, by the live_follow.py commit that added it (git log -L on the drone.json write)
 FIELD_HISTORY = [
@@ -62,10 +74,10 @@ FIELD_HISTORY = [
 
 COLUMNS = ["date/time", "run folder", "drone", "serial", "firmware", "duration", "frames", "FPS", "airborne", "battery",
            "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID", "preflight", "drone profile", "FOLLOW time", "re-locks",
-           "locks (clicks / N)", "spin searches", "LOOK/GO time", "video", "boxes.jsonl", "other settings", "notes.txt",
-           "notes", "path"]
+           "locks (clicks / N)", "spin searches", "LOOK/GO time", "video", "boxes.jsonl", "other settings", "history",
+           "notes.txt", "notes", "path"]
 MD_COLUMNS = ["date/time", "run folder", "drone", "duration", "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID",
-              "preflight", "FOLLOW time", "re-locks", "video", "notes"]
+              "preflight", "FOLLOW time", "re-locks", "video", "history", "notes"]
 # drone.json keys shown in their own columns; anything else ends up in "other settings" (so new fields show up)
 _SHOWN_TOP = {"drone_product_name", "drone_nickname", "drone_serial", "drone_firmware", "name", "ip", "model",
               "conf_person", "conf_vehicle", "conf_source", "reid", "profile", "running", "preflight", "detector",
@@ -330,6 +342,57 @@ def _signature(run):
     return sig
 
 
+def load_annotations(path=None):
+    """flight_log_annotations.json -> ({run folder: entry}, [warnings]). A missing file is no annotations; a broken one
+    is a warning (the log is still written: this runs at the end of every flight)."""
+    p = Path(path) if path is not None else ANNOTATIONS
+    if not p.exists():
+        return {}, []
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        return {}, [f"{p.name} unreadable ({e.__class__.__name__}); no annotations applied"]
+    runs = data.get("runs") if isinstance(data, dict) else None
+    if not isinstance(runs, dict):
+        return {}, [f'{p.name} has no "runs" object; no annotations applied']
+    return runs, []
+
+
+def annotate(row, entry, name="?"):
+    """Merge one annotation entry into a row, in place. Never overwrites a value the program logged; every annotated
+    value says it is not the program's. -> [warnings]."""
+    warns = []
+    if not isinstance(entry, dict):
+        return [f"annotation for {name} is not an object; ignored"]
+    for k in entry:
+        if k not in ("drone", "history"):
+            warns.append(f"annotation for {name}: unknown key {k!r} ignored")
+    hist_parts = []
+    hist = entry.get("history") or {}
+    if not isinstance(hist, dict):
+        warns.append(f"annotation for {name}: history is not an object; ignored")
+        hist = {}
+    over = entry.get("drone")
+    if over is not None:
+        if isinstance(over, dict) and over.get("value") and over.get("reason"):
+            old = row.get("drone") or NL
+            row["drone"] = f"{over['value']} ({over['reason']}" + (f"; program logged: {old})" if old != NL else ")")
+        else:
+            warns.append(f"annotation for {name}: drone override needs a value and a reason; ignored")
+            over = None
+    for field, note in hist.items():
+        note = " ".join(str(note).split())
+        if field in FILLABLE and row.get(field, NL) == NL and not (field == "drone" and over is not None):
+            row[field] = f"{NL}; {FROM_CHAT}{note}"
+        elif field in FILLABLE:                            # the program logged it (or it was corrected): keep that
+            hist_parts.append(f"{field}: {note} (column shows: {row.get(field)})")
+        else:
+            hist_parts.append(f"{field}: {note}")
+    if hist_parts:
+        row["history"] = FROM_CHAT + " | ".join(hist_parts)
+    return warns
+
+
 def read_typed_notes(path):
     """{run folder: (notes, whole old row)} from an existing flight_log.csv (Excel may have saved it with ; or a BOM)."""
     if not path.exists():
@@ -357,7 +420,10 @@ def write_md(path, rows, root, n_fake):
              f"newest first. {len(rows)} run(s)" + (f"; {n_fake} fake-drone run(s) not listed" if n_fake else "") + ".",
              "",
              "Every field is read from the run's own `drone.json` / `follow.csv`. **not logged** = the version of "
-             "`live_follow.py` that ran did not record it (nothing is filled in from memory). Notes: `notes.txt` in the "
+             "`live_follow.py` that ran did not record it (nothing is filled in from memory). The only exceptions are "
+             "marked in the text itself: \"from chat history: ...\" (what the chat said about a run, with its date / "
+             "time) and \"(corrected ...; program logged: ...)\", both from `followme/flight_log_annotations.json` "
+             "(committed). Notes: `notes.txt` in the "
              "run folder, or the `notes` column of `flight_log.csv` (kept on regenerate). More columns (serial, "
              "firmware, frames, FPS, airborne, battery, drone profile, clicks / N, spin searches, boxes.jsonl, other "
              "settings, path) are in "
@@ -381,14 +447,17 @@ def _atomic_write(path, text, encoding="utf-8"):
     os.replace(tmp, path)          # a crash mid-write never leaves a half log (or loses typed notes)
 
 
-def update(root=None, include_fake=False, rebuild=False, quiet=False):
+def update(root=None, include_fake=False, rebuild=False, quiet=False, annotations=None):
     """Rescan `root`, rewrite flight_log.csv + flight_log.md. Raises on failure (the caller decides how loud).
     Unchanged run folders come from the cache, so the call at the end of every flight stays fast.
+    `annotations`: path of the annotations file (default: flight_log_annotations.json next to this file); applied after
+    the cache, so editing it takes effect on the next update. Its warnings are printed even when quiet.
     -> (number of rows written, path of the csv)."""
     root = Path(root or Path.home() / "follow_logs").expanduser()
     if not root.is_dir():
         raise FileNotFoundError(f"logs root not found: {root}")
     csv_path, md_path, cache_path = root / CSV_NAME, root / MD_NAME, root / CACHE
+    notes_by_run, warns = load_annotations(annotations)
     typed = read_typed_notes(csv_path)
     cache = {}
     if not rebuild and cache_path.exists():
@@ -403,10 +472,18 @@ def update(root=None, include_fake=False, rebuild=False, quiet=False):
         row = dict(hit["row"]) if hit and hit.get("sig") == sig else summarize(run)
         new_cache[run.name] = dict(sig=sig, row=dict(row))
         row["path"] = str(run)                         # set here, not cached: stays right if the root moves
+        if run.name in notes_by_run:                   # not cached either: an edited annotation shows next update
+            warns += annotate(row, notes_by_run[run.name], run.name)
         if row.get("_fake") and not include_fake:
             n_fake += 1
             continue
         rows.append(row)
+    unknown = sorted(k for k in notes_by_run if k not in new_cache)
+    if unknown:
+        warns.append(f"{len(unknown)} annotation(s) match no run folder in {root}, ignored: " + ", ".join(unknown[:5])
+                     + (", ..." if len(unknown) > 5 else ""))
+    for w in warns:
+        print(f"flight log WARNING: {w}")
     present = {r["run folder"] for r in rows} | {k for k, v in new_cache.items() if v["row"].get("_fake")}
     for folder, (note, old) in typed.items():          # a deleted folder's typed note is kept, never dropped
         if folder not in present and note:

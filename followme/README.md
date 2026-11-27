@@ -21,10 +21,11 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
 | `botsort_tuned.yaml` | The tracker settings that fly (Michael 11-27): Ultralytics' `botsort.yaml` with only five values changed (high / new 0.40, low 0.05, match 0.90, buffer 60). Decision record `results/followme_tracker_settings_choice.json`; `live_follow.py` stops if the file differs from it |
 | `flight_log.py` | The flight log: one row per flight in `~/follow_logs`, newest first, with the settings it flew under (drone, model + INT8, detector precision, cutoffs + source, tracker (+ tuned values), imgsz, re-ID + cutoff, pre-flight result) and what happened (duration, FOLLOW time, re-locks, spin searches, battery, video files, boxes.jsonl) → `flight_log.csv` + `flight_log.md`. The only flight list. Runs by itself at the end of every `live_follow.py` run; `python flight_log.py [--root DIR] [--copy-to DIR]` backfills |
+| `flight_log_annotations.json` | What the flight log's runs did NOT record, each note with its source (Michael 11-27): drone corrections and what the chat history says about a run (model, cutoffs, tracker, re-ID, fake test or real flight, who was followed). Merged into the log on every regenerate, always marked "from chat history:" / "corrected ...; program logged: ..." |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
-| `test_*.py` | 178 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), and the flight log (`test_flight_log.py`) |
+| `test_*.py` | 184 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), and the flight log + its annotations (`test_flight_log.py`) |
 
 ## Folders
 
@@ -61,7 +62,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 ```bash
 cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
 source ~/jarvis-follow/bin/activate
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 178 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 184 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads   # backfill the flight log, copy it where Windows sees it
@@ -162,7 +163,44 @@ folder stops with an error), so Windows can open them from Downloads. Edit typed
   `flight_log.csv`; typed notes are kept on every regenerate, matched by run folder (also if the folder is deleted).
 - Unchanged run folders come from a cache (`.flight_log_cache.json`), so the call at the end of a flight is fast.
 
+### Annotations: what the program did not record (`flight_log_annotations.json`, Michael 11-27)
+
+Runs from before a field was logged (all 31 runs up to 11-22 show model / cutoffs / tracker / preflight **not logged**)
+or with a wrong recorded value get their context from `followme/flight_log_annotations.json`, committed next to
+`flight_log.py` and merged on every regenerate (applied after the cache, so an edit shows on the next update). Michael's
+rule: never guess; anything not recorded by the program says where it came from. Keyed by run folder:
+
+```json
+"20261122_153153_droneA": {
+  "drone":   {"value": "droneB", "reason": "corrected 11-27: serial ... and firmware 1.8.2 are drone B's; ..."},
+  "history": {"run": "...", "followed": "...", "model": "vd_mav_cl_s42.pt (not INT8): the command Claude gave (11-22 15:23 PST, seq 26900 ...)"}
+}
+```
+
+- `drone` (a correction): the column shows `droneB (corrected 11-27: ...; program logged: droneA)`.
+- `history` (what the chat history says): a note for a column the run left empty (`drone`, `model`, `precision`,
+  `cutoffs`, `tracker`, `imgsz`, `re-ID`) shows there as `not logged; from chat history: <note>`; any other key (`run`,
+  `followed`, `code edits`, ...), or a column the program did fill, goes in the `history` column (csv and md), which
+  always starts `from chat history:`. A value the program logged is never overwritten.
+- Every note cites its source: the chat date / time (Michael's local time: PDT on 10-29, PST from 11-01) and message
+  number (`seq`), or a commit. A field the chat does not clearly cover for a run is left out, so it stays **not
+  logged**. A key that matches no run folder, an unknown entry key, or a `drone` override without a reason is ignored
+  with a `flight log WARNING` line; a missing or broken file never stops the log.
+
 ## Change log
+
+- **2026-11-27 (Michael): flight log annotations.** New committed `flight_log_annotations.json`, merged by
+  `flight_log.py` on every regenerate (`load_annotations`, `annotate`; new `history` column in csv and md, `update(...,
+  annotations=PATH)`): `drone` corrections shown with their reason and the program's value, and `history` notes from
+  the chat transcript, each marked "from chat history:" and citing chat date / time + seq or a commit (see Flight log,
+  Annotations). Filled for the 31 runs in Michael's 11-27 log: `20261122_153153_droneA` corrected to droneB (serial
+  PI040416BA8J102372 / firmware 1.8.2 are drone B's; "droneA" was the program's fallback when the name wasn't read in
+  time, fixed 553032f); `20261122_151520_droneA` / `_151758_droneA` corrected to droneB too (Michael 11-22 15:22: "drone
+  B has flown on my home wifi" through the SkyController; no serial was logged). Fake-drone tests (10-29 x 9, from the
+  pasted / given `--fake` commands) are marked as such but still listed (they predate drone.json, so the program can't
+  tell). 6 new tests (override with reason, history fills only empty columns and never overwrites, unknown keys / bad
+  entries warn and are ignored, missing / broken file never stops the log, edits apply to cached rows, every committed
+  note cites a seq or commit and names a real run folder): 184 in all.
 
 - **2026-11-27 (Michael): one flight log.** `flight_index.py` (11-22, commit 0af1cfb, wrote `flights.csv`) is folded
   into `flight_log.py` and deleted. Carried over: its spin-search count, by exactly its rule (`flight_log.spin_searches`,
