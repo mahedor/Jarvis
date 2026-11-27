@@ -284,6 +284,85 @@ def test_cli_backfill_and_missing_root(tmp_path, capsys):
         fl.update(tmp_path / "nope")
 
 
+# ---- folded in from the 11-22 flight table (Michael 11-27): spin count, boxes.jsonl, path, --copy-to ----
+
+def _old_table_spins(states):
+    """The 11-22 flight table's expression (0af1cfb), verbatim: the spin count must not change by moving files."""
+    return sum(1 for a, b in zip(states, states[1:]) if b.startswith("SEARCH (spinning") and not a.startswith("SEARCH (spinning"))  # noqa: E501
+
+
+@pytest.mark.parametrize("states", [
+    [],
+    ["FOLLOWING"],
+    ["FOLLOWING", "SEARCH (spinning 0/360 deg)", "SEARCH (spinning 90/360 deg)", "FOLLOWING"],
+    ["FOLLOWING", "SEARCH (spinning 0/360 deg)", "SEARCH (hover)", "SEARCH (spinning 0/360 deg)", "FOLLOWING",
+     "SEARCH (spinning 0/360 deg)"],
+    ["SEARCH (spinning 0/360 deg)", "SEARCH (spinning 9/360 deg)", "MANUAL"],   # starts mid-spin: no start
+])
+def test_spin_searches_same_rule_as_old_table(states):
+    assert fl.spin_searches(states) == _old_table_spins(states)
+
+
+def test_spin_searches_column_counts_each_spin(tmp_path):
+    rs = flight_rows()
+    for r in rs:                                       # a second spin at 6.0-6.5 s, after the re-lock
+        if 6.0 <= r["t_s"] < 6.5:
+            r["state"] = "SEARCH (spinning -90/720 deg)"
+    make_run(tmp_path, "20261127_101500_droneA", NEW_INFO, rs)
+    old_cols = ["frame", "t_s", "video_file", "mode", "target_id"]                   # no state column: not logged
+    make_run(tmp_path, "20261115_143000", None, flight_rows(), cols=old_cols)
+    fl.update(tmp_path, quiet=True)
+    rows = by_folder(tmp_path)
+    assert rows["20261127_101500_droneA"]["spin searches"] == "2"
+    assert rows["20261115_143000"]["spin searches"] == NL
+
+
+def test_boxes_jsonl_and_path_columns(tmp_path):
+    run = make_run(tmp_path, "20261127_101500_droneA", NEW_INFO, flight_rows())
+    (run / "boxes.jsonl").write_text("{}\n")
+    make_run(tmp_path, "20261115_143000", None, flight_rows())
+    fl.update(tmp_path, quiet=True)
+    rows = by_folder(tmp_path)
+    assert rows["20261127_101500_droneA"]["boxes.jsonl"] == "yes" and rows["20261115_143000"]["boxes.jsonl"] == "no"
+    assert rows["20261127_101500_droneA"]["path"] == str(run)
+    moved = tmp_path.parent / (tmp_path.name + "_moved")          # cached rows still get the folder's current path
+    tmp_path.rename(moved)
+    fl.update(moved, quiet=True)
+    assert by_folder(moved)["20261127_101500_droneA"]["path"] == str(moved / "20261127_101500_droneA")
+
+
+def test_cli_copy_to(tmp_path, capsys):
+    root, dest = tmp_path / "logs", tmp_path / "Downloads"
+    root.mkdir()
+    dest.mkdir()
+    make_run(root, "20261127_100000_droneA", NEW_INFO, flight_rows())
+    fl.main(["--root", str(root), "--copy-to", str(dest)])
+    assert f"copied {fl.CSV_NAME} and {fl.MD_NAME} to {dest}" in capsys.readouterr().out
+    for n in (fl.CSV_NAME, fl.MD_NAME):
+        assert (dest / n).read_bytes() == (root / n).read_bytes()
+    assert not (dest / fl.CACHE).exists() and not any(p.is_dir() for p in dest.iterdir())    # only the two files
+    with pytest.raises(FileNotFoundError):                         # a mistyped folder stops, nothing is created
+        fl.main(["--root", str(root), "--copy-to", str(tmp_path / "Downlaods")])
+    assert not (tmp_path / "Downlaods").exists()
+
+
+def test_no_copy_without_flag(tmp_path):
+    make_run(tmp_path, "20261127_100000_droneA", NEW_INFO, flight_rows())
+    fl.main(["--root", str(tmp_path)])
+    assert sorted(p.name for p in tmp_path.iterdir() if p.is_file()) == sorted([fl.CSV_NAME, fl.MD_NAME, fl.CACHE])
+
+
+def test_one_flight_log():
+    """Michael 11-27: the 11-22 table is deleted and nothing in followme/ refers to it (the README change log may)."""
+    needle = "flight" + "_index"
+    assert not (HERE / f"{needle}.py").exists()
+    hits = [p.name for p in HERE.iterdir()
+            if p.is_file() and p.suffix in (".py", ".json", ".yaml")
+            and needle in p.read_text(encoding="utf-8", errors="replace")]
+    readme = (HERE / "README.md").read_text(encoding="utf-8").split("## Change log")[0]
+    assert hits == [] and needle not in readme
+
+
 # ---- the hook at the end of every live_follow.py run ----
 
 def _fly(out, script="t@0.5,m@1,q@2.5"):

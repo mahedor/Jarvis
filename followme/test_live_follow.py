@@ -232,15 +232,15 @@ def test_every_run_records_which_drone():
     assert rows and all(r["drone"] == "droneA" for r in rows)
 
 
-def test_boxes_logged_and_flight_index(tmp_path):
+def test_boxes_logged_and_flight_log(tmp_path):
     import json
-    import flight_index
+    import flight_log
     out, rows = run_fake("t@0.5,m@1,q@3", 4)
     run = latest_run()
     lines = [json.loads(x) for x in (run / "boxes.jsonl").read_text().splitlines()]
     assert len(lines) == len(rows) and lines[0]["names"] and any(ln["boxes"] for ln in lines)
-    s = flight_index.summarize(run)
-    assert s["drone"] == "droneA" and s["boxes_logged"] and s["videos"] >= 1
+    s = flight_log.summarize(run)          # the old 11-22 table's checks, now on the one flight log (11-27)
+    assert s["drone"].startswith("droneA") and s["boxes.jsonl"] == "yes" and s["video"].startswith("video_")
 
 
 def test_cutoffs_from_f1_sweep():

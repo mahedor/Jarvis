@@ -20,12 +20,11 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
 | `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
 | `botsort_tuned.yaml` | The tracker settings that fly (Michael 11-27): Ultralytics' `botsort.yaml` with only five values changed (high / new 0.40, low 0.05, match 0.90, buffer 60). Decision record `results/followme_tracker_settings_choice.json`; `live_follow.py` stops if the file differs from it |
-| `flight_log.py` | The flight log: one row per flight in `~/follow_logs`, newest first, with the settings it flew under (drone, model + INT8, detector precision, cutoffs + source, tracker (+ tuned values), imgsz, re-ID + cutoff, pre-flight result) and what happened (duration, FOLLOW time, re-locks, battery, video files) → `flight_log.csv` + `flight_log.md`. Runs by itself at the end of every `live_follow.py` run; `python flight_log.py [--root DIR]` backfills |
-| `flight_index.py` | Older quick table of every flight (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv`; `flight_log.py` is the full log |
+| `flight_log.py` | The flight log: one row per flight in `~/follow_logs`, newest first, with the settings it flew under (drone, model + INT8, detector precision, cutoffs + source, tracker (+ tuned values), imgsz, re-ID + cutoff, pre-flight result) and what happened (duration, FOLLOW time, re-locks, spin searches, battery, video files, boxes.jsonl) → `flight_log.csv` + `flight_log.md`. The only flight list. Runs by itself at the end of every `live_follow.py` run; `python flight_log.py [--root DIR] [--copy-to DIR]` backfills |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
-| `test_*.py` | 168 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), and the flight log (`test_flight_log.py`) |
+| `test_*.py` | 178 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), and the flight log (`test_flight_log.py`) |
 
 ## Folders
 
@@ -42,6 +41,10 @@ the real drone; map position logged numbers but is not yet checked against reali
 
 ## Setup (WSL, uv-managed venv `~/jarvis-follow`)
 
+Michael's clone, as seen from WSL: `/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch
+`followme-folder`); every command below runs from its `followme/` folder. (That clone also holds untracked `AGENTS.md`
+and `followme/reid_speed.json`; leave them alone.)
+
 ```bash
 source ~/jarvis-follow/bin/activate
 # boxmot without its OpenCV downgrade, then the helpers it needs
@@ -56,10 +59,12 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 ## Run
 
 ```bash
-cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 168 passed
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py   # expect 178 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
+python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads   # backfill the flight log, copy it where Windows sees it
 ```
 
 ## Replay (test without flying)
@@ -129,7 +134,17 @@ One place listing every real flight with the context it was filmed under, so a f
 settings and situation. Nothing is filled in by hand: at the end of every `live_follow.py` run (after the logs are
 closed and the drone has landed) `flight_log.update()` rescans the logs root and rewrites `flight_log.csv` and
 `flight_log.md` there, newest first. If that fails (e.g. Excel has the csv open) it prints a warning with the backfill
-command and the program exits normally. Backfill or refresh by hand: `python flight_log.py [--root DIR] [--rebuild]`.
+command and the program exits normally. Backfill or refresh by hand: `python flight_log.py [--root DIR] [--rebuild]
+[--copy-to DIR]`; on Michael's laptop:
+
+```bash
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads
+```
+
+`--copy-to DIR` also copies `flight_log.csv` and `flight_log.md` into DIR (which must already exist; a mistyped
+folder stops with an error), so Windows can open them from Downloads. Edit typed notes in the copy under
+`~/follow_logs`, not the Downloads copy: only that one is read back on regenerate.
 
 - `precision`: the detector's precision as flown, from drone.json's `detector` record (since 11-27, e.g. `INT8 OpenVINO,
   static 384x640`); older runs say `INT8 (derived from the model path; precision not logged)` only when the recorded
@@ -139,12 +154,28 @@ command and the program exits normally. Backfill or refresh by hand: `python fli
   model field until aae2f0f). The md lists which drone.json fields exist since which commit.
 - Times are measured from `t_s`, not frames / an assumed 30 fps. FOLLOW time = time in FOLLOW mode (and, in brackets,
   on target); re-locks = re-ID re-locks (`reacquired_reid` onsets); clicks / N use `replay.recorded_locks`' rule.
+- spin searches = spin searches started: transitions into a `state` starting `SEARCH (spinning` (a run that starts
+  mid-spin does not count it). boxes.jsonl = yes / no (every box per frame, logged since 0af1cfb). path = the run
+  folder's full path (csv only).
 - Fake-drone runs (`drone_nickname` "fake") are left out (`--include-fake` lists them).
 - Notes (optional): a `notes.txt` in the run folder (column `notes.txt`), or type into the `notes` column of
   `flight_log.csv`; typed notes are kept on every regenerate, matched by run folder (also if the folder is deleted).
 - Unchanged run folders come from a cache (`.flight_log_cache.json`), so the call at the end of a flight is fast.
 
 ## Change log
+
+- **2026-11-27 (Michael): one flight log.** `flight_index.py` (11-22, commit 0af1cfb, wrote `flights.csv`) is folded
+  into `flight_log.py` and deleted. Carried over: its spin-search count, by exactly its rule (`flight_log.spin_searches`,
+  transitions into a state starting `SEARCH (spinning`; the existing `spin searches` column now uses it, so a run that
+  starts mid-spin no longer counts one), its `boxes_logged` flag as a new `boxes.jsonl` column (yes / no), its folder
+  path as a new `path` column (csv only, set on every update so it follows a moved root), and `--copy-to DIR` (copies
+  `flight_log.csv` + `flight_log.md` there, e.g. `/mnt/c/Users/mahed/Downloads`; DIR must exist). Its other fields
+  were already in the log (firmware, duration, airborne, FOLLOW / on-target time, re-ID re-locks, battery, LOOK/GO,
+  video files). Cache schema 3. README Setup / Run now give the WSL path of Michael's clone and the backfill command.
+  `test_live_follow.py`'s boxes test now checks `flight_log.summarize`; 10 new tests in `test_flight_log.py` (spin
+  rule identical to the old expression on five state sequences, spin column, boxes.jsonl and path columns, `--copy-to`
+  copies byte-identical files and refuses a missing folder, no copy without it, the old file and every reference gone):
+  178 in all.
 
 - **2026-11-27 (Michael): fly the tuned BoT-SORT settings; the detector's precision can't be missed.**
   - Tracker settings sweep (Colab today, `tracker_settings_sweep.py`; Ultralytics `botsort.yaml`, camera-motion

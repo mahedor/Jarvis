@@ -3,6 +3,7 @@
   python flight_log.py                       # backfill / refresh: scans ~/follow_logs
   python flight_log.py --root DIR            # another logs root
   python flight_log.py --rebuild             # ignore the cache and re-read every run folder
+  python flight_log.py --copy-to /mnt/c/Users/mahed/Downloads   # also copy flight_log.csv / .md where Windows sees them
 
 Writes flight_log.csv and flight_log.md in the logs root, newest first. live_follow.py calls update() at the end of
 every run (after its logs are closed and the drone is down), so nothing has to be filled in by hand.
@@ -18,19 +19,25 @@ Notes, the only hand-written part, two ways (both optional):
     (a row whose folder has since been deleted is kept if it has a typed note, marked "folder missing").
 
 Stdlib only, so it runs with any python 3 (no OpenCV / Olympe needed).
+
+This is the only flight list (Michael 11-27): the older 11-22 quick table (flights.csv, commit 0af1cfb) was folded in
+here and deleted; its spin-search count, boxes.jsonl flag, full folder path and --copy-to live on here.
 """
 import argparse
 import csv
 import json
 import os
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 
 NL = "not logged"
-SCHEMA = 2                      # bump when a column's meaning changes: invalidates the cache (2: precision, 11-27)
+SCHEMA = 3                      # bump when a column's meaning changes: invalidates the cache
+                                # (2: precision; 3: boxes.jsonl, path, spin rule; both 11-27)
 CACHE = ".flight_log_cache.json"
 CSV_NAME, MD_NAME = "flight_log.csv", "flight_log.md"
+SPIN_PREFIX = "SEARCH (spinning"                  # follow.csv state while the spin search runs
 AIRBORNE = {"takingoff", "hovering", "flying", "landing"}       # ANAFI flying_state values with the drone in the air
 TRACKER_NAMES = {"botsort.yaml": "BoT-SORT", "bytetrack.yaml": "ByteTrack",   # Ultralytics' built-in tracker files
                  "botsort_tuned.yaml": "BoT-SORT tuned"}                      # followme/, Michael 11-27
@@ -55,7 +62,8 @@ FIELD_HISTORY = [
 
 COLUMNS = ["date/time", "run folder", "drone", "serial", "firmware", "duration", "frames", "FPS", "airborne", "battery",
            "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID", "preflight", "drone profile", "FOLLOW time", "re-locks",
-           "locks (clicks / N)", "spin searches", "LOOK/GO time", "video", "other settings", "notes.txt", "notes"]
+           "locks (clicks / N)", "spin searches", "LOOK/GO time", "video", "boxes.jsonl", "other settings", "notes.txt",
+           "notes", "path"]
 MD_COLUMNS = ["date/time", "run folder", "drone", "duration", "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID",
               "preflight", "FOLLOW time", "re-locks", "video", "notes"]
 # drone.json keys shown in their own columns; anything else ends up in "other settings" (so new fields show up)
@@ -94,6 +102,11 @@ def _onsets(flags):
         n += f and not prev
         prev = f
     return n
+
+
+def spin_searches(states):
+    """Spin searches started: transitions into a state starting "SEARCH (spinning" (the 11-22 table's rule, 0af1cfb)."""
+    return sum(1 for a, b in zip(states, states[1:]) if b.startswith(SPIN_PREFIX) and not a.startswith(SPIN_PREFIX))
 
 
 def start_time(folder_name):
@@ -166,7 +179,7 @@ def flight_stats(rows):
             s["follow"] += f" (on target {fmt_s(time_where(lambda r: r.get('mode') == 'FOLLOW' and r.get('state') == 'FOLLOWING'))})"
         s["lookgo"] = fmt_s(time_where(lambda r: r.get("mode") == "LOOKGO"))
     if "state" in cols:
-        s["spins"] = str(_onsets([str(r.get("state", "")).startswith("SEARCH (spinning") for r in rows]))
+        s["spins"] = str(spin_searches([str(r.get("state") or "") for r in rows]))
     if "lock_event" in cols:
         s["relocks"] = str(_onsets([r.get("lock_event") == "reacquired_reid" for r in rows]))
         if "target_id" in cols:
@@ -298,7 +311,8 @@ def summarize(run):
            "duration": st["duration"], "frames": st["frames"], "FPS": st["fps"], "airborne": st["airborne"],
            "battery": st["battery"], "FOLLOW time": st["follow"], "re-locks": st["relocks"],
            "locks (clicks / N)": st["locks"], "spin searches": st["spins"], "LOOK/GO time": st["lookgo"],
-           "video": videos(run), "notes.txt": notes_txt}
+           "video": videos(run), "boxes.jsonl": "yes" if (run / "boxes.jsonl").exists() else "no",
+           "notes.txt": notes_txt}
     if problems:
         row["other settings"] = problems if row["other settings"] == NL else f"{problems}; {row['other settings']}"
     row["_fake"] = info.get("drone_nickname") == "fake"
@@ -345,7 +359,8 @@ def write_md(path, rows, root, n_fake):
              "Every field is read from the run's own `drone.json` / `follow.csv`. **not logged** = the version of "
              "`live_follow.py` that ran did not record it (nothing is filled in from memory). Notes: `notes.txt` in the "
              "run folder, or the `notes` column of `flight_log.csv` (kept on regenerate). More columns (serial, "
-             "firmware, frames, FPS, airborne, battery, drone profile, clicks / N, spin searches, other settings) are in "
+             "firmware, frames, FPS, airborne, battery, drone profile, clicks / N, spin searches, boxes.jsonl, other "
+             "settings, path) are in "
              "`flight_log.csv`.", "",
              "| " + " | ".join(MD_COLUMNS) + " |", "|" + "---|" * len(MD_COLUMNS)]
     for r in rows:
@@ -387,6 +402,7 @@ def update(root=None, include_fake=False, rebuild=False, quiet=False):
         hit = cache.get(run.name)
         row = dict(hit["row"]) if hit and hit.get("sig") == sig else summarize(run)
         new_cache[run.name] = dict(sig=sig, row=dict(row))
+        row["path"] = str(run)                         # set here, not cached: stays right if the root moves
         if row.get("_fake") and not include_fake:
             n_fake += 1
             continue
@@ -418,13 +434,27 @@ def update(root=None, include_fake=False, rebuild=False, quiet=False):
     return len(rows), csv_path
 
 
+def copy_log(root, dest):
+    """Copy flight_log.csv + flight_log.md from `root` into `dest` (e.g. /mnt/c/Users/mahed/Downloads, so Windows can
+    open them). `dest` must already exist: a mistyped path stops instead of making a stray folder. -> copied paths."""
+    root, dest = Path(root).expanduser(), Path(dest).expanduser()
+    if not dest.is_dir():
+        raise FileNotFoundError(f"--copy-to folder not found: {dest}")
+    return [Path(shutil.copy2(root / n, dest / n)) for n in (CSV_NAME, MD_NAME)]
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--root", default=str(Path.home() / "follow_logs"), help="logs root (default ~/follow_logs)")
     ap.add_argument("--include-fake", action="store_true", help="also list fake-drone runs")
     ap.add_argument("--rebuild", action="store_true", help="ignore the cache and re-read every run folder")
+    ap.add_argument("--copy-to", default="", metavar="DIR",
+                    help="also copy flight_log.csv / flight_log.md into DIR (e.g. /mnt/c/Users/mahed/Downloads)")
     a = ap.parse_args(argv)
     update(a.root, include_fake=a.include_fake, rebuild=a.rebuild)
+    if a.copy_to:
+        copy_log(a.root, a.copy_to)
+        print(f"copied {CSV_NAME} and {MD_NAME} to {Path(a.copy_to).expanduser()}")
 
 
 if __name__ == "__main__":

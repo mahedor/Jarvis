@@ -207,7 +207,11 @@ real drone; map position (`geo.py`) logged numbers but is unchecked against grou
 300+ MB each) go to `~/follow_logs/` in the WSL home, outside the repo and OneDrive. `flight_log.py` (stdlib only) rewrites
 `~/follow_logs/flight_log.csv` + `flight_log.md` (one row per real flight, newest first, settings from each run's
 `drone.json`, stats from `follow.csv`, "not logged" where a run didn't record a field, typed csv notes kept) at the end of
-every `live_follow.py` run, inside a try so a failure only warns; `python flight_log.py [--root DIR]` backfills. The folder's 168 tests are run from inside it
+every `live_follow.py` run, inside a try so a failure only warns; `python flight_log.py [--root DIR] [--copy-to DIR]` backfills
+(`--copy-to` also copies both files there, e.g. `/mnt/c/Users/mahed/Downloads`). It is the only flight list: the 11-22
+quick table (commit 0af1cfb) was folded in and deleted 11-27; its spin-search rule (transitions into a state starting
+`SEARCH (spinning`), `boxes.jsonl` flag and folder `path` are columns. Michael's WSL clone is
+`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 178 tests are run from inside it
 (`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
