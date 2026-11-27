@@ -255,6 +255,10 @@
         "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
         "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
         "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      },
+      "drone": {
+        "value": "droneB",
+        "reason": "inferred 11-27, no serial logged: Michael 11-22 15:22 PST (seq 26892) 'drone B has flown on my home wifi'; drone A connects straight to the laptop over its own Wi-Fi, so the laptop can't be on home Wi-Fi with drone A, while drone B goes through its SkyController (Michael 11-27)"
       }
     },
     "20261122_151758_droneA": {
@@ -264,6 +268,10 @@
         "cutoffs": "0.25 for every class: no --conf in that command, and live_follow.py's default was 0.25 (every version in git from ce5675a, 11-19, to 29b47ec, 11-22)",
         "tracker": "BoT-SORT, Ultralytics' stock botsort.yaml (the default: no --tracker in that command; live_follow.py c544f4b..5752df5)",
         "re-ID": "OSNet x0_25 (osnet_x0_25_msmt17), re-lock >= 0.70: --reid osnet in that command (a failed OSNet load stops the program); MATCH_SIM 0.70 in lockon.py at the time (c544f4b)"
+      },
+      "drone": {
+        "value": "droneB",
+        "reason": "inferred 11-27, no serial logged: Michael 11-22 15:22 PST (seq 26892) 'drone B has flown on my home wifi'; drone A connects straight to the laptop over its own Wi-Fi, so the laptop can't be on home Wi-Fi with drone A, while drone B goes through its SkyController (Michael 11-27)"
       }
     },
     "20261122_153153_droneA": {

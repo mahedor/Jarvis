@@ -195,8 +195,8 @@ rule: never guess; anything not recorded by the program says where it came from.
   the chat transcript, each marked "from chat history:" and citing chat date / time + seq or a commit (see Flight log,
   Annotations). Filled for the 31 runs in Michael's 11-27 log: `20261122_153153_droneA` corrected to droneB (serial
   PI040416BA8J102372 / firmware 1.8.2 are drone B's; "droneA" was the program's fallback when the name wasn't read in
-  time, fixed 553032f); the 15:15 / 15:17 runs are NOT relabelled (no serial was logged; an inferred droneB label
-  was removed 11-27: Michael says both drones have flown on his home Wi-Fi). Fake-drone tests (10-29 x 9, from the
+  time, fixed 553032f); the 15:15 / 15:17 runs labelled droneB as an inference (no serial logged): the laptop was on home
+  Wi-Fi, which works only with drone B via its SkyController; drone A needs the laptop on drone A's own Wi-Fi. Fake-drone tests (10-29 x 9, from the
   pasted / given `--fake` commands) are marked as such but still listed (they predate drone.json, so the program can't
   tell). 6 new tests (override with reason, history fills only empty columns and never overwrites, unknown keys / bad
   entries warn and are ignored, missing / broken file never stops the log, edits apply to cached rows, every committed
