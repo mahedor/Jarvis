@@ -1,5 +1,5 @@
 {
- "_about": "Settings that were actually decided for flying. live_follow.py compares what is about to run against this file at startup and STOPS on any difference unless --off-decisions is passed; the result is saved in every flight's drone.json. Only settings with a recorded decision belong here (code comment, README change log or commit). skip_with: the test modes in which a check cannot apply (no real detector / no real drone).",
+ "_about": "Settings that were actually decided for flying. live_follow.py compares what is about to run against this file at startup and STOPS on any difference unless --off-decisions is passed; the result is saved in every flight's drone.json. replay.py runs the same check against the same file (Michael 11-26: replay always matches what we fly unless he says otherwise) and saves the result in replay_info.json. Only settings with a recorded decision belong here (code comment, README change log or commit). skip_with: the modes in which a check cannot apply (--fake-detector: no real detector; --fake: no real drone; replay: replay.py, which never talks to a drone).",
  "decisions": {
   "detector_model": {
    "value": "weights/vd_mav_cl_s42_int8_openvino_model",
@@ -47,7 +47,7 @@
    "value": true,
    "source": "Michael 11-22: push drone_profile.json on every connect; can't apply -> stop (README change log 2026-11-22; commits ba12485, 29b47ec).",
    "date": "2026-11-22",
-   "skip_with": ["--fake"]
+   "skip_with": ["--fake", "replay"]
   },
   "click_to_lock": {
    "value": true,
@@ -65,6 +65,12 @@
    "value": true,
    "source": "Michael 2026-11-14: spin toward the side last seen, then the other way, then hover (SEARCH_BOTH comment in live_follow.py).",
    "date": "2026-11-14",
+   "skip_with": []
+  },
+  "lost_s": {
+   "value": 1.0,
+   "source": "Michael 11-26: 'We can keep the 1 second spin': after the target is lost, hover LOST_S = 1.0 s (the tracker often gets them back under the same ID), then start the 360 search. Value unchanged since the code was first committed (ce5675a, replay.LOST_S; now live_follow.LOST_S).",
+   "date": "2026-11-26",
    "skip_with": []
   }
  }

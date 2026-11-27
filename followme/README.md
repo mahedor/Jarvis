@@ -15,20 +15,21 @@ the real drone; map position logged numbers but is not yet checked against reali
 |---|---|
 | `live_follow.py` | The program you fly with: video, detector thread, keys, follow logic, logging |
 | `lockon.py` | Lock-on: pick one person, keep a re-ID gallery (OSNet), re-lock only on a confident match |
-| `replay.py` | Shared pieces: follow controller, target drawing, class names |
+| `replay.py` | Replay a recorded flight or any video through the flight program without flying (same settings, same decisions check); also the shared controller, target drawing and class names |
 | `record.py` | Olympe connection, telemetry (incl. GPS), and the fake drone used by tests |
 | `geo.py` | Map position: target box → ray → flat ground → meters north/east of takeoff |
 | `drone_settings.py` | Same max tilt / rotation / climb speed on both drones: read, `--save` (drone A), `--apply`; live_follow applies `drone_profile.json` on connect |
 | `flight_index.py` | One table of every flight in `~/follow_logs` (drone, time, follow minutes, re-locks, spins, battery, folder) → `flights.csv` |
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
-| `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` checks against it at startup and stops on any difference |
-| `test_*.py` | 122 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweep's curves (`test_cutoffs_evidence.py`), and the re-lock cutoff checked against its evidence (`test_reid_evidence.py`) |
+| `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
+| `test_*.py` | 132 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweep's curves (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), and replay running the flight program's settings (`test_replay.py`) |
 
 ## Folders
 
-- `weights/` — put `vd_mav_cl_s42_int8_openvino_model/` (live detector, INT8 OpenVINO), `vd_mav_cl_s42.pt`
-  (same detector unquantized, for offline replays) and `osnet_x0_25_msmt17.pt` (re-ID) here.
+- `weights/` — put `vd_mav_cl_s42_int8_openvino_model/` (the detector for flying AND replays, INT8 OpenVINO),
+  `vd_mav_cl_s42.pt` (same detector unquantized; a replay with it is a deviation, `--off-decisions`) and
+  `osnet_x0_25_msmt17.pt` (re-ID) here.
 - `drone_profile.json` — the shared max tilt / rotation / climb / altitude / distance / gimbal settings, saved
   from drone A (11-22) and pushed to whichever drone connects. Committed so every clone flies the same.
   `lockon.py` looks in `weights/` first.
@@ -52,10 +53,35 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 
 ```bash
 cd followme
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py   # expect 122 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py   # expect 132 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 ```
+
+## Replay (test without flying)
+
+```bash
+python replay.py --source ~/follow_logs/<YYYYMMDD_HHMMSS>_droneA       # a flight: replays its recorded lock, N and M
+python replay.py --source clip.mp4 --lock-id 3                          # any video: lock onto replay track 3 (3@120 = from frame 120)
+python replay.py --source clip.mp4 --window                             # click a box to lock, SPACE pause, Q quit
+```
+
+Replay runs **what we fly** (Michael 11-26: "replay always matches whatever we're flying, unless I state explicitly
+otherwise"): it has no settings of its own. Flags and defaults, detector, cutoffs, tracker, input size, re-ID,
+match_sim, click-to-lock, `LOST_S` / `STALE_S` and the two-way 360° search all come from `live_follow.py` / `lockon.py`,
+and the same check against `flight_decisions.json` runs first: any difference **stops**; `--off-decisions` runs it with
+a DEVIATION banner (printed at the start and the end, saved in `replay_info.json`, stamped on every frame of
+`replay.mp4` and in a `deviation` column of `commands.csv`). Nothing locks by itself: the lock is the flight's
+recorded click (placed on the replay track that overlaps the recorded target box, from `boxes.jsonl`), `--lock-id`, or
+a window click. Re-locks after a loss are the replay's own re-ID. Output in `<source>/replay/` (`--out`):
+`replay.mp4`, `commands.csv` (the commands it would send next to the flight's `flight_*` columns), `replay_info.json`.
+
+Known offline deviations, printed on every run and saved in `replay_info.json`: no drone profile (no drone); commands
+are not sent, so the picture keeps showing what the flight did; the spin search counts turn from the recorded
+`drone_yaw_deg`, not from replay's own yaw (no yaw telemetry → ends on the `SEARCH_S` timeout); detection runs on
+every frame one at a time (live: background thread, newest frame), so `STALE_S` never fires and track IDs / re-ID
+timing can differ; frames are the re-encoded mp4; only lock / N / mode are replayed from the operator, not look/go
+or sticks. Flights before 11-22 have no `boxes.jsonl` and need `--lock-id` or `--window`.
 
 Keys (window focused): T take off · L land · SPACE hover + manual · Q quit (lands first) ·
 W/S forward/back · A/D left/right · R/F up/down · Z/C turn · G/B camera up/down · 1/2/3 speed ·
@@ -94,6 +120,25 @@ at it) or **X** (turn to face it, fly slowly at a fixed height, stop `STOP_M` = 
 (heading unverified on the ANAFI 4K); the ground is assumed flat.
 
 ## Change log
+
+- **2026-11-26 (Michael): replay runs what we fly.** "Replay lets you test things without flying", so it "always
+  matches whatever we're flying, unless I state explicitly otherwise", and any deviation must be brought to his
+  attention. Until now `replay.py` ran stock `yolov8n.pt` at one cutoff of 0.10 and grabbed the nearest/biggest person
+  by itself (`pick_target`), none of which is what flies.
+  - `replay.py` now builds its flags with `live_follow.add_flight_args` and runs `resolve_detection`,
+    `Detector.process` (the live detector pass, now one method both use), `make_follow_logic` (the same `FollowLogic`
+    + `lockon.TargetLock`) and `draw_follow`. It defines no setting of its own; `test_replay.py` fails if a replay-only
+    flag, a different default or a shadow copy of a decided constant appears.
+  - Same check as the pre-flight: `running_settings` + `check_decisions` against `flight_decisions.json`; mismatch →
+    **stops**; `--off-decisions` → DEVIATION banner, saved in `replay_info.json`, on every frame and in `commands.csv`.
+    The `replay` mode skips only `drone_profile_applied` (no drone).
+  - Click-to-lock in replay: `pick_target` (nearest-box re-lock) is deleted. The lock comes from the flight log's
+    recorded lock event, `--lock-id` or a window click; the recorded N and MANUAL/FOLLOW mode are replayed.
+  - `flight_decisions.json` adds `lost_s` = 1.0 (Michael 11-26: "We can keep the 1 second spin": hover 1.0 s after
+    the target is lost, then start the spin search; unchanged since the first commit, ce5675a). `LOST_S` moved from
+    `replay.py` to `live_follow.py` next to `STALE_S`.
+  - Unavoidable offline differences are listed in `replay.OFFLINE_DEVIATIONS` and printed on every run (see Replay).
+  - 10 new tests (`test_replay.py`): 132 in all.
 
 - **2026-11-26: re-lock cutoff read from its evidence; tracker and input size enforced.**
   - `lockon.MATCH_SIM` (0.70) is now read from `results/followme_reid_cutoff.json`; missing file → **stops**. That file

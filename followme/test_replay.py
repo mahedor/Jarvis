@@ -1,0 +1,164 @@
+"""Tests for replay.py's contract (Michael 11-26): "replay always matches whatever we're flying, unless I state
+explicitly otherwise", and any deviation must be brought to his attention.
+
+  * replay's effective settings == live_follow's for every decision in flight_decisions.json, from ONE definition
+    (a replay-only flag or default, or a shadow copy of a decided constant, fails here);
+  * the same settings check as live_follow's pre-flight: a mismatch STOPS, --off-decisions runs it with a DEVIATION
+    banner that is also saved in replay_info.json and commands.csv;
+  * click-to-lock: no automatic lock and no nearest-box re-lock; the lock comes from the flight log, --lock-id or a
+    window click.
+There were no replay tests before 11-26 (the old replay.main was never run by the suite)."""
+import csv
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import live_follow as lf  # noqa: E402
+import replay  # noqa: E402
+
+# flags only replay has: where to read/write and how to watch, none of which changes what the program decides
+REPLAY_ONLY = {"source", "lock_id", "max_frames", "window"}
+SAME_FLAG_OTHER_DEFAULT = {"out"}      # both write output somewhere: live ~/follow_logs, replay <source>/replay
+
+
+def _defaults(parser):
+    return {a.dest: a.default for a in parser._actions}
+
+
+def test_replay_runs_live_follows_settings_for_every_decision():
+    live = lf.build_parser().parse_args([])
+    rep = replay.build_parser().parse_args(["--source", "x"])
+    a_live, a_rep = lf.running_settings(live, True), lf.running_settings(rep, False)
+    decisions = lf.load_decisions()
+    for name, d in decisions.items():
+        assert name in a_live, f"{name}: no reading in running_settings (would be a deviation in every run)"
+        if "replay" in d["skip_with"]:
+            continue                                   # drone_profile_applied: replay talks to no drone
+        assert a_rep[name] == a_live[name] == d["value"], name
+    assert [n for n, d in decisions.items() if "replay" in d["skip_with"]] == ["drone_profile_applied"]
+    assert lf.follow_kwargs(rep) == lf.follow_kwargs(live)
+
+
+def test_replay_has_no_settings_of_its_own():
+    """Every flag replay shares with live_follow has live_follow's default; a new replay-only flag must be added to
+    REPLAY_ONLY on purpose (i.e. someone decides it does not change what replay runs)."""
+    d_live, d_rep = _defaults(lf.build_parser()), _defaults(replay.build_parser())
+    assert set(d_rep) - set(d_live) == REPLAY_ONLY
+    for dest in (set(d_rep) & set(d_live)) - SAME_FLAG_OTHER_DEFAULT:
+        assert d_rep[dest] == d_live[dest], f"replay --{dest} default {d_rep[dest]!r} != live {d_live[dest]!r}"
+    for name in ("LOST_S", "STALE_S", "MATCH_SIM", "TRACKER", "IMGSZ", "INT8_MODEL", "CUTOFFS_FILE", "SEARCH_S",
+                 "SEARCH_YAW", "SEARCH_DEG", "SEARCH_BOTH", "MARGIN"):
+        assert not hasattr(replay, name), f"replay.{name} would be a second source for a flight setting"
+
+
+def test_no_nearest_box_relock_left():
+    """The old replay re-locked onto the nearest/biggest person by itself (pick_target). Gone; and lock-on only
+    auto-locks with auto_lock=True, which is --auto-lock, a click_to_lock deviation."""
+    assert not hasattr(replay, "pick_target")
+    src = (HERE / "replay.py").read_text()
+    assert "pick_target(" not in src and "auto_lock=True" not in src
+
+
+def test_recorded_locks_are_clicks_and_resets_not_reid_relocks():
+    def r(f, tid, ev):
+        return dict(frame=str(f), target_id=tid, lock_event=ev)
+    rows = [r(0, "", "no_target"), r(1, "3", "following"), r(2, "3", "gallery_add"), r(3, "5", "reacquired_reid"),
+            r(4, "5", "following"), r(5, "", "no_target"), r(6, "8", "first_lock")]
+    assert replay.recorded_locks(rows) == [(1, "pick", "3"), (5, "reset", None), (6, "pick", "8")]
+    assert replay.recorded_locks([dict(frame="0", target_id="1")]) is None       # can't tell clicks from re-locks
+    assert replay.parse_lock_id("") == (None, 0) and replay.parse_lock_id("4@120") == (4, 120)
+
+
+def test_place_lock_by_overlap():
+    tracks = [(100, 100, 200, 300, 7, 0, 0.9), (600, 100, 700, 300, 9, 0, 0.9)]
+    assert replay.place_lock((110, 105, 205, 300), tracks)[4] == 7
+    assert replay.place_lock((400, 100, 500, 300), tracks) is None              # nothing there: wait, never guess
+
+
+# ---- full runs: a fake-drone flight from live_follow.py, then replayed (fake detector, real OSNet) ----
+
+@pytest.fixture(scope="module")
+def flight(tmp_path_factory):
+    out = tmp_path_factory.mktemp("flight")
+    cmd = [sys.executable, str(HERE / "live_follow.py"), "--fake", "--fake-detector", "--headless", "--auto-lock",
+           "--script", "t@0.5,m@1.5,q@4", "--seconds", "5", "--out", str(out)]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=HERE)
+    assert p.returncode == 0, p.stderr[-2000:]
+    return next(out.iterdir())
+
+
+def run_replay(source, out, *extra):
+    cmd = [sys.executable, str(HERE / "replay.py"), "--source", str(source), "--fake-detector", "--out", str(out), *extra]
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=HERE)
+
+
+def _rows(out):
+    return list(csv.DictReader(open(out / "commands.csv")))
+
+
+def test_replay_of_a_flight_runs_the_flight_program(flight, tmp_path):
+    p = run_replay(flight, tmp_path)
+    assert p.returncode == 0, p.stderr[-2000:]
+    assert "replay settings check: PASS" in p.stdout and "KNOWN OFFLINE DEVIATIONS" in p.stdout
+    info = json.loads((tmp_path / "replay_info.json").read_text())
+    pf = info["preflight"]
+    assert pf["passed"] and not pf["off_decisions"]
+    assert {s["name"] for s in pf["skipped"]} == {"detector_model", "detector_int8", "tracker", "imgsz",
+                                                  "drone_profile_applied"}
+    assert {"click_to_lock", "lost_s", "match_sim", "search_deg", "search_both_ways", "reid"} <= set(pf["checked"])
+    assert info["offline_deviations"] == replay.OFFLINE_DEVIATIONS
+    assert info["lock_source"].startswith("flight log: 1 recorded lock") and info["summary"]["locks_placed"] == 1
+    rows = _rows(tmp_path)
+    assert all(r["mode"] == r["flight_mode"] for r in rows)                   # the recorded MANUAL / FOLLOW
+    fol = [r for r in rows if r["mode"] == "FOLLOW"]
+    assert fol and all(r["state"] == "FOLLOWING" and r["target_id"] for r in fol)
+    assert any(abs(float(r["yaw"])) > 0 for r in fol)
+    assert all(float(r["yaw"]) == 0 and float(r["pitch"]) == 0 for r in rows if r["mode"] == "MANUAL")
+    assert not any(r["deviation"] for r in rows)
+    assert (tmp_path / "replay.mp4").stat().st_size > 0
+
+
+def test_replay_mismatch_stops(flight, tmp_path):
+    out = tmp_path / "rp"
+    p = run_replay(flight, out, "--match-sim", "0.8")
+    assert p.returncode != 0 and "STOP: replay would not run what is flown" in p.stderr
+    assert "match_sim: decided 0.7, about to run 0.8" in p.stderr
+    assert not out.exists()                                                     # stopped before any output
+
+
+def test_replay_off_decisions_shows_and_saves_the_deviation(flight, tmp_path):
+    p = run_replay(flight, tmp_path, "--match-sim", "0.8", "--off-decisions", "--max-frames", "30")
+    assert p.returncode == 0, p.stderr[-2000:]
+    assert "DEVIATION: this replay does NOT run what is flown" in p.stdout
+    assert p.stdout.rstrip().endswith("#" * 78)                                # repeated at the end, not scrolled away
+    pf = json.loads((tmp_path / "replay_info.json").read_text())["preflight"]
+    assert not pf["passed"] and pf["off_decisions"]
+    assert [(x["name"], x["decided"], x["actual"]) for x in pf["deviations"]] == [("match_sim", 0.7, 0.8)]
+    rows = _rows(tmp_path)
+    assert rows and all("match_sim 0.8 (flown 0.7)" in r["deviation"] for r in rows)
+
+
+def test_replay_auto_lock_is_a_deviation(flight, tmp_path):
+    p = run_replay(flight, tmp_path / "rp", "--auto-lock")
+    assert p.returncode != 0 and "click_to_lock: decided True, about to run False" in p.stderr
+
+
+def test_video_without_a_flight_log_never_locks_by_itself(flight, tmp_path):
+    clip = tmp_path / "clip.mp4"
+    shutil.copy(flight / "video_000.mp4", clip)
+    p = run_replay(clip, tmp_path / "none", "--max-frames", "40")
+    assert p.returncode == 0, p.stderr[-2000:]
+    rows = _rows(tmp_path / "none")
+    assert rows and all(r["target_id"] == "" and r["state"].startswith("NO TARGET") for r in rows)
+    assert all(float(r["yaw"]) == 0 and float(r["pitch"]) == 0 for r in rows)
+    p = run_replay(clip, tmp_path / "lock", "--max-frames", "40", "--lock-id", "1")
+    assert p.returncode == 0, p.stderr[-2000:]
+    rows = _rows(tmp_path / "lock")
+    assert any(r["state"] == "FOLLOWING" and r["target_id"] == "1" for r in rows)
+    assert json.loads((tmp_path / "lock" / "replay_info.json").read_text())["lock_source"] == "--lock-id 1"

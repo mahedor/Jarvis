@@ -48,13 +48,16 @@ import cv2
 import numpy as np
 
 import record                       # connect_real / connect_fake (Olympe I/O, tested 2026-10-25)
-import replay                       # Controller, pick_target, draw (the same logic the replays use)
+import replay                       # Controller, draw, box_at (shared drawing/controller pieces). replay.py's own
+                                    # program imports THIS module for every decided setting (11-26: one source)
 import geo                          # one-drone map position: target box -> metres N/E of takeoff (2026-11-08)
 import lockon                       # lock-on: gallery of re-ID vectors, verified re-acquisition (2026-11-10)
 import lookhere                     # two drones: share a clicked ground spot, look at it / go there (2026-11-22)
 
 HOLD = 0.3
 STALE_S = 0.6
+LOST_S = 1.0        # Michael 11-26: "We can keep the 1 second spin": hover LOST_S after the target is lost, then start
+                    # the spin search. Unchanged since the first commit (ce5675a); in flight_decisions.json as lost_s.
 SPEEDS = {ord("1"): 20, ord("2"): 35, ord("3"): 50}
 ARROWS = {65362: "up", 65364: "down", 65361: "yaw_l", 65363: "yaw_r"}
 MOVES = {"w": dict(pitch=1), "s": dict(pitch=-1), "a": dict(roll=-1), "d": dict(roll=1),
@@ -103,6 +106,34 @@ class Detector(threading.Thread):
         x1, x2, y1, y2 = xs.min(), xs.max(), ys.min(), ys.max()
         return [(float(x1), float(y1 - 60), float(x2), float(y2 + 60), 1, 0, 0.9)]
 
+    def process(self, img, t):
+        """One detector pass: track + per-class cutoffs, then re-ID vectors for the crops lock-on asks for.
+        -> (tracks, det_ms, vecs, embed_ms). The live thread calls this on the newest frame; replay.py calls it on
+        every recorded frame, so both run exactly this code."""
+        t0 = time.time()
+        if self.fake:
+            tracks = self._fake_tracks(img)
+        else:
+            r = self.model.track(img, **self.args)[0]
+            tracks = []
+            if r.boxes is not None and r.boxes.id is not None:
+                for b, tid, cls, cf in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.id.cpu().numpy().astype(int),
+                                           r.boxes.cls.cpu().numpy().astype(int), r.boxes.conf.cpu().numpy()):
+                    if keep_box(self.names.get(int(cls), ""), float(cf), self.person_cut, self.vehicle_cut):
+                        tracks.append((*b.tolist(), int(tid), int(cls), float(cf)))
+        det_ms = (time.time() - t0) * 1000
+        vecs, t1 = {}, time.time()
+        if self.embedder is not None and self.want_fn is not None and tracks:
+            ids = set(self.want_fn(tracks, t, img.shape[1], img.shape[0]))
+            sel = [tr for tr in tracks if tr[4] in ids]
+            if sel:
+                try:
+                    V = self.embedder(img, [tr[:4] for tr in sel])
+                    vecs = {tr[4]: V[i] for i, tr in enumerate(sel)}
+                except Exception as ex:                  # noqa: BLE001 - re-ID must never kill the detector
+                    print("re-ID embed failed:", ex)
+        return tracks, det_ms, vecs, (time.time() - t1) * 1000
+
     def run(self):
         while not self.stop_flag:
             if not self.new.wait(0.2):
@@ -110,31 +141,10 @@ class Detector(threading.Thread):
             self.new.clear()
             with self.lock:
                 img, t = self.frame, self.frame_t
-            t0 = time.time()
-            if self.fake:
-                tracks = self._fake_tracks(img)
-            else:
-                r = self.model.track(img, **self.args)[0]
-                tracks = []
-                if r.boxes is not None and r.boxes.id is not None:
-                    for b, tid, cls, cf in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.id.cpu().numpy().astype(int),
-                                               r.boxes.cls.cpu().numpy().astype(int), r.boxes.conf.cpu().numpy()):
-                        if keep_box(self.names.get(int(cls), ""), float(cf), self.person_cut, self.vehicle_cut):
-                            tracks.append((*b.tolist(), int(tid), int(cls), float(cf)))
-            det_ms = (time.time() - t0) * 1000
-            vecs, t1 = {}, time.time()
-            if self.embedder is not None and self.want_fn is not None and tracks:
-                ids = set(self.want_fn(tracks, t, img.shape[1], img.shape[0]))
-                sel = [tr for tr in tracks if tr[4] in ids]
-                if sel:
-                    try:
-                        V = self.embedder(img, [tr[:4] for tr in sel])
-                        vecs = {tr[4]: V[i] for i, tr in enumerate(sel)}
-                    except Exception as ex:                  # noqa: BLE001 - re-ID must never kill the detector
-                        print("re-ID embed failed:", ex)
+            tracks, det_ms, vecs, embed_ms = self.process(img, t)
             with self.lock:
                 self.result = (tracks, self.names, t, det_ms)
-                self.vecs, self.embed_ms = vecs, (time.time() - t1) * 1000
+                self.vecs, self.embed_ms = vecs, embed_ms
 
     def latest_vecs(self):
         with self.lock:
@@ -153,12 +163,12 @@ class FollowLogic:
     """Decides the stick command in FOLLOW mode. Pure logic (no I/O) so the safety rules can be tested.
 
     Target choice and re-acquisition live in lockon.TargetLock (2026-11-10): a lost target is only re-locked onto a
-    person whose re-ID vector matches the target's gallery; without a gallery it falls back to the old nearest-box rule.
+    person whose re-ID vector matches the target's gallery; without a gallery it stays lost (no nearest-box guess).
     Lost for < lost_s: hover (the tracker often gets them back under the same ID). Then spin IN PLACE toward the side
     they were last seen, quickly, for one full 360 (or search_s at most), re-ID checking everyone who comes into view
     (Michael 2026-11-14). Then hover until picked again. Only yaw changes while searching: no roll/pitch/gaz.
     """
-    def __init__(self, person_ids, max_speed, lost_s=replay.LOST_S, stale_s=STALE_S, search_s=SEARCH_S,
+    def __init__(self, person_ids, max_speed, lost_s=LOST_S, stale_s=STALE_S, search_s=SEARCH_S,
                  search_yaw=SEARCH_YAW, match_sim=lockon.MATCH_SIM, search_deg=SEARCH_DEG, search_both=SEARCH_BOTH,
                  auto_lock=False):
         self.ctrl = replay.Controller()
@@ -178,15 +188,16 @@ class FollowLogic:
     def reset(self):
         self.ctrl = replay.Controller(); self.lock.reset(); self.last_seen = None; self.event = ""; self._fed_det_t = None
 
-    def pick(self, tid, tracks=None):
-        self.lock.pick(tid, tracks, by="you"); self.last_seen = time.time()
+    def pick(self, tid, tracks=None, now=None):
+        """now: the clock the rest of the logic runs on (wall clock live; the recorded time in replay.py)."""
+        self.lock.pick(tid, tracks, by="you"); self.last_seen = time.time() if now is None else now
 
-    def resume(self):
+    def resume(self, now=None):
         """FOLLOW switched on: fresh controller and search, but KEEP the target + re-ID gallery built so far
         (Michael 2026-11-20: lock-on should already know you before follow mode starts)."""
         self.ctrl = replay.Controller(); self._yaw_prev, self.turned_deg = None, 0.0
         if self.lock.target_id is not None and self.lock.lost_since is None:
-            self.last_seen = time.time()
+            self.last_seen = time.time() if now is None else now
 
     def observe(self, tracks, det_t, now, W, H, vecs=None):
         """MANUAL mode: run lock-on (choose the target, build the gallery, re-lock) but send no commands."""
@@ -328,13 +339,25 @@ def check_decisions(actual, decisions, modes):
     return res
 
 
-def enforce_decisions(result, off_decisions):
-    """Stop on any deviation unless --off-decisions; -> the record saved in drone.json."""
+def enforce_decisions(result, off_decisions, program="live_follow"):
+    """Stop on any deviation unless --off-decisions; -> the record saved in drone.json (live) or replay_info.json.
+    program="replay": same check, worded for replay.py (Michael 11-26: replay always matches what we fly unless he
+    says otherwise, and any deviation must be brought to his attention -> a banner, not a one-line note)."""
+    tag = "replay settings check" if program == "replay" else "pre-flight check"
     if result["passed"]:
-        print(f"pre-flight check: PASS ({len(result['checked'])} decisions"
+        print(f"{tag}: PASS ({len(result['checked'])} decisions"
               + (f"; skipped in this mode: {', '.join(s['name'] for s in result['skipped'])})" if result["skipped"] else ")"))
         return dict(result, off_decisions=off_decisions)
     lines = "\n".join(f"  {x['name']}: decided {x['decided']!r}, about to run {x['actual']!r}" for x in result["deviations"])
+    if program == "replay":
+        if not off_decisions:
+            sys.exit(f"STOP: replay would not run what is flown ({_rel(DECISIONS_FILE)}):\n{lines}\n"
+                     f"  Fix it, or pass --off-decisions to replay these deviations on purpose (they are printed, saved "
+                     f"in replay_info.json and stamped on every frame of replay.mp4).")
+        bar = "#" * 78
+        print(f"{bar}\nDEVIATION: this replay does NOT run what is flown (--off-decisions)\n{lines}\n"
+              f"  Its commands are not what the drone would do. Saved in replay_info.json and on every frame.\n{bar}")
+        return dict(result, off_decisions=True)
     if not off_decisions:
         sys.exit(f"STOP: not flying what was decided ({_rel(DECISIONS_FILE)}):\n{lines}\n"
                  f"  Fix it, or pass --off-decisions to fly these deviations on purpose (they are logged in drone.json).")
@@ -352,9 +375,14 @@ def keep_box(cls_name, conf, person_cut, vehicle_cut):
     return conf >= (person_cut if str(cls_name).lower() in replay.PERSON_NAMES else vehicle_cut)
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--ip", default="192.168.42.1")
+# ---- the flight settings, ONE definition shared by live_follow.py and replay.py (11-26) ----
+# Michael 11-26: "replay always matches whatever we're flying, unless I state explicitly otherwise". replay.py builds
+# its parser with add_flight_args, its FollowLogic with make_follow_logic, its detector with resolve_detection +
+# Detector, and its settings check with running_settings + check_decisions + enforce_decisions. A setting defined
+# only in replay.py would be a second source; test_replay.py fails if one appears.
+
+def add_flight_args(ap):
+    """Every flag that changes what the detector / lock-on / follow logic does. Both programs call this."""
     ap.add_argument("--model", default=str(INT8_MODEL),
                     help="detector (default: the INT8 OpenVINO model, ~3x faster than .pt; Michael 11-22). No silent "
                          "fallback: if it's missing the program stops. Pass a .pt here only on purpose.")
@@ -366,8 +394,6 @@ def main():
                     help="vehicle cutoff (default: this model's F1-max from results/followme_cutoffs_balanced.json)")
     ap.add_argument("--max-speed", type=float, default=20.0, help="cap on FOLLOW yaw and forward/back, %% of max")
     ap.add_argument("--follow-dist", type=float, default=replay.FOLLOW_DIST_M, help="metres to keep from the target")
-    ap.add_argument("--min-battery", type=float, default=25.0)
-    ap.add_argument("--calib", default="", help="camera_calib.json from calibrate_camera.py (default: next to this file)")
     ap.add_argument("--reid", default="osnet", choices=["osnet", "hist", "none"],
                     help="lock-on appearance model: osnet (default; stops if boxmot/OSNet can't load), hist = colour "
                          "histogram baseline (tests only), none = no re-ID (a lost target is never re-acquired)")
@@ -376,16 +402,28 @@ def main():
     ap.add_argument("--search-yaw", type=float, default=SEARCH_YAW, help="%% yaw while spinning in place to search")
     ap.add_argument("--search-deg", type=float, default=SEARCH_DEG, help="degrees per spin direction (360 = one full turn)")
     ap.add_argument("--search-one-way", action="store_true", help="only spin one way (default: one way, then the other)")
+    ap.add_argument("--fake-detector", action="store_true", help="no model (tracks the fake video's ball)")
+    ap.add_argument("--auto-lock", action="store_true",
+                    help="lock onto the biggest person without a click (fake-drone tests only; default: click to lock)")
+    ap.add_argument("--off-decisions", action="store_true",
+                    help="run even though settings differ from flight_decisions.json (on purpose; the deviations are "
+                         "logged: drone.json live, replay_info.json + a banner in replay)")
+    return ap
+
+
+def build_parser():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ip", default="192.168.42.1")
+    add_flight_args(ap)
+    ap.add_argument("--min-battery", type=float, default=25.0)
+    ap.add_argument("--calib", default="", help="camera_calib.json from calibrate_camera.py (default: next to this file)")
     ap.add_argument("--out", default=str(Path.home() / "follow_logs"))   # outside the repo/OneDrive: 300+ MB per flight
     ap.add_argument("--fps", type=float, default=30.0)
     ap.add_argument("--fake", action="store_true", help="no drone (synthetic video)")
-    ap.add_argument("--fake-detector", action="store_true", help="no model (tracks the fake video's ball)")
     ap.add_argument("--fake-stall", type=float, nargs=2, default=(0, 0))
     ap.add_argument("--headless", action="store_true", help="(testing) no window; --script drives the keys")
     ap.add_argument("--script", default="", help="(testing) 't@1,m@2,w@5,m@6,q@9' = key@seconds")
     ap.add_argument("--seconds", type=float, default=0)
-    ap.add_argument("--auto-lock", action="store_true",
-                    help="lock onto the biggest person without a click (fake-drone tests only; default: click to lock)")
     ap.add_argument("--name", default="", help="this drone's name in shared messages (default: its nickname, droneA / droneB)")
     ap.add_argument("--listen", default="", help="name of the drone whose clicked spots this one follows (worker)")
     ap.add_argument("--share-file", default="", help="JSON file used to share clicked spots (both programs on ONE laptop)")
@@ -393,14 +431,57 @@ def main():
     ap.add_argument("--no-overlay-video", action="store_true",
                     help="don't also record the on-screen view (boxes + labels exactly as shown live) to overlay_*.mp4")
     ap.add_argument("--no-profile", action="store_true", help="don't push drone_profile.json to the drone on connect")
-    ap.add_argument("--off-decisions", action="store_true",
-                    help="fly even though settings differ from flight_decisions.json (on purpose; logged in drone.json)")
-    args = ap.parse_args()
-    if not args.fake_detector and not Path(args.model).exists():   # no silent fallback to the .pt (Michael 11-22)
+    return ap
+
+
+def resolve_detection(args):
+    """Detector must exist (no silent fallback to the .pt, Michael 11-22); cutoffs from the F1-max file.
+    -> (person cutoff, vehicle cutoff, source)."""
+    if not args.fake_detector and not Path(args.model).exists():
         sys.exit(f"STOP: detector not found: {args.model}\n"
                  f"  Put vd_mav_cl_s42_int8_openvino_model/ in followme/weights/, or pass --model on purpose.")
-    cut_p, cut_v, cut_src = resolve_cutoffs(args.model, args.conf_person, args.conf_vehicle)
-    replay.FOLLOW_DIST_M = args.follow_dist
+    return resolve_cutoffs(args.model, args.conf_person, args.conf_vehicle)
+
+
+def follow_kwargs(args):
+    """The FollowLogic settings both programs run with (also the readings the decisions check compares)."""
+    return dict(max_speed=args.max_speed, lost_s=LOST_S, stale_s=STALE_S, search_s=args.search_s,
+                search_yaw=args.search_yaw, search_deg=args.search_deg, search_both=not args.search_one_way,
+                match_sim=args.match_sim, auto_lock=args.auto_lock)
+
+
+def make_follow_logic(person_ids, args):
+    replay.FOLLOW_DIST_M = args.follow_dist          # the controller reads its follow distance from replay.py
+    return FollowLogic(person_ids, **follow_kwargs(args))
+
+
+def running_settings(args, drone_profile_applied, cutoffs=(None, None)):
+    """{decision name: the value about to run}, for check_decisions. Same function for live and replay.
+    cutoffs: the resolved (person, vehicle) pair, used only to describe hand-set cutoffs."""
+    fk = follow_kwargs(args)
+    cut_p, cut_v = cutoffs
+    return dict(detector_model=_rel(args.model, HERE), detector_int8=Path(args.model).name.endswith(INT8_SUFFIX),
+                detection_cutoffs=(_rel(CUTOFFS_FILE) if args.conf_person is None and args.conf_vehicle is None
+                                   else f"command line: person {cut_p}, vehicle {cut_v}"),
+                tracker=args.tracker, imgsz=args.imgsz, reid=args.reid, match_sim=fk["match_sim"],
+                drone_profile_applied=drone_profile_applied, click_to_lock=not fk["auto_lock"],
+                search_deg=fk["search_deg"], search_both_ways=fk["search_both"], lost_s=fk["lost_s"])
+
+
+def draw_follow(img, tracks, names, logic, cmd, info, mode, fps, tel, n, total=0):
+    """The on-screen view: boxes, status bar, commands (live window, overlay video and replay.mp4 all use this)."""
+    H = img.shape[0]
+    c = dict(yaw=cmd["yaw"], pitch=cmd["pitch"], gimbal_delta=0.0, dist=info.get("dist") or 0.0,
+             method=info.get("method") if mode == "FOLLOW" and info["state"] == "FOLLOWING" else "searching")
+    vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, fps, tel, n, total, logic.picked_by)
+    col = (0, 255, 0) if mode == "FOLLOW" and info["state"] == "FOLLOWING" else (0, 200, 255) if mode == "FOLLOW" else (200, 200, 200)
+    cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, N new lock, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
+    return vis
+
+
+def main():
+    args = build_parser().parse_args()
+    cut_p, cut_v, cut_src = resolve_detection(args)
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
     share_target, last_share_t, last_rx_print = False, 0.0, 0.0
 
@@ -426,12 +507,8 @@ def main():
     print(reid_note)
     # ---- pre-flight self-check: what is about to run vs. what was decided (replaces reading the printout) ----
     modes = {f for f, on in (("--fake", args.fake), ("--fake-detector", args.fake_detector)) if on}
-    actual = dict(detector_model=_rel(args.model, HERE), detector_int8=Path(args.model).name.endswith(INT8_SUFFIX),
-                  detection_cutoffs=(_rel(CUTOFFS_FILE) if args.conf_person is None and args.conf_vehicle is None
-                                     else f"command line: person {cut_p}, vehicle {cut_v}"),
-                  tracker=args.tracker, imgsz=args.imgsz, reid=args.reid, match_sim=args.match_sim,
-                  drone_profile_applied="apply_profile" in d and not args.no_profile and profile_ok(profile_note),
-                  click_to_lock=not args.auto_lock, search_deg=args.search_deg, search_both_ways=not args.search_one_way)
+    actual = running_settings(args, "apply_profile" in d and not args.no_profile and profile_ok(profile_note),
+                              (cut_p, cut_v))
     try:
         preflight = enforce_decisions(check_decisions(actual, load_decisions(), modes), args.off_decisions)
     except SystemExit:
@@ -439,8 +516,7 @@ def main():
         raise
     det = Detector(args.model, args.tracker, args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
     person_ids = {k for k, v in det.names.items() if str(v).lower() in replay.PERSON_NAMES}
-    logic = FollowLogic(person_ids, args.max_speed, search_s=args.search_s, search_yaw=args.search_yaw, search_deg=args.search_deg, search_both=not args.search_one_way,
-                        match_sim=args.match_sim, auto_lock=args.auto_lock)
+    logic = make_follow_logic(person_ids, args)
     det.want_fn = lambda tr, t, W, H: logic.wants_embedding(tr, t, W, H)   # lock-on runs in MANUAL too (11-20)
     calib = geo.load_calib(args.calib or None)
     mapf = geo.MapFrame(calib)
@@ -637,11 +713,7 @@ def main():
             # ---- display ----
             if not args.headless:
                 _a = pc()
-                c = dict(yaw=cmd["yaw"], pitch=cmd["pitch"], gimbal_delta=0.0, dist=info.get("dist") or 0.0,
-                         method=info.get("method") if mode == "FOLLOW" and info["state"] == "FOLLOWING" else "searching")
-                vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, 1000 / max(det_ms, 1), tel, n, 0, logic.picked_by)
-                col = (0, 255, 0) if mode == "FOLLOW" and info["state"] == "FOLLOWING" else (0, 200, 255) if mode == "FOLLOW" else (200, 200, 200)
-                cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, N new lock, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
+                vis = draw_follow(img, tracks, names, logic, cmd, info, mode, 1000 / max(det_ms, 1), tel, n)
                 if share_target:
                     cv2.putText(vis, "SHARING TARGET with the other drone (O to stop)", (10, 150), 0, 0.8, (255, 0, 255), 2)
                 if point_mode:

@@ -4,7 +4,7 @@ Re-ID = making an appearance vector for a person crop and comparing two vectors 
 Lock-on = the job built on top of the tracker: choose the target, keep following their track ID, and when that ID
 disappears, only re-lock onto someone whose appearance matches the target's stored vectors.
 
-Replaces the old behaviour (replay.pick_target): "track ID vanished -> grab whoever is nearest the last-seen box",
+Replaces the old behaviour (replay.pick_target, deleted 11-26): "track ID vanished -> grab whoever is nearest the last-seen box",
 which happily latched onto a stranger walking past.
 
 Pieces:

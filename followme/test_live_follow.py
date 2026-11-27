@@ -268,8 +268,9 @@ def test_code_defaults_are_the_decided_settings():
     assert dec["tracker"] == lf.TRACKER and dec["imgsz"] == lf.IMGSZ
     assert dec["match_sim"] == lockon.MATCH_SIM
     assert dec["search_deg"] == lf.SEARCH_DEG and dec["search_both_ways"] == lf.SEARCH_BOTH
-    for d in lf.load_decisions().values():
-        assert d["source"] and d["date"] and set(d["skip_with"]) <= {"--fake", "--fake-detector"}
+    assert dec["lost_s"] == lf.LOST_S == 1.0                          # Michael 11-26: keep the 1 second hover
+    for d in lf.load_decisions().values():                            # replay: replay.py's own check (test_replay.py)
+        assert d["source"] and d["date"] and set(d["skip_with"]) <= {"--fake", "--fake-detector", "replay"}
 
 
 def test_check_decisions_finds_every_kind_of_deviation():

@@ -1,37 +1,46 @@
 #!/usr/bin/env python3
-"""Replay recorded footage through  detector -> tracker -> follow-me controller,  WITHOUT flying.
+"""Replay a recorded flight (or any footage) through the FLIGHT PROGRAM's detector -> tracker -> lock-on -> follow
+logic, WITHOUT flying. Saves replay.mp4 (the same on-screen view live_follow draws), commands.csv (the commands it
+WOULD send, next to what the flight recorded) and replay_info.json (settings check + known offline deviations).
 
-Draws the commands the controller WOULD send (yaw / forward-back / up-down / gimbal) on every frame,
-and saves an annotated video + a CSV of commands so we can check them before real flights.
+  python replay.py --source ~/follow_logs/20261129_150554_droneA     # a live_follow.py flight (follow.csv + boxes.jsonl)
+  python replay.py --source ~/recordings/20261025_150000 --lock-id 3  # a record.py folder (telemetry.csv)
+  python replay.py --source clip.mp4 --window                         # any video / image folder: click to lock
 
-  python replay.py --source ~/recordings/20261025_150000            # a record.py folder (uses telemetry.csv)
-  python replay.py --source ~/follow_logs/20261029_150554           # a live_follow.py folder (uses follow.csv)
-  python replay.py --source clip.mp4                                 # any video (distance from box size)
-  python replay.py --source VisDrone2019-MOT-val/sequences/uav0000086_00000_v   # an image folder
+Michael 11-26: "replay always matches whatever we're flying, unless I state explicitly otherwise", and any deviation
+must be brought to his attention. So this file has NO settings of its own: the flags, the detector, the cutoffs, the
+tracker, the input size, re-ID, MATCH_SIM, click-to-lock, LOST_S / STALE_S and the 360-degree two-way search all come
+from live_follow.py / lockon.py (add_flight_args, resolve_detection, Detector.process, make_follow_logic). Before
+anything runs, the same check as live_follow's pre-flight compares the settings with flight_decisions.json and STOPS on
+any difference unless --off-decisions; with it, a DEVIATION banner is printed, saved in replay_info.json and stamped on
+every frame. (Until 11-26 replay ran stock yolov8n at conf 0.10 with the old nearest-box auto re-lock.)
 
-Needs: pip install ultralytics  (separate env from Olympe is fine; this never talks to the drone).
-Default: no window, just a progress bar, then a normal-speed replay.mp4 to watch.
---window: live window where you can CLICK a box to make it the target (plays at detection speed), SPACE pause, Q quit.
+Lock (click-to-lock, Michael 11-20): nothing locks by itself. The lock comes from the flight log's recorded lock event
+(the operator's click, or first_lock in a --fake --auto-lock test flight), placed on the replay's own track with the
+highest IoU to the recorded target box (boxes.jsonl); or from --lock-id TID[@FRAME]; or from a click with --window.
+A recorded N (new lock) clears it. Re-locks after a loss are the replay's own re-ID decisions, never copied from the
+log. The recorded MANUAL / FOLLOW mode is replayed too (MANUAL: lock-on runs, no commands; M -> FOLLOW: resume).
+Sources with no flight log (video, image folder, record.py) replay as FOLLOW throughout.
 
-Controller (P-control with deadbands, clamps and smoothing; all gains are first guesses, to be tuned):
-  yaw    <- horizontal offset of the target from image center
-  gimbal <- vertical offset (camera tilts to keep the target centered)
-  pitch  <- distance error (forward if too far, back if too close)
-  gaz    <- 0 for now (hold altitude)
-  lost target > LOST_S seconds -> hover (all zero)
+Known offline deviations (unavoidable; printed every run and saved in replay_info.json): see OFFLINE_DEVIATIONS.
+
+The shared pieces live_follow imports from here: Controller (P-control with deadbands, clamps and smoothing; gains
+are first guesses), estimate_distance, draw, box_at, PERSON_NAMES / VEHICLE_NAMES.
 Distance:
   'angle' (needs telemetry): ground distance = height_above_takeoff / tan(angle down to the target's FEET)
   'box'   (fallback): pinhole estimate from box height, assuming a 1.7 m person
 """
 import argparse
 import csv
+import json
 import math
+import time
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-# ---- tunables (ASSUMED first guesses) ----
+# ---- controller tunables (ASSUMED first guesses; live_follow's controller is this one) ----
 VFOV_DEG = 42.0          # ANAFI live stream vertical field of view, from ~69 deg HFOV at 16:9 (ASSUMED, verify)
 PERSON_H_M = 1.7
 FOLLOW_DIST_M = 6.0
@@ -40,7 +49,6 @@ MAX_YAW, MAX_PITCH = 40, 30                     # % stick
 DEADBAND_X, DEADBAND_D = 0.05, 0.5              # fraction of half-width, metres
 MIN_ANGLE_DEG = 3.0                             # below this the angle method is too unstable -> box method
 SMOOTH = 0.5                                    # EMA on commands (0 = no smoothing)
-LOST_S = 1.0
 
 
 def _log_file(p):
@@ -131,17 +139,6 @@ class Controller:
         return dict(self.cmd, dist=dist, method=method)
 
 
-def pick_target(tracks, person_ids, last_box, W, H):
-    """First lock: biggest person. Re-lock after a loss: person closest to where we last saw the target."""
-    cands = [t for t in tracks if t[5] in person_ids]
-    if not cands:
-        return None
-    if last_box is None:
-        return max(cands, key=lambda t: (t[2] - t[0]) * (t[3] - t[1]))
-    lx, ly = (last_box[0] + last_box[2]) / 2, (last_box[1] + last_box[3]) / 2
-    return min(cands, key=lambda t: ((t[0] + t[2]) / 2 - lx) ** 2 + ((t[1] + t[3]) / 2 - ly) ** 2)
-
-
 VEHICLE_NAMES = {"car", "van", "truck", "bus", "motor", "motorcycle", "bicycle", "tricycle", "awning-tricycle",
                  "three_wheeler", "threewheeler"}
 PERSON_NAMES = {"person", "pedestrian", "people"}
@@ -196,82 +193,228 @@ def box_at(tracks, x, y):
     return min(hits, key=lambda t: (t[2] - t[0]) * (t[3] - t[1])) if hits else None
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--source", required=True)
-    ap.add_argument("--model", default="yolov8n.pt", help=".pt or .onnx (ultralytics)")
-    ap.add_argument("--tracker", default="botsort.yaml", help="ultralytics tracker yaml (botsort has camera-motion comp. on)")
-    ap.add_argument("--imgsz", type=int, default=640)
-    ap.add_argument("--conf", type=float, default=0.1)
-    ap.add_argument("--fps", type=float, default=30.0, help="source frame rate (for the lost-target timer)")
-    ap.add_argument("--out", default=None, help="output folder (default: next to source)")
-    ap.add_argument("--max-frames", type=int, default=0)
-    ap.add_argument("--window", action="store_true", help="show a live window you can click in (runs at detection speed)")
-    args = ap.parse_args()
+# ---- the replay program: every setting comes from live_follow.py / lockon.py ----
 
-    from ultralytics import YOLO
-    import time
-    model = YOLO(args.model)
-    names = model.names
-    person_ids = {k for k, v in names.items() if str(v).lower() in PERSON_NAMES}
+# What replay cannot do the way the flight does (11-26). Printed on every run and saved in replay_info.json.
+OFFLINE_DEVIATIONS = [
+    "drone profile: not applied. Replay talks to no drone (drone_profile_applied is skipped in replay mode).",
+    "commands are computed, never sent: the camera, gimbal and drone did what the FLIGHT did, so after the first "
+    "difference the picture no longer follows the replay's commands.",
+    "search spin: the 360-degree two-way search counts its turn from the RECORDED drone_yaw_deg (what the drone did in "
+    "the flight), not from the yaw the replay commands. With no yaw telemetry (video, image folder) it ends on the "
+    "SEARCH_S timeout.",
+    "timing: detection runs on every recorded frame, one at a time. Live it runs in a background thread on the newest "
+    "frame and skips frames when slower than the video. So STALE_S (detector stall) never triggers here, the follow "
+    "logic runs once per frame (live: every loop), and tracker IDs and re-ID sample times can differ from the flight. "
+    "Clock = the recorded t_s (else frame / --fps).",
+    "frames: the recorded mp4 (re-encoded), not the raw stream the live detector saw.",
+    "operator input: only the recorded lock / N (new lock) / MANUAL-FOLLOW mode are replayed (or --lock-id / --window "
+    "clicks); look/go and manual sticks are not. Track IDs differ from the flight, so a recorded lock is placed on the "
+    "replay track with the highest box overlap (IoU >= LOCK_IOU).",
+]
+LOCK_IOU = 0.3      # a recorded lock is placed on the replay track overlapping the recorded target box at least this much
+
+
+def _flight():
+    """live_follow, imported here and not at the top: live_follow imports this file (Controller, draw, box_at), so a
+    top-level import would be circular. Everything decided comes from it."""
+    import live_follow
+    return live_follow
+
+
+def load_flight_log(src):
+    """A live_follow.py flight folder -> dict(rows, boxes, running, note); anything else -> None.
+    boxes: {frame: [[x1, y1, x2, y2, id, cls, conf], ...]} from boxes.jsonl (flights from 11-22 on), else None."""
+    src = Path(src)
+    if not (src.is_dir() and (src / "follow.csv").exists()):
+        return None
+    rows = list(csv.DictReader(open(src / "follow.csv")))
+    boxes = None
+    if (src / "boxes.jsonl").exists():
+        boxes = {}
+        for line in (src / "boxes.jsonl").read_text().splitlines():
+            if line.strip():
+                b = json.loads(line)
+                boxes[int(b["frame"])] = b["boxes"]
+    running = None
+    if (src / "drone.json").exists():
+        running = json.loads((src / "drone.json").read_text()).get("running")
+    return dict(rows=rows, boxes=boxes, running=running)
+
+
+def recorded_locks(rows):
+    """The operator's lock decisions in a flight's follow.csv -> [(frame, "pick", recorded_target_id) |
+    (frame, "reset", None)], or None if the log can't tell clicks from re-ID re-locks (no lock_event column).
+    target_id is the lock's target after each frame. A change to a new id that is NOT a re-ID re-lock
+    (lock_event reacquired_reid) is a click (or first_lock in an --auto-lock fake-drone flight); a change to empty
+    is N (new lock). Re-locks are left to the replay's own re-ID, never copied."""
+    if not rows or "lock_event" not in rows[0]:
+        return None
+    ev, prev = [], ""
+    for r in rows:
+        tid = r.get("target_id") or ""
+        if tid != prev:
+            if tid == "":
+                ev.append((int(r["frame"]), "reset", None))
+            elif r.get("lock_event") != "reacquired_reid":
+                ev.append((int(r["frame"]), "pick", tid))
+        prev = tid
+    return ev
+
+
+def place_lock(box, tracks):
+    """The replay track with the highest IoU to a recorded target box, if at least LOCK_IOU; else None."""
+    import lockon
+    best = max(tracks, key=lambda t: lockon.iou(t[:4], box), default=None)
+    return best if best is not None and lockon.iou(best[:4], box) >= LOCK_IOU else None
+
+
+def parse_lock_id(s):
+    """'3' -> (3, 0); '3@120' -> (3, 120): lock onto replay track 3 the first time it is seen at or after frame 120."""
+    if not s:
+        return None, 0
+    tid, _, frame = str(s).partition("@")
+    return int(tid), int(frame or 0)
+
+
+def build_parser():
+    lf = _flight()
+    ap = argparse.ArgumentParser(description="Replay footage through the flight program without flying.")
+    ap.add_argument("--source", required=True)
+    lf.add_flight_args(ap)             # the SAME flags and defaults as live_follow.py; no replay-only settings
+    ap.add_argument("--lock-id", default="",
+                    help="TID or TID@FRAME: lock onto replay track TID (replaces the flight log's recorded locks)")
+    ap.add_argument("--fps", type=float, default=30.0, help="frame rate for sources without recorded timestamps (t_s)")
+    ap.add_argument("--out", default=None, help="output folder (default: <source>/replay)")
+    ap.add_argument("--max-frames", type=int, default=0)
+    ap.add_argument("--window", action="store_true",
+                    help="live window: CLICK a box to lock (like live), SPACE pause, Q quit (runs at detection speed)")
+    return ap
+
+
+def main(argv=None):
+    import sys
+    import lockon
+    lf = _flight()
+    args = build_parser().parse_args(argv)
     src = Path(args.source).expanduser()
+    if not src.exists():
+        sys.exit(f"STOP: no such source: {src}")
+    cut_p, cut_v, cut_src = lf.resolve_detection(args)
+    # ---- the same check as live_follow's pre-flight: what replay is about to run vs. flight_decisions.json ----
+    modes = {"replay"} | ({"--fake-detector"} if args.fake_detector else set())
+    actual = lf.running_settings(args, drone_profile_applied=False, cutoffs=(cut_p, cut_v))
+    preflight = lf.enforce_decisions(lf.check_decisions(actual, lf.load_decisions(), modes), args.off_decisions,
+                                     program="replay")
+    print("KNOWN OFFLINE DEVIATIONS (replay cannot do these the way the flight does):")
+    for x in OFFLINE_DEVIATIONS:
+        print("  -", x)
+    print(f"detector: {args.model}" + (" (fake: tracks the ball)" if args.fake_detector else ""))
+    print(f"cutoffs: person >= {cut_p:.2f}, vehicle >= {cut_v:.2f}  ({cut_src})")
+    embedder, reid_note = lockon.make_embedder(args.reid)
+    print(reid_note)
+    det = lf.Detector(args.model, args.tracker, args.imgsz, (cut_p, cut_v), fake=args.fake_detector, embedder=embedder)
+    names = det.names
+    person_ids = {k for k, v in names.items() if str(v).lower() in PERSON_NAMES}
+    logic = lf.make_follow_logic(person_ids, args)
+    det.want_fn = lambda tr, t, W, H: logic.wants_embedding(tr, t, W, H)
+
+    # ---- where the lock comes from: never automatic (click-to-lock, Michael 11-20) ----
+    flight = load_flight_log(src)
+    lock_tid, lock_frame = parse_lock_id(args.lock_id)
+    events, notes = [], []
+    if lock_tid is not None:
+        lock_source = f"--lock-id {args.lock_id}"
+    elif flight is None:
+        lock_source = "none recorded (not a live_follow flight): use --lock-id or --window"
+    else:
+        events = recorded_locks(flight["rows"])
+        if events is None:
+            lock_source = "none: this follow.csv has no lock_event column (before 11-10); use --lock-id or --window"
+            events = []
+        elif flight["boxes"] is None:
+            lock_source = "none: no boxes.jsonl (flights before 11-22), the recorded lock can't be placed; use --lock-id or --window"
+            events = []
+        else:
+            lock_source = f"flight log: {sum(e[1] == 'pick' for e in events)} recorded lock(s), {sum(e[1] == 'reset' for e in events)} N"
+    print(f"lock: {lock_source}" + ("   + clicks in the window" if args.window else ""))
+    flight_differs = []
+    if flight and flight["running"]:
+        flight_differs = [dict(name=k, flown=v, replay=actual[k]) for k, v in flight["running"].items()
+                          if k in actual and k != "drone_profile_applied" and v != actual[k]]
+        if flight_differs:
+            notes.append("this flight was flown with other settings than what flies now (replay runs what flies now): "
+                         + "; ".join(f"{d['name']} {d['flown']!r} -> {d['replay']!r}" for d in flight_differs))
+    for n_ in notes:
+        print("NOTE:", n_)
+    notes = list(notes)
+
     out = Path(args.out) if args.out else (src if src.is_dir() else src.parent) / "replay"
     out.mkdir(parents=True, exist_ok=True)
-    writer, ctrl = None, Controller()
-    target_id, last_box, lost_frames, n, picked_by = None, None, 0, 0, "auto"
-    rows, t_start = [], time.time()
+    info_doc = dict(program="replay.py", source=str(src), running=actual, preflight=preflight,
+                    offline_deviations=OFFLINE_DEVIATIONS, cutoffs=dict(person=cut_p, vehicle=cut_v, source=cut_src),
+                    reid=reid_note, lock_source=lock_source, flight_differs=flight_differs, notes=notes)
+    (out / "replay_info.json").write_text(json.dumps(info_doc, indent=1, default=str))
+    banner = ("DEVIATION (--off-decisions): " + ", ".join(f"{x['name']} {x['actual']!r} (flown {x['decided']!r})"
+                                                         for x in preflight["deviations"])) if preflight["deviations"] else ""
+
+    writer, rows, t_start = None, [], time.time()
     total = count_frames(src)
     print(f"{total} frames to process...")
-    show = args.window
-    click = {"pt": None}
-    paused = False
+    show, click, paused = args.window, {"pt": None}, False
     if show:
         cv2.namedWindow("replay", cv2.WINDOW_NORMAL)
         cv2.setMouseCallback("replay", lambda ev, x, y, fl, p: click.__setitem__("pt", (x, y)) if ev == cv2.EVENT_LBUTTONDOWN else None)
-    for img, tel in frames_from(src):
+    ei, pending, lock_done, prev_mode, placed, n = 0, None, False, None, 0, 0
+    for i, (img, row) in enumerate(frames_from(src)):
         H, W = img.shape[:2]
-        t0 = time.time()
-        r = model.track(img, persist=True, tracker=args.tracker, imgsz=args.imgsz, conf=args.conf, verbose=False)[0]
-        tracks = []
-        if r.boxes is not None and r.boxes.id is not None:
-            for b, tid, cls, cf in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.id.cpu().numpy().astype(int),
-                                       r.boxes.cls.cpu().numpy().astype(int), r.boxes.conf.cpu().numpy()):
-                tracks.append((*b.tolist(), int(tid), int(cls), float(cf)))
+        f = int(row["frame"]) if row and row.get("frame") not in (None, "") else i
+        now = _f(row, "t_s")
+        now = i / args.fps if now is None else now
+        tel = {k: _f(row, k) for k in row} if row else {}
+        tracks, det_ms, vecs, embed_ms = det.process(img, now)      # live_follow's own detector pass
+        # ---- operator input, as live_follow handles it before the logic runs: N, clicks, M ----
+        while ei < len(events) and events[ei][0] <= f:
+            _, kind, rec_tid = events[ei]; ei += 1
+            if kind == "reset":
+                logic.reset(); pending = None
+            else:
+                pending = rec_tid
+        if pending is not None:                                        # recorded lock: place it by box overlap
+            rec_box = next((b[:4] for b in flight["boxes"].get(f, []) if str(b[4]) == pending), None)
+            hit = place_lock(rec_box, tracks) if rec_box is not None else None
+            if hit is not None:
+                logic.pick(hit[4], tracks, now=now); pending = None; placed += 1
+        if lock_tid is not None and not lock_done and f >= lock_frame:
+            hit = next((t for t in tracks if t[4] == lock_tid), None)
+            if hit is not None:
+                logic.pick(hit[4], tracks, now=now); lock_done = True; placed += 1
         clicked = False
-        while True:                                   # handle clicks (also while paused)
+        while True:                                                     # window clicks (also while paused)
             if click["pt"] is not None:
                 hit = box_at(tracks, *click["pt"]); click["pt"] = None
                 if hit is not None:
-                    target_id, picked_by, lost_frames, clicked = hit[4], "you", 0, True
+                    logic.pick(hit[4], tracks, now=now); clicked = True
             if not (show and paused):
                 break
-            vis = draw(img.copy(), tracks, names, target_id, dict(ctrl.cmd, dist=None, method="searching"), 0, tel, n, total, picked_by, True)
-            cv2.imshow("replay", vis)
             k = cv2.waitKey(30) & 0xFF
             if k == ord(" "):
                 paused = False
             elif k == ord("q"):
                 total = n; break
-        tgt = next((t for t in tracks if t[4] == target_id), None) if target_id is not None else None
-        if tgt is None:
-            lost_frames += 1
-            if target_id is None or lost_frames > 3:              # (re)lock automatically
-                cand = pick_target([t[:6] for t in tracks], person_ids, last_box, W, H)
-                if cand is not None:
-                    target_id, tgt, lost_frames, picked_by = cand[4], cand, 0, "auto"
-        else:
-            lost_frames = 0
-        box = tgt[:4] if tgt is not None else None
-        if box is not None:
-            last_box = box
-        if box is not None:
-            c = ctrl.step(box, W, H, tel)
-        elif lost_frames / args.fps > LOST_S:
-            c = ctrl.step(None, W, H, tel)                          # lost too long -> hover
-        else:
-            c = dict(ctrl.cmd, dist=None, method="searching")       # brief gap: keep last command
-        fps = 1.0 / max(time.time() - t0, 1e-6)
-        vis = draw(img.copy(), tracks, names, target_id, c, fps, tel, n + 1, total, picked_by)
+        mode = (row.get("mode") or "MANUAL") if flight else "FOLLOW"
+        if mode == "FOLLOW" and prev_mode is not None and prev_mode != "FOLLOW":
+            logic.resume(now=now)                                       # M: keep target + gallery
+        prev_mode = mode
+        if mode == "FOLLOW":
+            cmd, info = logic.step(tracks, now, now, W, H, tel, vecs)
+        else:                                                           # MANUAL / LOOKGO: lock-on runs, no follow commands
+            ev = logic.observe(tracks, now, now, W, H, vecs)
+            cmd, info = dict(roll=0, pitch=0, yaw=0, gaz=0), dict(state=mode, dist=None, method=mode.lower(), event=ev)
+        vis = lf.draw_follow(img, tracks, names, logic, cmd, info, mode, 1000 / max(det_ms, 1), tel, n + 1, total)
+        if banner:
+            cv2.rectangle(vis, (0, 42), (W, 72), (0, 0, 160), -1)
+            cv2.putText(vis, banner[:150], (8, 64), 0, 0.6, (255, 255, 255), 2)
         if writer is None:
             writer = cv2.VideoWriter(str(out / "replay.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), args.fps, (W, H))
         writer.write(vis)
@@ -282,9 +425,18 @@ def main():
                 paused = True
             elif k == ord("q"):
                 break
-        rows.append(dict(frame=n, target_id=target_id if box is not None else None, picked_by=picked_by, clicked=int(clicked),
-                         dist_m=c["dist"], method=c["method"], yaw=round(c["yaw"], 1), pitch=round(c["pitch"], 1), gaz=0,
-                         gimbal_delta=round(c["gimbal_delta"], 2), n_tracks=len(tracks), ms=round(1000 / fps, 1)))
+        g = lambda key: (row.get(key, "") if row else "")
+        rows.append(dict(frame=f, t_s=round(now, 3), mode=mode, state=info["state"], target_id=logic.target_id,
+                         picked_by=logic.picked_by, clicked=int(clicked), lock_event=info.get("event", ""),
+                         dist_m=info.get("dist"), method=info.get("method"), roll=cmd["roll"],
+                         pitch=round(cmd["pitch"], 1), yaw=round(cmd["yaw"], 1), gaz=cmd["gaz"],
+                         gimbal_delta=round(info.get("gimbal_delta") or 0.0, 2), n_tracks=len(tracks),
+                         gallery_n=len(logic.lock.gallery), n_embedded=len(vecs),
+                         best_sim=logic.lock.last_sim if info.get("event") == "reacquired_reid" else None,
+                         det_ms=round(det_ms, 1), embed_ms=round(embed_ms, 1),
+                         flight_mode=g("mode"), flight_state=g("state"), flight_target_id=g("target_id"),
+                         flight_lock_event=g("lock_event"), flight_yaw=g("yaw"), flight_pitch=g("pitch"),
+                         deviation=banner))
         n += 1
         if n % 10 == 0 or n == total:
             el = time.time() - t_start; rate = n / max(el, 1e-6)
@@ -298,14 +450,25 @@ def main():
         writer.release()
     if show:
         cv2.destroyAllWindows()
-    with open(out / "commands.csv", "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
-    lost = sum(1 for r_ in rows if r_["method"] == "lost")
-    ids = {r_["target_id"] for r_ in rows if r_["target_id"] is not None}
-    print(f"{n} frames | target lost on {lost} ({100*lost/max(n,1):.0f}%) | target IDs used: {len(ids)} "
-          f"| your clicks: {sum(r_['clicked'] for r_ in rows)} | avg {np.mean([r_['ms'] for r_ in rows]):.0f} ms/frame "
-          f"| saved {out/'replay.mp4'} + commands.csv")
+    if rows:
+        with open(out / "commands.csv", "w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
+    summary = dict(frames=n, following=sum(r_["state"] == "FOLLOWING" for r_ in rows),
+                   locks_placed=placed, window_clicks=sum(r_["clicked"] for r_ in rows),
+                   reid_relocks=sum(r_["lock_event"] == "reacquired_reid" for r_ in rows),
+                   lost_or_searching=sum(r_["method"] in ("lost", "searching") for r_ in rows),
+                   no_target=sum(r_["method"] == "no_target" for r_ in rows))
+    if pending is not None:
+        notes.append(f"a recorded lock (flight target {pending}) never matched a replay track (IoU >= {LOCK_IOU})")
+    (out / "replay_info.json").write_text(json.dumps(dict(info_doc, notes=notes, summary=summary), indent=1, default=str))
+    print(" | ".join(f"{k} {v}" for k, v in summary.items()) + f" | saved {out / 'replay.mp4'} + commands.csv + replay_info.json")
+    for n_ in notes:
+        print("NOTE:", n_)
+    if banner:
+        print("#" * 78 + f"\n{banner}\n  This replay did NOT run what is flown.\n" + "#" * 78)
+    return out
 
 
 if __name__ == "__main__":
-    main()
+    import replay as _replay     # run as the module live_follow imports, so there is ONE copy of Controller/FOLLOW_DIST_M
+    _replay.main()
