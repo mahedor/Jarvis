@@ -117,13 +117,14 @@ def test_tuned_keys_exist_in_the_installed_tracker_yaml():
         assert set(x["settings"]) | set(x["overrides"]) <= set(cfg), x["label"]
 
 
-def test_all_15_run_and_the_detector_is_outside_the_timing(video, fake_reid):
+def test_all_16_run_and_the_detector_is_outside_the_timing(video, fake_reid):
     det = FakeDetector()
-    specs = tt.setup_specs(tt.load_summary()[0])
+    specs = tt.all_specs(tt.load_summary()[0])
     rows, d, n = tt.run([video], 0, N_FRAMES, det, specs, warmup=WARM, progress=lambda *_: None,
                         reid_model="weights/yolo26n-cls.pt")
     assert n == N_FRAMES and det.calls == N_FRAMES     # detector once per frame, not once per setup
-    assert len(rows) == 15 and [r["setup"] for r in rows] == [x["label"] for x in specs]
+    assert len(rows) == 16 and [r["setup"] for r in rows] == [x["label"] for x in specs]
+    assert rows[3]["setup"] == "BoT-SORT + CMC (flies)" and rows[2]["setup"] == "botsort|reid-|gmc+"
     assert d["mean_ms"] >= DET_SLEEP_S * 1000 and d["n_timed"] == N_FRAMES - WARM
     for r in rows:
         assert r["error"] is None, r
@@ -135,7 +136,7 @@ def test_all_15_run_and_the_detector_is_outside_the_timing(video, fake_reid):
 
 
 def test_failures_go_in_their_row_and_do_not_abort(video, fake_reid):
-    specs = tt.setup_specs(tt.load_summary()[0])
+    specs = tt.all_specs(tt.load_summary()[0])
 
     class Boom:
         def update(self, boxes, img):
@@ -148,7 +149,7 @@ def test_failures_go_in_their_row_and_do_not_abort(video, fake_reid):
             return Boom()
         return tt.make_tracker(name, **kw)
     rows, _, _ = tt.run([video], 0, N_FRAMES, FakeDetector(), specs, warmup=WARM, make=make, progress=lambda *_: None)
-    assert len(rows) == 15
+    assert len(rows) == 16
     bad = {r["setup"]: r["error"] for r in rows if r["error"]}
     assert set(bad) == {"ocsort", "fasttrack"}
     assert bad["ocsort"].startswith("build: ImportError") and "update (frame 0): RuntimeError" in bad["fasttrack"]
@@ -174,7 +175,7 @@ def test_main_writes_the_json_and_the_save_copy(video, fake_reid, tmp_path, monk
     files = list(out.glob("tracker_speed_*.json"))
     assert len(files) == 1 and save.read_bytes() == files[0].read_bytes()
     j = json.loads(save.read_text())
-    assert len(j["rows"]) == 15 and det.calls == N_FRAMES
+    assert len(j["rows"]) == 16 and det.calls == N_FRAMES
     assert j["machine"]["cpu_model"] and "ultralytics" in j["machine"]["versions"] and j["machine"]["logical_cpus"]
     assert j["settings_source"]["sha256"] == SUMMARY_SHA256 and j["video"]["frame_size"] == [320, 240]
     assert rec["detector"]["mean_ms"] >= DET_SLEEP_S * 1000
@@ -217,3 +218,40 @@ def test_reid_weights_found_or_download_note(tmp_path):
     (b / "yolo26n-cls.pt").write_bytes(b"x")
     p, note = tt.reid_weights([a, b])
     assert p == str(b / "yolo26n-cls.pt") and "download" not in note
+
+
+def test_flies_row_is_botsort_tuned_yaml_as_live_follow_resolves_it():
+    """Coordinator 11-27: the table includes the tracker that actually flies, next to the summary's BoT-SORT + CMC."""
+    import live_follow as lf
+    specs = tt.all_specs(tt.load_summary()[0])
+    labels = [x["label"] for x in specs]
+    assert len(specs) == 16 and labels.index("BoT-SORT + CMC (flies)") == labels.index("botsort|reid-|gmc+") + 1
+    f = specs[labels.index("BoT-SORT + CMC (flies)")]
+    trk = lf.resolve_tracker(lf.TRACKER)
+    assert f["error"] is None and f["settings"] == trk["settings"] and f["overrides"] == {}
+    assert f["tracker"] == "botsort" and f["gmc"] is True and f["reid"] is False
+    choice = lf.load_tracker_choice()
+    assert {k: f["settings"][k] for k in choice["chosen"]} == choice["chosen"] and f["settings"]["match_thresh"] == 0.9
+    assert f["val_HOTA"] == next(o["class_avg_HOTA"]["val"] for o in choice["options"] if o["settings"] == choice["chosen"])
+    summary_bot = specs[labels.index("botsort|reid-|gmc+")]["settings"]
+    assert summary_bot["match_thresh"] == 0.95              # the summary's chosen, a different row
+
+
+def test_flies_row_built_tracker_has_the_yaml_values():
+    pytest.importorskip("ultralytics")
+    f = next(x for x in tt.all_specs(tt.load_summary()[0]) if x["label"] == "BoT-SORT + CMC (flies)")
+    t = tt.make_tracker(f["tracker"], **{**f["settings"], "device": "cpu"})
+    for k, v in f["settings"].items():
+        assert getattr(t.args, k) == v, k
+    assert t.gmc.method is not None and t.encoder is None
+
+
+def test_flies_row_error_when_the_flight_yaml_is_changed(monkeypatch):
+    import live_follow as lf
+
+    def stop(name, *a, **k):
+        raise SystemExit("STOP: botsort_tuned.yaml differs from its decision record")
+    monkeypatch.setattr(lf, "resolve_tracker", stop)
+    specs = tt.all_specs(tt.load_summary()[0])
+    f = next(x for x in specs if x["label"] == "BoT-SORT + CMC (flies)")
+    assert len(specs) == 16 and f["settings"] is None and "differs" in f["error"]

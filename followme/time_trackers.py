@@ -25,7 +25,11 @@ What it does:
      detector, building the Boxes. Each setup starts from a fresh tracker; the first --warmup frames (default 20) run
      but are not counted. Per setup: mean ms/frame, p95 ms, FPS = 1000 / mean. The detector's own ms is reported for
      reference (same warm-up rule).
-  5. Output: a 15-row table, ~/follow_logs/tracker_speed_<YYYYMMDD_HHMMSS>.json (--out to change the folder) and a copy
+  3b. Plus a 16th row, "BoT-SORT + CMC (flies)": followme/botsort_tuned.yaml exactly as live_follow.resolve_tracker
+     resolves it (the decided file, checked against its decision record; match 0.90), placed right after the summary's
+     botsort|reid-|gmc+ row. Its val HOTA is read from results/followme_tracker_settings_choice.json (the option whose
+     settings equal the record's chosen ones).
+  5. Output: a 16-row table, ~/follow_logs/tracker_speed_<YYYYMMDD_HHMMSS>.json (--out to change the folder) and a copy
      at --save PATH if given. Recorded: CPU model (/proc/cpuinfo), thread counts, library versions.
 A setup that cannot be built or fails mid-run gets its error in its row and the run continues.
 """
@@ -103,6 +107,40 @@ def setup_specs(summary):
             spec["error"] = f"spec: {e}"
         specs.append(spec)
     return specs
+
+
+FLIES_LABEL = "BoT-SORT + CMC (flies)"
+FLIES_AFTER = "botsort|reid-|gmc+"
+
+
+def flight_spec():
+    """The tracker that flies: botsort_tuned.yaml as live_follow.resolve_tracker resolves it (it STOPS if the file
+    differs from its decision record). Every key of the file goes to the tracker, as Ultralytics builds it from the
+    file. val HOTA: the decision record's option with the chosen settings (class average, val)."""
+    import live_follow as lf
+    spec = dict(label=FLIES_LABEL, tracker=None, reid=False, gmc=None, overrides={}, settings=None, val_HOTA=None,
+                chosen_run=None, error=None)
+    try:
+        trk = lf.resolve_tracker(lf.TRACKER)
+        cfg = dict(trk["settings"])
+        spec.update(tracker=cfg["tracker_type"], settings=cfg, gmc=cfg.get("gmc_method", GMC_OFF) != GMC_OFF,
+                    reid=bool(cfg.get("with_reid")), chosen_run=f"followme/{trk['label']} (live_follow.resolve_tracker)")
+        rec = lf.load_tracker_choice()
+        opt = [o for o in rec.get("options", []) if o.get("settings") == rec["chosen"]]
+        if len(opt) == 1:
+            spec["val_HOTA"] = opt[0]["class_avg_HOTA"].get("val")
+    except SystemExit as e:                            # resolve_tracker stops on a missing / changed file
+        spec["error"] = f"spec: {e}"
+    except Exception as e:                             # noqa: BLE001
+        spec["error"] = f"spec: {type(e).__name__}: {e}"
+    return spec
+
+
+def all_specs(summary):
+    """The summary's 15 setups with the flying tracker inserted after the summary's BoT-SORT + CMC row (16 rows)."""
+    specs = setup_specs(summary)
+    k = next((i + 1 for i, x in enumerate(specs) if x["label"] == FLIES_AFTER), len(specs))
+    return specs[:k] + [flight_spec()] + specs[k:]
 
 
 def make_tracker(name, **overrides):
@@ -357,7 +395,7 @@ def run(videos, start, frames, detect, specs, warmup=WARMUP, make=make_tracker, 
 
 def build_parser():
     import live_follow as lf
-    ap = argparse.ArgumentParser(description="Laptop-CPU speed of the 15 tuned tracker setups (tracker update only).")
+    ap = argparse.ArgumentParser(description="Laptop-CPU speed of the 15 tuned tracker setups + the flying tracker (tracker update only).")
     ap.add_argument("--video", default=None, help="a video file or a run folder (default: newest real flight's "
                                                   "video_*.mp4 under ~/follow_logs)")
     ap.add_argument("--frames", type=int, default=FRAMES, help="frames used, warm-up included (default 600)")
@@ -377,7 +415,7 @@ def build_parser():
 def main(argv=None):
     args = build_parser().parse_args(argv)
     summary, sha = load_summary(args.summary)
-    specs = setup_specs(summary)
+    specs = all_specs(summary)
     videos = resolve_videos(args.video, args.logs)
     m = machine()
     print(f"CPU: {m['cpu_model']}  ({m['logical_cpus']} logical CPUs, torch threads {m.get('torch_threads')}, "
@@ -388,7 +426,7 @@ def main(argv=None):
     print(f"video: {videos[0]}" + (f" .. {videos[-1].name} ({len(videos)} files)" if len(videos) > 1 else "")
           + f"; frames {args.start}..{args.start + args.frames - 1}, first {args.warmup} per setup not timed")
     print(f"settings: {Path(args.summary).name} (sha256 {sha[:12]}, made {summary.get('made')}), "
-          f"{len(specs)} setups, each setup's chosen.settings_changed")
+          f"{len(specs) - 1} setups at their chosen.settings_changed + {FLIES_LABEL} from botsort_tuned.yaml")
     reid_model, reid_note = reid_weights() if any(s["reid"] for s in specs) else (None, "re-ID encoder: not needed")
     print(reid_note)
     detect, det_info = make_flight_detector(args)
@@ -403,14 +441,14 @@ def main(argv=None):
           f"FPS = 1000 / mean. {n} frames, {n - args.warmup} timed per setup. Wall time {time.time() - t0:.0f} s.")
     now = datetime.now()
     rec = dict(
-        what="laptop-CPU speed of the 15 tuned follow-me tracker setups: tracker.update only, on cached flight-detector "
+        what="laptop-CPU speed of the 15 tuned follow-me tracker setups + the flying botsort_tuned.yaml: tracker.update only, on cached flight-detector "
              "boxes (time_trackers.py)",
         made=now.isoformat(timespec="seconds"), machine=m,
         video=dict(files=[str(v) for v in videos], start=args.start, frames=n, warmup=args.warmup,
                    frame_size=None),
         detector=det,
         settings_source=dict(file=str(Path(args.summary).resolve()), sha256=sha, made=summary.get("made"),
-                             trackers=summary.get("trackers"), which="per_setup[label].chosen.settings_changed",
+                             trackers=summary.get("trackers"), which="per_setup[label].chosen.settings_changed; the flies row: followme/botsort_tuned.yaml via live_follow.resolve_tracker",
                              reid_model=reid_model, reid_device="cpu"),
         timing=("time.perf_counter around tracker.update(boxes, frame); includes camera-motion compensation and the "
                 "re-ID encoder where the setup has them; excludes decoding, the detector and building Boxes. Fresh "

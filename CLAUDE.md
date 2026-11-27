@@ -215,7 +215,7 @@ Michael 11-27) is merged on every regenerate: drone corrections ("droneB (correc
 and chat-history notes for what a run did not record (model, cutoffs, tracker, re-ID, fake test vs real flight, who was
 followed), always marked "from chat history:" and citing the chat time + seq or a commit; never overwrites a logged
 value; a key matching no run folder is ignored with a warning. Michael's WSL clone is
-`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 195 tests are run from inside it
+`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 198 tests are run from inside it
 (`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
@@ -224,7 +224,8 @@ from his Ryzen 7 7735HS, CPU only): the flight detector (live_follow's `resolve_
 frame of the newest real flight's clean video and its boxes are cached; each setup is built as `tracker_tuning_all.py`
 built it (all six trackers are Ultralytics built-ins, not boxmot; re-ID = `yolo26n-cls.pt` crop encoder on the CPU) with
 its `chosen.settings_changed` read from `results/followme_tracker_tuning_all_summary.json` (byte-exact from Drive, sha256
-pinned in `test_time_trackers.py`), and only `tracker.update` is timed (GMC and re-ID included), after 20 warm-up frames.
+pinned in `test_time_trackers.py`), plus a 16th row `BoT-SORT + CMC (flies)` = `botsort_tuned.yaml` via
+`live_follow.resolve_tracker` (match 0.90) after the summary's BoT-SORT + CMC row; only `tracker.update` is timed (GMC and re-ID included), after 20 warm-up frames.
 Writes `~/follow_logs/tracker_speed_<date>.json` (+ `--save` copy). No laptop numbers are committed yet.
 
 Detection cutoffs are read from the Colab F1-max sweep's own output, per model by exact name: the INT8 export that
