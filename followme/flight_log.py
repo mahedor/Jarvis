@@ -48,7 +48,7 @@ FIELD_HISTORY = [
                               "profile applied, click-to-lock, search), `preflight` (pass / deviations)"),
     ("2026-11-26", "3f29585", "`running.tracker`, `running.imgsz`"),
     ("2026-11-26", "9f549ff", "`running.lost_s`"),
-    ("2026-11-27", "COMMIT_TBD", "`detector` (precision, backend, input shape, the export's metadata.yaml / FakeQuantize / "
+    ("2026-11-27", "58c9c21", "`detector` (precision, backend, input shape, the export's metadata.yaml / FakeQuantize / "
                                  "calibration), `running.detector_precision`, `tracker` (file + settings); tracker "
                                  "botsort_tuned.yaml from here on"),
 ]
