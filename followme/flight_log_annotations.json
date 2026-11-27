@@ -258,7 +258,7 @@
       },
       "drone": {
         "value": "droneB",
-        "reason": "inferred 11-27, no serial logged: Michael 11-22 15:22 PST (seq 26892) 'drone B has flown on my home wifi'; drone A connects straight to the laptop over its own Wi-Fi, so the laptop can't be on home Wi-Fi with drone A, while drone B goes through its SkyController (Michael 11-27)"
+        "reason": "corrected 11-27 (inferred, no serial logged): Michael 11-22 15:22 PST (seq 26892) 'drone B has flown on my home wifi'; drone A connects straight to the laptop over its own Wi-Fi, so the laptop can't be on home Wi-Fi with drone A, while drone B goes through its SkyController (Michael 11-27)"
       }
     },
     "20261122_151758_droneA": {
@@ -271,7 +271,7 @@
       },
       "drone": {
         "value": "droneB",
-        "reason": "inferred 11-27, no serial logged: Michael 11-22 15:22 PST (seq 26892) 'drone B has flown on my home wifi'; drone A connects straight to the laptop over its own Wi-Fi, so the laptop can't be on home Wi-Fi with drone A, while drone B goes through its SkyController (Michael 11-27)"
+        "reason": "corrected 11-27 (inferred, no serial logged): Michael 11-22 15:22 PST (seq 26892) 'drone B has flown on my home wifi'; drone A connects straight to the laptop over its own Wi-Fi, so the laptop can't be on home Wi-Fi with drone A, while drone B goes through its SkyController (Michael 11-27)"
       }
     },
     "20261122_153153_droneA": {
