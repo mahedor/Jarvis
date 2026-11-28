@@ -273,6 +273,7 @@ def test_code_defaults_are_the_decided_settings():
     assert dec["tracker"] == lf.TRACKER == "botsort_tuned.yaml" and dec["imgsz"] == lf.IMGSZ
     assert dec["detector_precision"] == "INT8"                        # Michael 11-22, read from the model files (11-27)
     assert dec["match_sim"] == lockon.MATCH_SIM
+    assert dec["reid_margin"] == lockon.MARGIN                        # Michael 11-27 (test_reid_margin_evidence.py)
     assert dec["search_deg"] == lf.SEARCH_DEG and dec["search_both_ways"] == lf.SEARCH_BOTH
     assert dec["lost_s"] == lf.LOST_S == 1.0                          # Michael 11-26: keep the 1 second hover
     for d in lf.load_decisions().values():                            # replay: replay.py's own check (test_replay.py)

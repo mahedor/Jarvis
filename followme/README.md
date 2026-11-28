@@ -30,7 +30,7 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `bytetrack_tuned.yaml`, `botsort_reid_cmc_tuned.yaml` | Comparison trackers (11-27, not decided): the fastest and slowest laptop-bench setups at their tuned settings, built as `time_trackers.py` builds them; fly only with `--off-decisions --label` (see Flight vs bench) |
 | `flight_vs_bench.py` | Flight timings (`detector.csv`, follow.csv) vs the laptop bench JSON per tracker config, with a linear fit and predictions for every bench row. See Flight vs bench |
 | `flight_plan_1128.txt` | Print copy of the 11-28 comparison flight plan |
-| `test_*.py` | 235 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), the tracker speed timer (`test_time_trackers.py`), the side-by-side videos on tiny synthetic clips (`test_side_by_side.py`), and the flight-vs-bench work: per-cycle timing, the comparison trackers and their construction, `flight_vs_bench.py` on synthetic flights, the flight plan's commands (`test_flight_vs_bench.py`) |
+| `test_*.py` | 255 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), the re-lock margin checked against the lock-on settings sweep (`test_reid_margin_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), the tracker speed timer (`test_time_trackers.py`), the side-by-side videos on tiny synthetic clips (`test_side_by_side.py`), and the flight-vs-bench work: per-cycle timing, the comparison trackers and their construction, `flight_vs_bench.py` on synthetic flights, the flight plan's commands (`test_flight_vs_bench.py`) |
 
 ## Folders
 
@@ -67,7 +67,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 ```bash
 cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
 source ~/jarvis-follow/bin/activate
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py   # expect 235 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_reid_margin_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py   # expect 255 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads   # backfill the flight log, copy it where Windows sees it
@@ -126,6 +126,8 @@ V look at the shared spot (keeps watching a shared target) · X go to it.
 - **Search (Michael 2026-11-21):** only clean boxes are compared (confident, not tiny, not cut off by the
   frame edge, not overlapping another person — the same rule as gallery samples), and a refused track is
   looked at again every 2 s instead of being dropped after 3 quick checks. Cutoff stays 0.70.
+- **Margin (Michael 2026-11-27):** a match is accepted only if it also beats the runner-up by 0.05
+  (`lockon.MARGIN`, read from `results/followme_reid_margin_choice.json`). See the 11-27 change log entry.
 - **Vehicles:** OSNet only knows people, so a lost vehicle is not re-acquired automatically; click it again.
   A vehicle re-ID model is a planned add-on. Follow distance is tuned for people.
 
@@ -369,6 +371,18 @@ the reason (no detector.csv, fake, no bench row, settings differ).
 
 ## Change log
 
+- **2026-11-27 (Michael, 23:21 PST): re-lock margin recorded as a measured decision, kept at 0.05.** `lockon.MARGIN`
+  (the best re-ID match must beat the runner-up by this much) is now read from the hand-written decision record
+  `results/followme_reid_margin_choice.json`; missing file → **stops**, like `MATCH_SIM`. Evidence, byte-exact from
+  Drive: `results/followme_lockon_settings_sweep.jsonl` + `_summary.json` (`lockon_settings_sweep.py`, Colab 11-27:
+  OSNet x0_25 at match_sim 0.70 on MOT17 train FRCNN + VisDrone-MOT val, ground-truth boxes; it first reproduced
+  reid_bench_v3's scores, worst difference 4.8e-07; sequences split per dataset, even index → choose half, odd →
+  check half). Check half, margin 0 / 0.02 / 0.05 / 0.10: right re-locks 0.7875 / 0.7583 / 0.725 / 0.5958, wrong
+  re-locks with the target present 0.1125 / 0.0667 / 0.0167 / 0.0042. Michael: at 0.02 the wrong re-locks with him
+  present (~7%) are too high, at 0.10 the right re-locks (~60%) are too low, 0.05 is the balance. The sweep's own pick
+  (margin 0.05 but GALLERY_MAX 5) is in the record; GALLERY_MAX, ADD_EVERY_S and the aggregation are not decided and
+  stay as they are. `flight_decisions.json` adds `reid_margin` 0.05 (live and replay check it).
+  `test_reid_margin_evidence.py` (20 tests) checks every number in the record against the two files. Not in the talk.
 - **2026-11-27 (Michael): flight vs bench.** Per-cycle timing in every flight (`detector.csv`; follow.csv `det_n`,
   `track_ms`; drone.json `tracker.bench_setup`, `tracker_runtime`, `label`, `comparison`), timing-only: the tracker timer
   passes every call through unchanged. Two comparison trackers, `bytetrack_tuned.yaml` and `botsort_reid_cmc_tuned.yaml`,
@@ -523,7 +537,7 @@ the reason (no detector.csv, fake, no bench row, settings differ).
     `followme_reid_replay_1029.json`, 0.70 / 0.725 / 0.75 with the search fixes). No wrong re-lock at any cutoff; at
     0.79 he came back at 0.779 and stayed lost ~2½ min. `test_reid_evidence.py` recomputes the benchmark summary from
     the raw scores, reads each option's stranger / target rate from them, checks the replay numbers, and requires the
-    chosen value to be a replayed option with no wrong re-lock and to equal what runs. `MARGIN` (0.05) is still unmeasured.
+    chosen value to be a replayed option with no wrong re-lock and to equal what runs. `MARGIN` (0.05) is still unmeasured (measured and recorded 11-27, see above).
   - `flight_decisions.json` adds `tracker` = `botsort.yaml` and `imgsz` = 640 (Michael 11-26: keep both; skipped under
     `--fake-detector`). Tracker benchmark (`results/followme_tracker_scores.jsonl`, byte-exact from Drive): with
     `vd_mav_cl_s42`, BoT-SORT + camera-motion compensation, tracker re-ID off (Ultralytics' default `botsort.yaml`) has

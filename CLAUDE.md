@@ -215,8 +215,8 @@ Michael 11-27) is merged on every regenerate: drone corrections ("droneB (correc
 and chat-history notes for what a run did not record (model, cutoffs, tracker, re-ID, fake test vs real flight, who was
 followed), always marked "from chat history:" and citing the chat time + seq or a commit; never overwrites a logged
 value; a key matching no run folder is ignored with a warning. Michael's WSL clone is
-`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 235 tests are run from inside it
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py`) and are **not** part of the
+`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 255 tests are run from inside it
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_reid_margin_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
 `time_trackers.py` times the 15 tuned tracker setups on the laptop CPU (Michael 11-27: talk speed numbers come only
@@ -239,9 +239,17 @@ log does not read these four files. The re-ID re-lock cutoff `lockon.MATCH_SIM` 
 `results/followme_reid_cutoff.json`, a hand-written decision record: Michael chose 0.70 by judgment among measured
 options, nothing computes it. Its evidence is committed byte-exact beside it (`followme_reid_bench_v3.json` +
 `followme_reid_scores_osnet_x0_25.npz`, the two `followme_reid_replay_1029*.json` replays), and
-`test_reid_evidence.py` checks every number in the record against them. At startup `live_follow.py` compares what is
+`test_reid_evidence.py` checks every number in the record against them. The re-lock margin `lockon.MARGIN` (0.05: the
+best match must beat the runner-up by this much) is read the same way from `results/followme_reid_margin_choice.json`
+(Michael 2026-11-27 23:21 PST, judgment among the four measured margins 0 / 0.02 / 0.05 / 0.10: 0.02 lets too many
+wrong re-locks through with the target present, check half 0.0667; 0.10 gets too few right re-locks, 0.5958; not in
+the talk). Its evidence is the 11-27 Colab lock-on settings sweep, byte-exact (`results/followme_lockon_settings_sweep.jsonl`
++ `_summary.json`: OSNet x0_25 at match_sim 0.70, MOT17 train + VisDrone-MOT val, chosen-on / checked-on halves of the
+sequences, reid_bench_v3's scores reproduced within 4.8e-07); `test_reid_margin_evidence.py` checks every number in
+the record against it and that the code runs the recorded value. GALLERY_MAX / ADD_EVERY_S / the aggregation were swept
+too but have no decision. At startup `live_follow.py` compares what is
 about to run with `followme/flight_decisions.json` (only settings with a recorded decision, now including the tracker
-`botsort_tuned.yaml`, the detector precision `INT8`, `--imgsz 640`, and `lost_s` 1.0) and stops on any
+`botsort_tuned.yaml`, the detector precision `INT8`, `--imgsz 640`, `lost_s` 1.0, and `reid_margin` 0.05) and stops on any
 difference unless `--off-decisions`; the result is written into each flight's `drone.json`.
 
 The tracker is BoT-SORT (camera-motion compensation on, tracker re-ID off: the winner of

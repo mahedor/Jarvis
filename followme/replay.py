@@ -9,7 +9,7 @@ WOULD send, next to what the flight recorded) and replay_info.json (settings che
 
 Michael 11-26: "replay always matches whatever we're flying, unless I state explicitly otherwise", and any deviation
 must be brought to his attention. So this file has NO settings of its own: the flags, the detector and its precision
-(read from the model files, 11-27), the cutoffs, the tracker (botsort_tuned.yaml, 11-27), the input size, re-ID, MATCH_SIM, click-to-lock, LOST_S / STALE_S and the 360-degree two-way search all come
+(read from the model files, 11-27), the cutoffs, the tracker (botsort_tuned.yaml, 11-27), the input size, re-ID, MATCH_SIM, MARGIN, click-to-lock, LOST_S / STALE_S and the 360-degree two-way search all come
 from live_follow.py / lockon.py (add_flight_args, resolve_detection, Detector.process, make_follow_logic). Before
 anything runs, the same check as live_follow's pre-flight compares the settings with flight_decisions.json and STOPS on
 any difference unless --off-decisions; with it, a DEVIATION banner is printed, saved in replay_info.json and stamped on

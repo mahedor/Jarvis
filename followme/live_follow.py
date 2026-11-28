@@ -6,8 +6,8 @@ Run in WSL (Olympe env + ultralytics):
   python live_follow.py --fake --fake-detector --seconds 20      # no drone, no model: tests the loop + safety logic
 
 Pre-flight self-check (11-26): before anything flies, the settings about to run (detector, INT8, precision read from
-the model files, cutoffs source, tracker, input size, re-ID, match_sim, drone profile, click-to-lock, search) are
-compared with flight_decisions.json.
+the model files, cutoffs source, tracker, input size, re-ID, match_sim, re-lock margin, drone profile, click-to-lock,
+search) are compared with flight_decisions.json.
 Any difference STOPS the program unless --off-decisions is passed; the result (pass, or the deliberate deviations) goes
 into drone.json. --fake-detector skips the detector, precision, tracker and input-size checks, --fake skips the
 drone-profile and click-to-lock checks. drone.json also records `detector` (precision, backend, input shape and the
@@ -835,6 +835,7 @@ def running_settings(args, drone_profile_applied, cutoffs=(None, None), precisio
                 detection_cutoffs=(_rel(cutoffs_file_for(args.model)) if args.conf_person is None and args.conf_vehicle is None
                                    else f"command line: person {cut_p}, vehicle {cut_v}"),
                 tracker=resolve_tracker(args.tracker)["label"], imgsz=args.imgsz, reid=args.reid, match_sim=fk["match_sim"],
+                reid_margin=lockon.MARGIN,           # no flag: FollowLogic's TargetLock always runs lockon.MARGIN
                 drone_profile_applied=drone_profile_applied, click_to_lock=not fk["auto_lock"],
                 search_deg=fk["search_deg"], search_both_ways=fk["search_both"], lost_s=fk["lost_s"])
 

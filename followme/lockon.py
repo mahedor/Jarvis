@@ -26,7 +26,8 @@ automatically (click it again) until a vehicle re-ID model is added.
 
 MATCH_SIM is READ from results/followme_reid_cutoff.json (Michael's 11-21 choice among measured options: the re-ID
 benchmark and the 10-29 replay, both committed in results/); test_reid_evidence.py checks it against them. Missing
-file -> stop. MARGIN is still a placeholder: nothing has measured it.
+file -> stop. MARGIN is READ the same way from results/followme_reid_margin_choice.json (Michael's 11-27 choice among
+the four margins of the 11-27 lock-on settings sweep, committed in results/); test_reid_margin_evidence.py checks it.
 Pure logic + a thin embedder wrapper; no drone I/O, so it is unit-tested.
 """
 import json
@@ -43,6 +44,7 @@ ISOLATION_IOU = 0.0         # target must overlap no other person box to be adde
 EDGE_MARGIN = 4             # px; a box touching the frame edge is a partial body (2026-11-14: first gallery sample
                             # on the real flight was a blurry close-up face at takeoff) -> never a gallery sample
 REID_CUTOFF_FILE = Path(__file__).resolve().parent.parent / "results" / "followme_reid_cutoff.json"
+REID_MARGIN_FILE = Path(__file__).resolve().parent.parent / "results" / "followme_reid_margin_choice.json"
 
 
 def load_match_sim(path=REID_CUTOFF_FILE):
@@ -54,12 +56,24 @@ def load_match_sim(path=REID_CUTOFF_FILE):
     return float(json.loads(p.read_text())["match_sim"])
 
 
+def load_margin(path=REID_MARGIN_FILE):
+    """The re-lock margin from its decision record (no default in code); missing file -> stop."""
+    p = Path(path)
+    if not p.is_file():
+        raise SystemExit(f"STOP: re-ID re-lock margin file not found: {p}\n"
+                         f"  It is committed in results/ next to its evidence; restore it.")
+    return float(json.loads(p.read_text())["margin"])
+
+
 # Michael 11-21: keep 0.70 (set 11-14 from the 10-29 18:20 flight). Chosen by judgment, not computed: re-ID benchmark
 # (OSNet x0_25, ROC-AUC 0.965) passes 8.1% of single stranger looks at 0.70 and 1% at 0.789; the 10-29 replay had no
 # wrong re-lock at any cutoff 0.65-0.85, but at 0.79 he scored 0.779 and stayed lost ~2.5 min. With the search fixes
 # below every re-lock was him (0.70-0.91), highest clean stranger 0.621. All in results/followme_reid_*.
 MATCH_SIM = load_match_sim()
-MARGIN = 0.05               # best match must beat the runner-up by this much
+# Best match must beat the runner-up by MARGIN. Michael 11-27 23:21 PST: keep 0.05. Lock-on settings sweep (OSNet x0_25,
+# MOT17 train + VisDrone-MOT val, check half): margin 0.02 -> wrong re-locks with the target present 0.0667 (too high),
+# 0.10 -> right re-locks 0.5958 (too low), 0.05 -> 0.725 right / 0.0167 wrong. All in results/followme_lockon_settings_*.
+MARGIN = load_margin()
 CHECKS_PER_TRACK = 3        # quick checks of a candidate track when it first appears while lost
 RECHECK_S = 0.3             # ...no more often than this
 RETRY_S = 2.0               # after the quick checks, look at a refused track again every RETRY_S (Michael 11-21:

@@ -49,6 +49,12 @@
    "date": "2026-11-21",
    "skip_with": []
   },
+  "reid_margin": {
+   "value": 0.05,
+   "source": "Michael 2026-11-27 23:21 PST: keep the re-lock margin (best re-ID match must beat the runner-up by this much) at 0.05: at 0.02 the wrong re-locks with him present (~7%) are too high, at 0.10 the right re-locks (~60%) are too low, 0.05 is the balance. lockon.MARGIN, read from results/followme_reid_margin_choice.json. Evidence: results/followme_lockon_settings_sweep.jsonl + _summary.json (lockon_settings_sweep.py, Colab 11-27, byte-exact from Drive; OSNet x0_25 at match_sim 0.70 on MOT17 train + VisDrone-MOT val, reproduces reid_bench_v3's scores within 4.8e-07; check half, margin 0 / 0.02 / 0.05 / 0.10: right re-locks 0.7875 / 0.7583 / 0.725 / 0.5958, wrong re-locks with the target present 0.1125 / 0.0667 / 0.0167 / 0.0042). test_reid_margin_evidence.py checks the record against them. Not presented in the talk.",
+   "date": "2026-11-27",
+   "skip_with": []
+  },
   "drone_profile_applied": {
    "value": true,
    "source": "Michael 11-22: push drone_profile.json on every connect; can't apply -> stop (README change log 2026-11-22; commits ba12485, 29b47ec).",

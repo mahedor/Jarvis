@@ -1,0 +1,1259 @@
+{
+ "what": "lock-on re-ID re-acquisition settings sweep (GALLERY_MAX, ADD_EVERY_S, aggregation, MARGIN) at MATCH_SIM 0.70; OSNet x0_25 MSMT17; MOT17 train FRCNN + VisDrone-MOT val; protocol from reid_bench_v3.py",
+ "made": "2026-11-28T06:52:02+00:00",
+ "embedder": "osnet_x0_25",
+ "match_sim": 0.7,
+ "grid": {
+  "G": [
+   1,
+   3,
+   5,
+   8,
+   12,
+   20
+  ],
+  "spacing_s": [
+   0.5,
+   1.0,
+   2.0,
+   3.0
+  ],
+  "agg": [
+   "max",
+   "mean",
+   "top3"
+  ],
+  "margin": [
+   0.0,
+   0.02,
+   0.05,
+   0.1
+  ],
+  "gaps_s": [
+   1.0,
+   3.0,
+   10.0
+  ]
+ },
+ "current": {
+  "G": 12,
+  "spacing": 1.0,
+  "agg": "max",
+  "margin": 0.05
+ },
+ "split_rule": "per dataset, sorted sequence names: even index -> choose, odd -> check",
+ "halves": {
+  "choose": {
+   "VisDrone-MOT-val": [
+    "uav0000086_00000_v",
+    "uav0000137_00458_v",
+    "uav0000268_05773_v",
+    "uav0000339_00001_v"
+   ],
+   "MOT17-train": [
+    "MOT17-02-FRCNN",
+    "MOT17-05-FRCNN",
+    "MOT17-10-FRCNN",
+    "MOT17-13-FRCNN"
+   ]
+  },
+  "check": {
+   "VisDrone-MOT-val": [
+    "uav0000117_02622_v",
+    "uav0000182_00000_v",
+    "uav0000305_00000_v"
+   ],
+   "MOT17-train": [
+    "MOT17-04-FRCNN",
+    "MOT17-09-FRCNN",
+    "MOT17-11-FRCNN"
+   ]
+  }
+ },
+ "rule": "feasible = wrong_present <= current and wrong_absent <= current on choose (ALL); max right; ties fewest changes then smaller G",
+ "n_feasible": 97,
+ "chosen": {
+  "G": 5,
+  "spacing": 1.0,
+  "agg": "max",
+  "margin": 0.05
+ },
+ "chosen_is_current": false,
+ "check": {
+  "VisDrone-MOT-val|choose": {
+   "current": {
+    "n_present_multi": 195,
+    "right": 0.5846,
+    "wrong_present": 0.0154,
+    "none_present": 0.4,
+    "n_absent_multi": 192,
+    "wrong_absent": 0.1198
+   },
+   "chosen": {
+    "n_present_multi": 195,
+    "right": 0.5897,
+    "wrong_present": 0.0103,
+    "none_present": 0.4,
+    "n_absent_multi": 192,
+    "wrong_absent": 0.1146
+   },
+   "chosen_minus_current_95ci": {
+    "right": [
+     -0.016,
+     0.0269
+    ],
+    "wrong_present": [
+     -0.016,
+     0.0
+    ],
+    "wrong_absent": [
+     -0.0276,
+     0.0165
+    ]
+   }
+  },
+  "VisDrone-MOT-val|check": {
+   "current": {
+    "n_present_multi": 58,
+    "right": 0.3448,
+    "wrong_present": 0.069,
+    "none_present": 0.5862,
+    "n_absent_multi": 57,
+    "wrong_absent": 0.2105
+   },
+   "chosen": {
+    "n_present_multi": 58,
+    "right": 0.3448,
+    "wrong_present": 0.0862,
+    "none_present": 0.569,
+    "n_absent_multi": 57,
+    "wrong_absent": 0.2281
+   },
+   "chosen_minus_current_95ci": {
+    "right": [
+     0.0,
+     0.0
+    ],
+    "wrong_present": [
+     0.0,
+     0.0526
+    ],
+    "wrong_absent": [
+     0.0,
+     0.0536
+    ]
+   }
+  },
+  "MOT17-train|choose": {
+   "current": {
+    "n_present_multi": 233,
+    "right": 0.6652,
+    "wrong_present": 0.0172,
+    "none_present": 0.3176,
+    "n_absent_multi": 226,
+    "wrong_absent": 0.115
+   },
+   "chosen": {
+    "n_present_multi": 233,
+    "right": 0.6652,
+    "wrong_present": 0.0172,
+    "none_present": 0.3176,
+    "n_absent_multi": 226,
+    "wrong_absent": 0.115
+   },
+   "chosen_minus_current_95ci": {
+    "right": [
+     -0.0128,
+     0.0128
+    ],
+    "wrong_present": [
+     0.0,
+     0.0
+    ],
+    "wrong_absent": [
+     -0.0133,
+     0.0132
+    ]
+   }
+  },
+  "MOT17-train|check": {
+   "current": {
+    "n_present_multi": 182,
+    "right": 0.8462,
+    "wrong_present": 0.0,
+    "none_present": 0.1538,
+    "n_absent_multi": 182,
+    "wrong_absent": 0.1484
+   },
+   "chosen": {
+    "n_present_multi": 182,
+    "right": 0.8462,
+    "wrong_present": 0.0055,
+    "none_present": 0.1484,
+    "n_absent_multi": 182,
+    "wrong_absent": 0.1374
+   },
+   "chosen_minus_current_95ci": {
+    "right": [
+     -0.022,
+     0.0219
+    ],
+    "wrong_present": [
+     0.0,
+     0.017
+    ],
+    "wrong_absent": [
+     -0.0449,
+     0.0167
+    ]
+   }
+  },
+  "ALL|choose": {
+   "current": {
+    "n_present_multi": 428,
+    "right": 0.6285,
+    "wrong_present": 0.0164,
+    "none_present": 0.3551,
+    "n_absent_multi": 418,
+    "wrong_absent": 0.1172
+   },
+   "chosen": {
+    "n_present_multi": 428,
+    "right": 0.6308,
+    "wrong_present": 0.014,
+    "none_present": 0.3551,
+    "n_absent_multi": 418,
+    "wrong_absent": 0.1148
+   },
+   "chosen_minus_current_95ci": {
+    "right": [
+     -0.0094,
+     0.0141
+    ],
+    "wrong_present": [
+     -0.0073,
+     0.0
+    ],
+    "wrong_absent": [
+     -0.0164,
+     0.0096
+    ]
+   }
+  },
+  "ALL|check": {
+   "current": {
+    "n_present_multi": 240,
+    "right": 0.725,
+    "wrong_present": 0.0167,
+    "none_present": 0.2583,
+    "n_absent_multi": 239,
+    "wrong_absent": 0.1632
+   },
+   "chosen": {
+    "n_present_multi": 240,
+    "right": 0.725,
+    "wrong_present": 0.025,
+    "none_present": 0.25,
+    "n_absent_multi": 239,
+    "wrong_absent": 0.159
+   },
+   "chosen_minus_current_95ci": {
+    "right": [
+     -0.0168,
+     0.0168
+    ],
+    "wrong_present": [
+     0.0,
+     0.0206
+    ],
+    "wrong_absent": [
+     -0.0289,
+     0.0174
+    ]
+   }
+  }
+ },
+ "one_at_a_time_from_current": {
+  "G": {
+   "1": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5333,
+     "wrong_present": 0.0308,
+     "none_present": 0.4359,
+     "wrong_absent": 0.1719
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3276,
+     "wrong_present": 0.0862,
+     "none_present": 0.5862,
+     "wrong_absent": 0.1579
+    },
+    "MOT17-train|choose": {
+     "right": 0.618,
+     "wrong_present": 0.0129,
+     "none_present": 0.3691,
+     "wrong_absent": 0.0619
+    },
+    "MOT17-train|check": {
+     "right": 0.8132,
+     "wrong_present": 0.0055,
+     "none_present": 0.1813,
+     "wrong_absent": 0.0879
+    },
+    "ALL|choose": {
+     "right": 0.5794,
+     "wrong_present": 0.021,
+     "none_present": 0.3995,
+     "wrong_absent": 0.1124
+    },
+    "ALL|check": {
+     "right": 0.6958,
+     "wrong_present": 0.025,
+     "none_present": 0.2792,
+     "wrong_absent": 0.1046
+    }
+   },
+   "3": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5846,
+     "wrong_present": 0.0051,
+     "none_present": 0.4103,
+     "wrong_absent": 0.1198
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.069,
+     "none_present": 0.5862,
+     "wrong_absent": 0.193
+    },
+    "MOT17-train|choose": {
+     "right": 0.6609,
+     "wrong_present": 0.0172,
+     "none_present": 0.3219,
+     "wrong_absent": 0.1062
+    },
+    "MOT17-train|check": {
+     "right": 0.8462,
+     "wrong_present": 0.011,
+     "none_present": 0.1429,
+     "wrong_absent": 0.1209
+    },
+    "ALL|choose": {
+     "right": 0.6262,
+     "wrong_present": 0.0117,
+     "none_present": 0.3621,
+     "wrong_absent": 0.1124
+    },
+    "ALL|check": {
+     "right": 0.725,
+     "wrong_present": 0.025,
+     "none_present": 0.25,
+     "wrong_absent": 0.1381
+    }
+   },
+   "5": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5897,
+     "wrong_present": 0.0103,
+     "none_present": 0.4,
+     "wrong_absent": 0.1146
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.0862,
+     "none_present": 0.569,
+     "wrong_absent": 0.2281
+    },
+    "MOT17-train|choose": {
+     "right": 0.6652,
+     "wrong_present": 0.0172,
+     "none_present": 0.3176,
+     "wrong_absent": 0.115
+    },
+    "MOT17-train|check": {
+     "right": 0.8462,
+     "wrong_present": 0.0055,
+     "none_present": 0.1484,
+     "wrong_absent": 0.1374
+    },
+    "ALL|choose": {
+     "right": 0.6308,
+     "wrong_present": 0.014,
+     "none_present": 0.3551,
+     "wrong_absent": 0.1148
+    },
+    "ALL|check": {
+     "right": 0.725,
+     "wrong_present": 0.025,
+     "none_present": 0.25,
+     "wrong_absent": 0.159
+    }
+   },
+   "8": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5897,
+     "wrong_present": 0.0154,
+     "none_present": 0.3949,
+     "wrong_absent": 0.1198
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.069,
+     "none_present": 0.5862,
+     "wrong_absent": 0.2105
+    },
+    "MOT17-train|choose": {
+     "right": 0.6652,
+     "wrong_present": 0.0172,
+     "none_present": 0.3176,
+     "wrong_absent": 0.1062
+    },
+    "MOT17-train|check": {
+     "right": 0.8571,
+     "wrong_present": 0.0055,
+     "none_present": 0.1374,
+     "wrong_absent": 0.1484
+    },
+    "ALL|choose": {
+     "right": 0.6308,
+     "wrong_present": 0.0164,
+     "none_present": 0.3528,
+     "wrong_absent": 0.1124
+    },
+    "ALL|check": {
+     "right": 0.7333,
+     "wrong_present": 0.0208,
+     "none_present": 0.2458,
+     "wrong_absent": 0.1632
+    }
+   },
+   "12": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5846,
+     "wrong_present": 0.0154,
+     "none_present": 0.4,
+     "wrong_absent": 0.1198
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.069,
+     "none_present": 0.5862,
+     "wrong_absent": 0.2105
+    },
+    "MOT17-train|choose": {
+     "right": 0.6652,
+     "wrong_present": 0.0172,
+     "none_present": 0.3176,
+     "wrong_absent": 0.115
+    },
+    "MOT17-train|check": {
+     "right": 0.8462,
+     "wrong_present": 0.0,
+     "none_present": 0.1538,
+     "wrong_absent": 0.1484
+    },
+    "ALL|choose": {
+     "right": 0.6285,
+     "wrong_present": 0.0164,
+     "none_present": 0.3551,
+     "wrong_absent": 0.1172
+    },
+    "ALL|check": {
+     "right": 0.725,
+     "wrong_present": 0.0167,
+     "none_present": 0.2583,
+     "wrong_absent": 0.1632
+    }
+   },
+   "20": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5846,
+     "wrong_present": 0.0154,
+     "none_present": 0.4,
+     "wrong_absent": 0.1198
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.069,
+     "none_present": 0.5862,
+     "wrong_absent": 0.2105
+    },
+    "MOT17-train|choose": {
+     "right": 0.6652,
+     "wrong_present": 0.0172,
+     "none_present": 0.3176,
+     "wrong_absent": 0.115
+    },
+    "MOT17-train|check": {
+     "right": 0.8462,
+     "wrong_present": 0.0,
+     "none_present": 0.1538,
+     "wrong_absent": 0.1429
+    },
+    "ALL|choose": {
+     "right": 0.6285,
+     "wrong_present": 0.0164,
+     "none_present": 0.3551,
+     "wrong_absent": 0.1172
+    },
+    "ALL|check": {
+     "right": 0.725,
+     "wrong_present": 0.0167,
+     "none_present": 0.2583,
+     "wrong_absent": 0.159
+    }
+   }
+  },
+  "spacing": {
+   "0.5": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5077,
+     "wrong_present": 0.0359,
+     "none_present": 0.4564,
+     "wrong_absent": 0.1927
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.1034,
+     "none_present": 0.5517,
+     "wrong_absent": 0.2456
+    },
+    "MOT17-train|choose": {
+     "right": 0.6992,
+     "wrong_present": 0.0212,
+     "none_present": 0.2797,
+     "wrong_absent": 0.1397
+    },
+    "MOT17-train|check": {
+     "right": 0.7923,
+     "wrong_present": 0.0055,
+     "none_present": 0.2022,
+     "wrong_absent": 0.1639
+    },
+    "ALL|choose": {
+     "right": 0.6125,
+     "wrong_present": 0.0278,
+     "none_present": 0.3596,
+     "wrong_absent": 0.1639
+    },
+    "ALL|check": {
+     "right": 0.6846,
+     "wrong_present": 0.029,
+     "none_present": 0.2863,
+     "wrong_absent": 0.1833
+    }
+   },
+   "1.0": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5846,
+     "wrong_present": 0.0154,
+     "none_present": 0.4,
+     "wrong_absent": 0.1198
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.069,
+     "none_present": 0.5862,
+     "wrong_absent": 0.2105
+    },
+    "MOT17-train|choose": {
+     "right": 0.6652,
+     "wrong_present": 0.0172,
+     "none_present": 0.3176,
+     "wrong_absent": 0.115
+    },
+    "MOT17-train|check": {
+     "right": 0.8462,
+     "wrong_present": 0.0,
+     "none_present": 0.1538,
+     "wrong_absent": 0.1484
+    },
+    "ALL|choose": {
+     "right": 0.6285,
+     "wrong_present": 0.0164,
+     "none_present": 0.3551,
+     "wrong_absent": 0.1172
+    },
+    "ALL|check": {
+     "right": 0.725,
+     "wrong_present": 0.0167,
+     "none_present": 0.2583,
+     "wrong_absent": 0.1632
+    }
+   },
+   "2.0": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5773,
+     "wrong_present": 0.0309,
+     "none_present": 0.3918,
+     "wrong_absent": 0.1571
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.1552,
+     "none_present": 0.5,
+     "wrong_absent": 0.2143
+    },
+    "MOT17-train|choose": {
+     "right": 0.6681,
+     "wrong_present": 0.0131,
+     "none_present": 0.3188,
+     "wrong_absent": 0.0946
+    },
+    "MOT17-train|check": {
+     "right": 0.8278,
+     "wrong_present": 0.0056,
+     "none_present": 0.1667,
+     "wrong_absent": 0.1966
+    },
+    "ALL|choose": {
+     "right": 0.6265,
+     "wrong_present": 0.0213,
+     "none_present": 0.3522,
+     "wrong_absent": 0.1235
+    },
+    "ALL|check": {
+     "right": 0.7101,
+     "wrong_present": 0.042,
+     "none_present": 0.2479,
+     "wrong_absent": 0.2009
+    }
+   },
+   "3.0": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.544,
+     "wrong_present": 0.0155,
+     "none_present": 0.4404,
+     "wrong_absent": 0.1414
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3103,
+     "wrong_present": 0.1379,
+     "none_present": 0.5517,
+     "wrong_absent": 0.1964
+    },
+    "MOT17-train|choose": {
+     "right": 0.6622,
+     "wrong_present": 0.0178,
+     "none_present": 0.32,
+     "wrong_absent": 0.0731
+    },
+    "MOT17-train|check": {
+     "right": 0.8268,
+     "wrong_present": 0.0056,
+     "none_present": 0.1676,
+     "wrong_absent": 0.1732
+    },
+    "ALL|choose": {
+     "right": 0.6077,
+     "wrong_present": 0.0167,
+     "none_present": 0.3756,
+     "wrong_absent": 0.1049
+    },
+    "ALL|check": {
+     "right": 0.7004,
+     "wrong_present": 0.038,
+     "none_present": 0.2616,
+     "wrong_absent": 0.1787
+    }
+   }
+  },
+  "agg": {
+   "max": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5846,
+     "wrong_present": 0.0154,
+     "none_present": 0.4,
+     "wrong_absent": 0.1198
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.069,
+     "none_present": 0.5862,
+     "wrong_absent": 0.2105
+    },
+    "MOT17-train|choose": {
+     "right": 0.6652,
+     "wrong_present": 0.0172,
+     "none_present": 0.3176,
+     "wrong_absent": 0.115
+    },
+    "MOT17-train|check": {
+     "right": 0.8462,
+     "wrong_present": 0.0,
+     "none_present": 0.1538,
+     "wrong_absent": 0.1484
+    },
+    "ALL|choose": {
+     "right": 0.6285,
+     "wrong_present": 0.0164,
+     "none_present": 0.3551,
+     "wrong_absent": 0.1172
+    },
+    "ALL|check": {
+     "right": 0.725,
+     "wrong_present": 0.0167,
+     "none_present": 0.2583,
+     "wrong_absent": 0.1632
+    }
+   },
+   "mean": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.4205,
+     "wrong_present": 0.0154,
+     "none_present": 0.5641,
+     "wrong_absent": 0.0781
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.2759,
+     "wrong_present": 0.069,
+     "none_present": 0.6552,
+     "wrong_absent": 0.0877
+    },
+    "MOT17-train|choose": {
+     "right": 0.5236,
+     "wrong_present": 0.0086,
+     "none_present": 0.4678,
+     "wrong_absent": 0.0487
+    },
+    "MOT17-train|check": {
+     "right": 0.7692,
+     "wrong_present": 0.0,
+     "none_present": 0.2308,
+     "wrong_absent": 0.0495
+    },
+    "ALL|choose": {
+     "right": 0.4766,
+     "wrong_present": 0.0117,
+     "none_present": 0.5117,
+     "wrong_absent": 0.0622
+    },
+    "ALL|check": {
+     "right": 0.65,
+     "wrong_present": 0.0167,
+     "none_present": 0.3333,
+     "wrong_absent": 0.0586
+    }
+   },
+   "top3": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5333,
+     "wrong_present": 0.0154,
+     "none_present": 0.4513,
+     "wrong_absent": 0.1302
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.2931,
+     "wrong_present": 0.069,
+     "none_present": 0.6379,
+     "wrong_absent": 0.1228
+    },
+    "MOT17-train|choose": {
+     "right": 0.5966,
+     "wrong_present": 0.0129,
+     "none_present": 0.3906,
+     "wrong_absent": 0.0796
+    },
+    "MOT17-train|check": {
+     "right": 0.8187,
+     "wrong_present": 0.0055,
+     "none_present": 0.1758,
+     "wrong_absent": 0.1099
+    },
+    "ALL|choose": {
+     "right": 0.5678,
+     "wrong_present": 0.014,
+     "none_present": 0.4182,
+     "wrong_absent": 0.1029
+    },
+    "ALL|check": {
+     "right": 0.6917,
+     "wrong_present": 0.0208,
+     "none_present": 0.2875,
+     "wrong_absent": 0.113
+    }
+   }
+  },
+  "margin": {
+   "0.0": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.759,
+     "wrong_present": 0.1385,
+     "none_present": 0.1026,
+     "wrong_absent": 0.6615
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.431,
+     "wrong_present": 0.3966,
+     "none_present": 0.1724,
+     "wrong_absent": 0.6491
+    },
+    "MOT17-train|choose": {
+     "right": 0.7253,
+     "wrong_present": 0.0558,
+     "none_present": 0.2189,
+     "wrong_absent": 0.146
+    },
+    "MOT17-train|check": {
+     "right": 0.9011,
+     "wrong_present": 0.022,
+     "none_present": 0.0769,
+     "wrong_absent": 0.3187
+    },
+    "ALL|choose": {
+     "right": 0.7407,
+     "wrong_present": 0.0935,
+     "none_present": 0.1659,
+     "wrong_absent": 0.3828
+    },
+    "ALL|check": {
+     "right": 0.7875,
+     "wrong_present": 0.1125,
+     "none_present": 0.1,
+     "wrong_absent": 0.3975
+    }
+   },
+   "0.02": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.6974,
+     "wrong_present": 0.0821,
+     "none_present": 0.2205,
+     "wrong_absent": 0.3906
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3966,
+     "wrong_present": 0.2241,
+     "none_present": 0.3793,
+     "wrong_absent": 0.4211
+    },
+    "MOT17-train|choose": {
+     "right": 0.7082,
+     "wrong_present": 0.0429,
+     "none_present": 0.2489,
+     "wrong_absent": 0.1327
+    },
+    "MOT17-train|check": {
+     "right": 0.8736,
+     "wrong_present": 0.0165,
+     "none_present": 0.1099,
+     "wrong_absent": 0.2527
+    },
+    "ALL|choose": {
+     "right": 0.7033,
+     "wrong_present": 0.0607,
+     "none_present": 0.236,
+     "wrong_absent": 0.2512
+    },
+    "ALL|check": {
+     "right": 0.7583,
+     "wrong_present": 0.0667,
+     "none_present": 0.175,
+     "wrong_absent": 0.2929
+    }
+   },
+   "0.05": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.5846,
+     "wrong_present": 0.0154,
+     "none_present": 0.4,
+     "wrong_absent": 0.1198
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.3448,
+     "wrong_present": 0.069,
+     "none_present": 0.5862,
+     "wrong_absent": 0.2105
+    },
+    "MOT17-train|choose": {
+     "right": 0.6652,
+     "wrong_present": 0.0172,
+     "none_present": 0.3176,
+     "wrong_absent": 0.115
+    },
+    "MOT17-train|check": {
+     "right": 0.8462,
+     "wrong_present": 0.0,
+     "none_present": 0.1538,
+     "wrong_absent": 0.1484
+    },
+    "ALL|choose": {
+     "right": 0.6285,
+     "wrong_present": 0.0164,
+     "none_present": 0.3551,
+     "wrong_absent": 0.1172
+    },
+    "ALL|check": {
+     "right": 0.725,
+     "wrong_present": 0.0167,
+     "none_present": 0.2583,
+     "wrong_absent": 0.1632
+    }
+   },
+   "0.1": {
+    "VisDrone-MOT-val|choose": {
+     "right": 0.359,
+     "wrong_present": 0.0,
+     "none_present": 0.641,
+     "wrong_absent": 0.0365
+    },
+    "VisDrone-MOT-val|check": {
+     "right": 0.1379,
+     "wrong_present": 0.0172,
+     "none_present": 0.8448,
+     "wrong_absent": 0.0351
+    },
+    "MOT17-train|choose": {
+     "right": 0.588,
+     "wrong_present": 0.0086,
+     "none_present": 0.4034,
+     "wrong_absent": 0.0796
+    },
+    "MOT17-train|check": {
+     "right": 0.7418,
+     "wrong_present": 0.0,
+     "none_present": 0.2582,
+     "wrong_absent": 0.0549
+    },
+    "ALL|choose": {
+     "right": 0.4836,
+     "wrong_present": 0.0047,
+     "none_present": 0.5117,
+     "wrong_absent": 0.0598
+    },
+    "ALL|check": {
+     "right": 0.5958,
+     "wrong_present": 0.0042,
+     "none_present": 0.4,
+     "wrong_absent": 0.0502
+    }
+   }
+  }
+ },
+ "per_gap": {
+  "current|VisDrone-MOT-val|gap1s": {
+   "n_present_multi": 140,
+   "right": 0.5786,
+   "wrong_present": 0.0357,
+   "wrong_absent": 0.1752
+  },
+  "current|MOT17-train|gap1s": {
+   "n_present_multi": 213,
+   "right": 0.8075,
+   "wrong_present": 0.0047,
+   "wrong_absent": 0.1154
+  },
+  "current|ALL|gap1s": {
+   "n_present_multi": 353,
+   "right": 0.7167,
+   "wrong_present": 0.017,
+   "wrong_absent": 0.1391
+  },
+  "current|VisDrone-MOT-val|gap3s": {
+   "n_present_multi": 85,
+   "right": 0.4941,
+   "wrong_present": 0.0235,
+   "wrong_absent": 0.1071
+  },
+  "current|MOT17-train|gap3s": {
+   "n_present_multi": 144,
+   "right": 0.7292,
+   "wrong_present": 0.0139,
+   "wrong_absent": 0.1399
+  },
+  "current|ALL|gap3s": {
+   "n_present_multi": 229,
+   "right": 0.6419,
+   "wrong_present": 0.0175,
+   "wrong_absent": 0.1278
+  },
+  "current|VisDrone-MOT-val|gap10s": {
+   "n_present_multi": 28,
+   "right": 0.3929,
+   "wrong_present": 0.0,
+   "wrong_absent": 0.0714
+  },
+  "current|MOT17-train|gap10s": {
+   "n_present_multi": 58,
+   "right": 0.5517,
+   "wrong_present": 0.0172,
+   "wrong_absent": 0.1579
+  },
+  "current|ALL|gap10s": {
+   "n_present_multi": 86,
+   "right": 0.5,
+   "wrong_present": 0.0116,
+   "wrong_absent": 0.1294
+  },
+  "chosen|VisDrone-MOT-val|gap1s": {
+   "n_present_multi": 140,
+   "right": 0.5857,
+   "wrong_present": 0.0286,
+   "wrong_absent": 0.1752
+  },
+  "chosen|MOT17-train|gap1s": {
+   "n_present_multi": 213,
+   "right": 0.8028,
+   "wrong_present": 0.0047,
+   "wrong_absent": 0.1154
+  },
+  "chosen|ALL|gap1s": {
+   "n_present_multi": 353,
+   "right": 0.7167,
+   "wrong_present": 0.0142,
+   "wrong_absent": 0.1391
+  },
+  "chosen|VisDrone-MOT-val|gap3s": {
+   "n_present_multi": 85,
+   "right": 0.5059,
+   "wrong_present": 0.0353,
+   "wrong_absent": 0.119
+  },
+  "chosen|MOT17-train|gap3s": {
+   "n_present_multi": 144,
+   "right": 0.7431,
+   "wrong_present": 0.0139,
+   "wrong_absent": 0.1259
+  },
+  "chosen|ALL|gap3s": {
+   "n_present_multi": 229,
+   "right": 0.655,
+   "wrong_present": 0.0218,
+   "wrong_absent": 0.1233
+  },
+  "chosen|VisDrone-MOT-val|gap10s": {
+   "n_present_multi": 28,
+   "right": 0.3571,
+   "wrong_present": 0.0,
+   "wrong_absent": 0.0357
+  },
+  "chosen|MOT17-train|gap10s": {
+   "n_present_multi": 58,
+   "right": 0.5345,
+   "wrong_present": 0.0345,
+   "wrong_absent": 0.1579
+  },
+  "chosen|ALL|gap10s": {
+   "n_present_multi": 86,
+   "right": 0.4767,
+   "wrong_present": 0.0233,
+   "wrong_absent": 0.1176
+  }
+ },
+ "coverage": {
+  "VisDrone-MOT-val|sp0.5": {
+   "n": 254,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.819,
+   "frac_L>=5": 0.65,
+   "frac_L>=8": 0.524,
+   "frac_L>=12": 0.319,
+   "frac_L>=20": 0.197
+  },
+  "MOT17-train|sp0.5": {
+   "n": 423,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.806,
+   "frac_L>=5": 0.652,
+   "frac_L>=8": 0.478,
+   "frac_L>=12": 0.343,
+   "frac_L>=20": 0.21
+  },
+  "ALL|sp0.5": {
+   "n": 677,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.811,
+   "frac_L>=5": 0.651,
+   "frac_L>=8": 0.495,
+   "frac_L>=12": 0.334,
+   "frac_L>=20": 0.205
+  },
+  "VisDrone-MOT-val|sp1": {
+   "n": 254,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.65,
+   "frac_L>=5": 0.48,
+   "frac_L>=8": 0.256,
+   "frac_L>=12": 0.169,
+   "frac_L>=20": 0.0
+  },
+  "MOT17-train|sp1": {
+   "n": 419,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.663,
+   "frac_L>=5": 0.468,
+   "frac_L>=8": 0.296,
+   "frac_L>=12": 0.177,
+   "frac_L>=20": 0.053
+  },
+  "ALL|sp1": {
+   "n": 673,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.658,
+   "frac_L>=5": 0.473,
+   "frac_L>=8": 0.281,
+   "frac_L>=12": 0.174,
+   "frac_L>=20": 0.033
+  },
+  "VisDrone-MOT-val|sp2": {
+   "n": 253,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.482,
+   "frac_L>=5": 0.245,
+   "frac_L>=8": 0.067,
+   "frac_L>=12": 0.0,
+   "frac_L>=20": 0.0
+  },
+  "MOT17-train|sp2": {
+   "n": 413,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.499,
+   "frac_L>=5": 0.278,
+   "frac_L>=8": 0.14,
+   "frac_L>=12": 0.053,
+   "frac_L>=20": 0.0
+  },
+  "ALL|sp2": {
+   "n": 666,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.492,
+   "frac_L>=5": 0.266,
+   "frac_L>=8": 0.113,
+   "frac_L>=12": 0.033,
+   "frac_L>=20": 0.0
+  },
+  "VisDrone-MOT-val|sp3": {
+   "n": 253,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.308,
+   "frac_L>=5": 0.154,
+   "frac_L>=8": 0.0,
+   "frac_L>=12": 0.0,
+   "frac_L>=20": 0.0
+  },
+  "MOT17-train|sp3": {
+   "n": 408,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.38,
+   "frac_L>=5": 0.181,
+   "frac_L>=8": 0.064,
+   "frac_L>=12": 0.01,
+   "frac_L>=20": 0.0
+  },
+  "ALL|sp3": {
+   "n": 661,
+   "frac_L>=1": 1.0,
+   "frac_L>=3": 0.352,
+   "frac_L>=5": 0.171,
+   "frac_L>=8": 0.039,
+   "frac_L>=12": 0.006,
+   "frac_L>=20": 0.0
+  }
+ },
+ "repro_v3": {
+  "MOT17-train|gap1s": {
+   "n_pos": [
+    89,
+    89
+   ],
+   "n_neg": [
+    1154,
+    1154
+   ],
+   "max_abs_diff": 3.5762786865234375e-07,
+   "pass_rate_0.70_rerun_vs_v3": [
+    0.9213,
+    0.9213
+   ]
+  },
+  "MOT17-train|gap3s": {
+   "n_pos": [
+    61,
+    61
+   ],
+   "n_neg": [
+    863,
+    863
+   ],
+   "max_abs_diff": 3.8743019104003906e-07,
+   "pass_rate_0.70_rerun_vs_v3": [
+    0.8852,
+    0.8852
+   ]
+  },
+  "MOT17-train|gap10s": {
+   "n_pos": [
+    29,
+    29
+   ],
+   "n_neg": [
+    508,
+    508
+   ],
+   "max_abs_diff": 4.172325134277344e-07,
+   "pass_rate_0.70_rerun_vs_v3": [
+    0.7931,
+    0.7931
+   ]
+  },
+  "VisDrone-MOT-val|gap1s": {
+   "n_pos": [
+    58,
+    58
+   ],
+   "n_neg": [
+    1426,
+    1426
+   ],
+   "max_abs_diff": 4.76837158203125e-07,
+   "pass_rate_0.70_rerun_vs_v3": [
+    0.8448,
+    0.8448
+   ]
+  },
+  "VisDrone-MOT-val|gap3s": {
+   "n_pos": [
+    43,
+    43
+   ],
+   "n_neg": [
+    1041,
+    1041
+   ],
+   "max_abs_diff": 3.5762786865234375e-07,
+   "pass_rate_0.70_rerun_vs_v3": [
+    0.7907,
+    0.7907
+   ]
+  },
+  "VisDrone-MOT-val|gap10s": {
+   "n_pos": [
+    21,
+    21
+   ],
+   "n_neg": [
+    570,
+    570
+   ],
+   "max_abs_diff": 3.5762786865234375e-07,
+   "pass_rate_0.70_rerun_vs_v3": [
+    0.9524,
+    0.9524
+   ]
+  },
+  "all_counts_match": true,
+  "worst_abs_diff": 4.76837158203125e-07
+ },
+ "n_sweep_trials": 2677,
+ "n_v3_trials": 301,
+ "files": {
+  "rows": "lockon_settings_sweep.jsonl",
+  "script": "lockon_settings_sweep.py",
+  "log": "lockon_settings_sweep_log.txt"
+ },
+ "caveats": [
+  "GT boxes, not detector boxes; no isolation (IoU) rule for strangers (lock-on also requires non-overlapping boxes, so this is harsher on strangers)",
+  "one look per candidate; lock-on keeps each track's best score over several looks",
+  "VisDrone fps taken as 30 (v3)",
+  "benchmark, not flight"
+ ]
+}

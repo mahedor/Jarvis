@@ -1,0 +1,105 @@
+{
+ "_about": "Decision record, written on 2026-11-27 (NOT a program output; the numbers were copied from the evidence by a script and are checked against it). margin is how much the best re-ID match must beat the runner-up by before lock-on re-locks onto it (lockon.MARGIN, used together with match_sim). Michael chose it by judgment among the four measured options; it is not the output of any argmax. lockon.py reads margin from this file and stops if it is missing. Every number below is checked against the evidence files (program outputs, committed byte-exact) by followme/test_reid_margin_evidence.py.",
+ "margin": 0.05,
+ "decided_by": "Michael",
+ "date": "2026-11-27",
+ "decided_at": "2026-11-27 23:21 PST",
+ "decision": "Keep 0.05.",
+ "reason": "Michael, in his words: at margin 0.02 the wrong re-locks with him present (~7%) are too high; at 0.10 the right re-locks (~60%) are too low; 0.05 is the balance. His ~7% and ~60% are the check-half (ALL|check) rates below: wrong_present 0.0667 at 0.02, right 0.5958 at 0.10.",
+ "in_talk": false,
+ "talk_note": "The margin is not presented in the talk.",
+ "evidence": {
+  "sweep": "results/followme_lockon_settings_sweep.jsonl",
+  "summary": "results/followme_lockon_settings_sweep_summary.json",
+  "from": "Drive jarvis_det/lockon_settings_sweep.jsonl (2712 rows: 2592 config x dataset x split rows + 120 supplementary margin x cutoff rows) and lockon_settings_sweep_summary.json, written by jarvis_det/lockon_settings_sweep.py (Colab, 2026-11-27 PST; summary 'made' 2026-11-28T06:52:02Z). The script and its log (lockon_settings_sweep_log.txt) are not committed.",
+  "what": "lock-on re-ID re-acquisition settings sweep (GALLERY_MAX, ADD_EVERY_S, aggregation, MARGIN) at MATCH_SIM 0.70; OSNet x0_25 MSMT17; MOT17 train FRCNN + VisDrone-MOT val; protocol from reid_bench_v3.py",
+  "embedder": "osnet_x0_25",
+  "match_sim": 0.7,
+  "datasets": "MOT17 train (FRCNN sequences) + VisDrone-MOT val, as the summary's 'what' says; ground-truth boxes, not detector boxes (caveats). The sequences of each half are listed under halves.",
+  "split_rule": "per dataset, sorted sequence names: even index -> choose, odd -> check",
+  "halves": {
+   "choose": {
+    "VisDrone-MOT-val": ["uav0000086_00000_v", "uav0000137_00458_v", "uav0000268_05773_v", "uav0000339_00001_v"],
+    "MOT17-train": ["MOT17-02-FRCNN", "MOT17-05-FRCNN", "MOT17-10-FRCNN", "MOT17-13-FRCNN"]
+   },
+   "check": {
+    "VisDrone-MOT-val": ["uav0000117_02622_v", "uav0000182_00000_v", "uav0000305_00000_v"],
+    "MOT17-train": ["MOT17-04-FRCNN", "MOT17-09-FRCNN", "MOT17-11-FRCNN"]
+   }
+  },
+  "halves_use": {
+   "choose": "The script's pre-registered pick (sweep_auto_pick) looked only at this half (both datasets pooled, ALL|choose).",
+   "check": "Held out from the script's pick. Michael's ~7% / ~60% are this half's pooled rates (ALL|check)."
+  },
+  "n_sweep_trials": 2677,
+  "reproduction": {
+   "note": "Before sweeping, the script rebuilt and re-scored reid_bench_v3.py's own trials and compared them with reid_scores_osnet_x0_25.npz (committed as results/followme_reid_scores_osnet_x0_25.npz).",
+   "n_v3_trials": 301,
+   "all_counts_match": true,
+   "worst_abs_diff": 4.76837158203125e-07
+  },
+  "caveats": [
+   "GT boxes, not detector boxes; no isolation (IoU) rule for strangers (lock-on also requires non-overlapping boxes, so this is harsher on strangers)",
+   "one look per candidate; lock-on keeps each track's best score over several looks",
+   "VisDrone fps taken as 30 (v3)",
+   "benchmark, not flight"
+  ]
+ },
+ "metric": "Rates per trial, from the sweep rows at lockon.py's settings at the time (GALLERY_MAX 12, ADD_EVERY_S 1.0 s, max cosine to the gallery, match_sim 0.70) with only the margin changed (the summary's one_at_a_time_from_current.margin). A trial = a target's gallery, then a query frame 1 / 3 / 10 s after its last sample. right / wrong_present / none_present: target in the query frame with at least one stranger; the re-lock went to the target / to a stranger / to nobody. wrong_absent: target not in the frame, at least two strangers; a stranger was re-locked. Rule = lockon.TargetLock: accept the top candidate if top >= match_sim and top - runner-up >= margin.",
+ "trial_counts": {
+  "ALL|check": {"n_present_multi": 240, "n_absent_multi": 239},
+  "ALL|choose": {"n_present_multi": 428, "n_absent_multi": 418},
+  "VisDrone-MOT-val|check": {"n_present_multi": 58, "n_absent_multi": 57},
+  "VisDrone-MOT-val|choose": {"n_present_multi": 195, "n_absent_multi": 192},
+  "MOT17-train|check": {"n_present_multi": 182, "n_absent_multi": 182},
+  "MOT17-train|choose": {"n_present_multi": 233, "n_absent_multi": 226}
+ },
+ "options": [
+  {
+   "margin": 0.0,
+   "ALL|check": {"right": 0.7875, "wrong_present": 0.1125, "none_present": 0.1, "wrong_absent": 0.3975},
+   "ALL|choose": {"right": 0.7407, "wrong_present": 0.0935, "none_present": 0.1659, "wrong_absent": 0.3828},
+   "VisDrone-MOT-val|check": {"right": 0.431, "wrong_present": 0.3966, "none_present": 0.1724, "wrong_absent": 0.6491},
+   "VisDrone-MOT-val|choose": {"right": 0.759, "wrong_present": 0.1385, "none_present": 0.1026, "wrong_absent": 0.6615},
+   "MOT17-train|check": {"right": 0.9011, "wrong_present": 0.022, "none_present": 0.0769, "wrong_absent": 0.3187},
+   "MOT17-train|choose": {"right": 0.7253, "wrong_present": 0.0558, "none_present": 0.2189, "wrong_absent": 0.146},
+   "note": "No margin: the top candidate is accepted on the cutoff alone."
+  },
+  {
+   "margin": 0.02,
+   "ALL|check": {"right": 0.7583, "wrong_present": 0.0667, "none_present": 0.175, "wrong_absent": 0.2929},
+   "ALL|choose": {"right": 0.7033, "wrong_present": 0.0607, "none_present": 0.236, "wrong_absent": 0.2512},
+   "VisDrone-MOT-val|check": {"right": 0.3966, "wrong_present": 0.2241, "none_present": 0.3793, "wrong_absent": 0.4211},
+   "VisDrone-MOT-val|choose": {"right": 0.6974, "wrong_present": 0.0821, "none_present": 0.2205, "wrong_absent": 0.3906},
+   "MOT17-train|check": {"right": 0.8736, "wrong_present": 0.0165, "none_present": 0.1099, "wrong_absent": 0.2527},
+   "MOT17-train|choose": {"right": 0.7082, "wrong_present": 0.0429, "none_present": 0.2489, "wrong_absent": 0.1327},
+   "note": "Rejected by Michael: wrong re-locks with the target present too high (ALL check 0.0667, his ~7%)."
+  },
+  {
+   "margin": 0.05,
+   "ALL|check": {"right": 0.725, "wrong_present": 0.0167, "none_present": 0.2583, "wrong_absent": 0.1632},
+   "ALL|choose": {"right": 0.6285, "wrong_present": 0.0164, "none_present": 0.3551, "wrong_absent": 0.1172},
+   "VisDrone-MOT-val|check": {"right": 0.3448, "wrong_present": 0.069, "none_present": 0.5862, "wrong_absent": 0.2105},
+   "VisDrone-MOT-val|choose": {"right": 0.5846, "wrong_present": 0.0154, "none_present": 0.4, "wrong_absent": 0.1198},
+   "MOT17-train|check": {"right": 0.8462, "wrong_present": 0.0, "none_present": 0.1538, "wrong_absent": 0.1484},
+   "MOT17-train|choose": {"right": 0.6652, "wrong_present": 0.0172, "none_present": 0.3176, "wrong_absent": 0.115},
+   "note": "Chosen (the value lockon.py already had as a placeholder)."
+  },
+  {
+   "margin": 0.1,
+   "ALL|check": {"right": 0.5958, "wrong_present": 0.0042, "none_present": 0.4, "wrong_absent": 0.0502},
+   "ALL|choose": {"right": 0.4836, "wrong_present": 0.0047, "none_present": 0.5117, "wrong_absent": 0.0598},
+   "VisDrone-MOT-val|check": {"right": 0.1379, "wrong_present": 0.0172, "none_present": 0.8448, "wrong_absent": 0.0351},
+   "VisDrone-MOT-val|choose": {"right": 0.359, "wrong_present": 0.0, "none_present": 0.641, "wrong_absent": 0.0365},
+   "MOT17-train|check": {"right": 0.7418, "wrong_present": 0.0, "none_present": 0.2582, "wrong_absent": 0.0549},
+   "MOT17-train|choose": {"right": 0.588, "wrong_present": 0.0086, "none_present": 0.4034, "wrong_absent": 0.0796},
+   "note": "Rejected by Michael: right re-locks too low (ALL check 0.5958, his ~60%)."
+  }
+ ],
+ "sweep_auto_pick": {
+  "settings": {"G": 5, "spacing": 1.0, "agg": "max", "margin": 0.05},
+  "rule": "feasible = wrong_present <= current and wrong_absent <= current on choose (ALL); max right; ties fewest changes then smaller G",
+  "n_feasible": 97,
+  "note": "The summary's 'chosen' block: the script's pre-registered pick over the whole grid on the choose half. Its margin is also 0.05, but it changes GALLERY_MAX to 5; this record decides only the margin. 'feasible' is defined against the current settings (margin 0.05 included), so the pick's 0.05 is not independent support for 0.05. GALLERY_MAX, ADD_EVERY_S and the aggregation are not decided here (no decision recorded) and stay as lockon.py has them."
+ }
+}
