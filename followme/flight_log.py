@@ -74,6 +74,8 @@ FIELD_HISTORY = [
     ("2026-11-27", "58c9c21", "`detector` (precision, backend, input shape, the export's metadata.yaml / FakeQuantize / "
                                  "calibration), `running.detector_precision`, `tracker` (file + settings); tracker "
                                  "botsort_tuned.yaml from here on"),
+    ("2026-11-27", "fb5899e", "`tracker.bench_setup`, `tracker.reid_encoder`, `tracker_runtime`, `label`, `comparison`; "
+                              "detector.csv (one row per detector cycle) and follow.csv `det_n` / `track_ms`"),
 ]
 
 COLUMNS = ["date/time", "run folder", "drone", "serial", "firmware", "duration", "frames", "FPS", "airborne", "battery",
