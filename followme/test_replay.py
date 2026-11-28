@@ -15,6 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import cv2
 import pytest
 
 HERE = Path(__file__).resolve().parent
@@ -24,7 +25,7 @@ import replay  # noqa: E402
 from test_live_follow import make_ov_export  # noqa: E402  (an INT8-like OpenVINO export folder, 11-27)
 
 # flags only replay has: where to read/write and how to watch, none of which changes what the program decides
-REPLAY_ONLY = {"source", "lock_id", "max_frames", "window"}
+REPLAY_ONLY = {"source", "lock_id", "max_frames", "window", "label"}
 SAME_FLAG_OTHER_DEFAULT = {"out"}      # both write output somewhere: live ~/follow_logs, replay <source>/replay
 
 
@@ -103,7 +104,9 @@ def test_recorded_locks_are_clicks_and_resets_not_reid_relocks():
             r(4, "5", "following"), r(5, "", "no_target"), r(6, "8", "first_lock")]
     assert replay.recorded_locks(rows) == [(1, "pick", "3"), (5, "reset", None), (6, "pick", "8")]
     assert replay.recorded_locks([dict(frame="0", target_id="1")]) is None       # can't tell clicks from re-locks
-    assert replay.parse_lock_id("") == (None, 0) and replay.parse_lock_id("4@120") == (4, 120)
+    assert replay.parse_lock_id("") == (None, 0, None) and replay.parse_lock_id("4@120") == (4, 120, None)
+    assert replay.parse_lock_id("4") == (4, 0, None) and replay.parse_lock_id("4@18s") == (4, None, 18.0)
+    assert replay.parse_lock_id("only@18s") == ("only", None, 18.0) and replay.parse_lock_id("only@30") == ("only", 30, None)
 
 
 def test_place_lock_by_overlap():
@@ -194,3 +197,77 @@ def test_video_without_a_flight_log_never_locks_by_itself(flight, tmp_path):
     rows = _rows(tmp_path / "lock")
     assert any(r["state"] == "FOLLOWING" and r["target_id"] == "1" for r in rows)
     assert json.loads((tmp_path / "lock" / "replay_info.json").read_text())["lock_source"] == "--lock-id 1"
+
+
+# ---- comparison runs (11-27, talk videos): --label and --lock-id only@T ----
+
+def _first_frame(path):
+    ok, img = cv2.VideoCapture(str(path)).read()
+    assert ok
+    return img
+
+
+def _band_red_minus_blue(img):
+    """Row 57 is inside the caption band (y 42-72) that replay draws under the status bar."""
+    b, _, r = (int(v) for v in img[57, img.shape[1] - 5])
+    return r - b
+
+
+def test_lock_target_never_chooses_between_people():
+    person_ids = {0}
+    me, other, car = (100, 100, 150, 300, 4, 0, 0.9), (400, 100, 450, 300, 9, 0, 0.95), (600, 200, 800, 300, 2, 3, 0.8)
+    assert replay.lock_target("only", [me, car], person_ids) == (me, [me])        # the only person (cars don't count)
+    hit, people = replay.lock_target("only", [me, other, car], person_ids)
+    assert hit is None and people == [me, other]                                  # two people: no biggest / nearest
+    assert replay.lock_target("only", [car], person_ids) == (None, [])            # nobody yet: wait
+    assert replay.lock_target(9, [me, other], person_ids)[0] == other             # TID: that track
+
+
+def test_label_must_name_every_deviating_value():
+    devs = [dict(name="match_sim", decided=0.7, actual=0.79)]
+    assert replay.label_problem("cutoff 0.79", devs) is None
+    assert "match_sim 0.79" in replay.label_problem("comparison run", devs)
+    assert replay.label_problem("anything", []) is None
+
+
+def test_label_replaces_the_frame_banner_but_keeps_the_deviation(flight, tmp_path):
+    lab, ban = tmp_path / "label", tmp_path / "banner"
+    p = run_replay(flight, lab, "--match-sim", "0.8", "--off-decisions", "--label", "cutoff 0.8", "--max-frames", "30")
+    assert p.returncode == 0, p.stderr[-2000:]
+    assert "DEVIATION: this replay does NOT run what is flown" in p.stdout        # console banners unchanged
+    assert p.stdout.rstrip().endswith("#" * 78)
+    info = json.loads((lab / "replay_info.json").read_text())
+    assert info["label"] == "cutoff 0.8" and info["frame_caption"] == "label"
+    assert not info["preflight"]["passed"] and info["preflight"]["off_decisions"]
+    assert [(x["name"], x["actual"]) for x in info["preflight"]["deviations"]] == [("match_sim", 0.8)]
+    assert all("match_sim 0.8 (flown 0.7)" in r["deviation"] for r in _rows(lab))  # still in commands.csv
+    assert abs(_band_red_minus_blue(_first_frame(lab / "replay.mp4"))) < 30        # grey caption, not the red banner
+    p = run_replay(flight, ban, "--match-sim", "0.8", "--off-decisions", "--max-frames", "30")
+    assert p.returncode == 0, p.stderr[-2000:]
+    assert _band_red_minus_blue(_first_frame(ban / "replay.mp4")) > 80             # without --label: red banner
+    assert json.loads((ban / "replay_info.json").read_text())["frame_caption"] == "deviation banner"
+
+
+def test_label_that_hides_a_deviation_stops(flight, tmp_path):
+    out = tmp_path / "rp"
+    p = run_replay(flight, out, "--match-sim", "0.8", "--off-decisions", "--label", "comparison")
+    assert p.returncode != 0 and "STOP: --label must name every deviating value" in p.stderr
+    assert "match_sim 0.8" in p.stderr and not out.exists()
+
+
+def test_lock_only_person_at_a_time(flight, tmp_path):
+    """--lock-id only@1s on a video with no flight log: nothing before t = 1.0 s, then the one person in view; a label
+    with no deviation is just a caption (settings check passes)."""
+    clip = tmp_path / "clip.mp4"
+    shutil.copy(flight / "video_000.mp4", clip)
+    out = tmp_path / "only"
+    p = run_replay(clip, out, "--max-frames", "45", "--lock-id", "only@1s", "--label", "cutoff 0.7")
+    assert p.returncode == 0, p.stderr[-2000:]
+    assert "lock placed: replay track 1 at frame 30 (t 1.0 s) - the only person in view" in p.stdout
+    rows = _rows(out)
+    assert all(r["target_id"] == "" for r in rows if float(r["t_s"]) < 1.0)
+    assert rows[30]["target_id"] == "1" and rows[30]["state"] == "FOLLOWING"
+    info = json.loads((out / "replay_info.json").read_text())
+    assert info["lock_source"] == "--lock-id only@1s" and info["preflight"]["passed"]
+    assert info["lock"] == dict(frame=30, t_s=1.0, track=1, people_in_view=1)
+    assert info["label"] == "cutoff 0.7" and info["frame_caption"] == "label" and not info["notes"]

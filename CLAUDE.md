@@ -215,8 +215,8 @@ Michael 11-27) is merged on every regenerate: drone corrections ("droneB (correc
 and chat-history notes for what a run did not record (model, cutoffs, tracker, re-ID, fake test vs real flight, who was
 followed), always marked "from chat history:" and citing the chat time + seq or a commit; never overwrites a logged
 value; a key matching no run folder is ignored with a warning. Michael's WSL clone is
-`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 198 tests are run from inside it
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py`) and are **not** part of the
+`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 214 tests are run from inside it
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
 `time_trackers.py` times the 15 tuned tracker setups on the laptop CPU (Michael 11-27: talk speed numbers come only
@@ -264,7 +264,13 @@ from `live_follow.py`, so it runs the same check, stops on a mismatch, and with 
 banner and saves it in `replay_info.json`. Locks come only from the flight log's recorded click, `--lock-id` or a
 window click (the old nearest-box auto re-lock is deleted). Its unavoidable offline differences (no drone, search
 driven by recorded yaw, synchronous detection so `STALE_S` never fires) are `replay.OFFLINE_DEVIATIONS`, printed every
-run. `test_replay.py` fails if replay grows a setting live_follow doesn't share.
+run. `test_replay.py` fails if replay grows a setting live_follow doesn't share. Comparison runs (11-27): `--label
+'cutoff 0.79'` stamps a neutral caption on every frame and, with `--off-decisions`, replaces the red per-frame banner only
+if it names every deviating value (else STOP); console banners, `replay_info.json` (`label`, `frame_caption`) and
+commands.csv keep the deviation. `--lock-id only@18s` locks the only person in view at that time (several people: no
+lock, their IDs printed) for pre-11-22 flights with no `boxes.jsonl`. `side_by_side.py` stacks two run folders (aligned
+by wall clock: folder-name start, refined by follow.csv mtime minus last t_s when within 2 s), two replay folders (by
+commands.csv t_s) or two videos, with label bars; ffmpeg (H.264) if on PATH, else OpenCV mp4v.
 
 ## Engineering log
 

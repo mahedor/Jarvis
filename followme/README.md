@@ -25,8 +25,9 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `lookhere.py` | Two drones: share a clicked ground spot (GPS); the other drone looks at it (V) or flies there (X) |
 | `calibrate_camera.py` | Checkerboard video → `camera_calib.json` (optional; on standby) |
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
+| `side_by_side.py` | Two videos side by side with label bars (name + time), for the talk: two run folders aligned by wall clock, two replays aligned by the flight's `t_s`, or any two videos. See Talk videos below |
 | `time_trackers.py` | Laptop-CPU speed of the 15 tuned tracker setups + the flying `botsort_tuned.yaml` (tracker update only, on the flight detector's boxes cached once per frame; settings read from `results/followme_tracker_tuning_all_summary.json`). See Tracker speed below |
-| `test_*.py` | 198 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), and the tracker speed timer (`test_time_trackers.py`) |
+| `test_*.py` | 214 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), the tracker speed timer (`test_time_trackers.py`), and the side-by-side videos on tiny synthetic clips (`test_side_by_side.py`) |
 
 ## Folders
 
@@ -63,7 +64,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 ```bash
 cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
 source ~/jarvis-follow/bin/activate
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py   # expect 198 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py   # expect 214 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads   # backfill the flight log, copy it where Windows sees it
@@ -75,7 +76,18 @@ python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Download
 python replay.py --source ~/follow_logs/<YYYYMMDD_HHMMSS>_droneA       # a flight: replays its recorded lock, N and M
 python replay.py --source clip.mp4 --lock-id 3                          # any video: lock onto replay track 3 (3@120 = from frame 120)
 python replay.py --source clip.mp4 --window                             # click a box to lock, SPACE pause, Q quit
+python replay.py --source ~/follow_logs/20261029_182029 --lock-id only@18s   # no boxes.jsonl: lock the only person in view at t = 18 s
 ```
+
+- `--lock-id TID`, `TID@FRAME`, `TID@SECONDSs`: lock onto replay track TID the first time it is seen at / after that
+  point. `only@SECONDSs` (or `only@FRAME`): the **only** person track in view then, a stand-in for clicking them on a
+  flight with no `boxes.jsonl`. With several people in view it locks **nobody** (no biggest / nearest / most confident)
+  and prints and saves their IDs, so you rerun with `TID@FRAME`; with nobody in view it waits for the first person.
+  Where and on which track the lock landed is printed and saved in `replay_info.json` (`lock`).
+- `--label 'cutoff 0.79'` (comparison runs, 11-27): a neutral caption on every frame of `replay.mp4`. With
+  `--off-decisions` it takes the place of the red per-frame DEVIATION banner, but only if it names every deviating value
+  (`--label comparison` with `--match-sim 0.79` stops). The deviation is still printed at the start and the end, saved in
+  `replay_info.json` (`preflight`, plus `label` and `frame_caption`) and in commands.csv's `deviation` column.
 
 Replay runs **what we fly** (Michael 11-26: "replay always matches whatever we're flying, unless I state explicitly
 otherwise"): it has no settings of its own. Flags and defaults, detector, cutoffs, tracker, input size, re-ID,
@@ -188,6 +200,51 @@ rule: never guess; anything not recorded by the program says where it came from.
   logged**. A key that matches no run folder, an unknown entry key, or a `drone` override without a reason is ignored
   with a `flight log WARNING` line; a missing or broken file never stops the log.
 
+## Talk videos (Michael 11-27)
+
+Both made on the laptop (WSL). Copy the results to Windows with `cp ~/talk_videos/*.mp4 /mnt/c/Users/mahed/Downloads/`.
+`side_by_side.py` writes H.264 through ffmpeg when `ffmpeg` is on PATH (`which ffmpeg`; `sudo apt install ffmpeg`),
+else OpenCV's mp4v (plays in VLC, maybe not in PowerPoint). Both print which encoder they used.
+
+**Video 1: re-lock cutoff 0.70 vs 0.79 on the same flight.** The flight is `20261029_182029` (10-29 18:20, 8,670
+frames: the flight both `results/followme_reid_replay_1029*.json` replays used, per their decision record
+`results/followme_reid_cutoff.json`). Those replays ran the then-settings (`vd_mav_cl_s42.pt`, stock `botsort.yaml`,
+lockon.py of 11-21 / 11-22). These commands run what flies today (INT8, 0.23 / 0.29, `botsort_tuned.yaml`, today's
+search), so **the percentages are re-measured** and may differ from 54.6% / 39.3% (0.70) and 33.2% / 60.7% (0.79):
+read them from each run's `replay_info.json` `summary`. The 0.79 run is a deviation (`--off-decisions`); its label
+names it. Lock: the flight has no `boxes.jsonl`, so `--lock-id only@18s` (the old replays' first lock was at t = 18.0 s);
+track IDs are the same in both runs (the tracker doesn't depend on the cutoff), so both lock the same track.
+
+```bash
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+python replay.py --source ~/follow_logs/20261029_182029 --lock-id only@18s --label "cutoff 0.70" --out ~/talk_videos/reid_cutoff_070
+python replay.py --source ~/follow_logs/20261029_182029 --lock-id only@18s --match-sim 0.79 --off-decisions --label "cutoff 0.79" --out ~/talk_videos/reid_cutoff_079
+python side_by_side.py ~/talk_videos/reid_cutoff_070 ~/talk_videos/reid_cutoff_079 --out ~/talk_videos/reid_cutoff_070_vs_079.mp4
+```
+
+If a replay prints `NOTE: --lock-id only@18s: 2 people in view ...`, nothing was locked: rerun both with the
+`--lock-id TID@FRAME` it suggests (check which one is you in that run's `replay.mp4`).
+
+**Video 2: the 11-22 two-drone flight.** `20261122_162719_droneA` and `20261122_162740_droneB` (flown from one laptop, so
+one clock; B started 21 s later). Default span: only while both record (`--span union` adds A's first 21 s with B's
+side "not recording yet"); `--start S --duration S` cut a clip; `--offset S` nudges the right side by eye.
+
+```bash
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+python side_by_side.py ~/follow_logs/20261122_162719_droneA ~/follow_logs/20261122_162740_droneB --out ~/talk_videos/flight_1122_two_drones.mp4
+```
+
+How `side_by_side.py` aligns: a run folder's frames are its follow.csv rows (`video_file`, `frame_in_file`, `t_s`;
+older logs without `frame_in_file`: counted per chunk), at start time + `t_s`. The start time is the folder name
+(live_follow names the folder a few ms before `t_s` = 0; whole seconds, so up to 1 s early), refined to follow.csv's
+modification time minus its last `t_s` when that lands within 2 s after the folder time (follow.csv is flushed on every
+row; a copied folder loses its mtime and falls back to the name). Which one was used is printed per input. A replay
+folder's frames are its commands.csv rows at the flight's `t_s` (labels from `replay_info.json`'s `--label`); any
+other video runs on frame / fps. Each output frame (every 1/`--fps` s) shows each side's latest frame at or before that
+time. Labels: `drone A` / `drone B` from the folder name, the replay's label, else the name; `--labels L R` overrides.
+
 ## Tracker speed (laptop CPU, Michael 11-27)
 
 FPS of the 15 tracker setups of the 11-27 Colab tuning, each at its tuned settings, measured on Michael's laptop
@@ -226,6 +283,16 @@ python time_trackers.py --video ~/follow_logs/<run>/video_000.mp4 --frames 600 -
 
 ## Change log
 
+- **2026-11-27 (Michael): talk videos.** New `side_by_side.py` (see Talk videos): two run folders aligned by wall clock
+  (folder-name start, refined by follow.csv mtime when within 2 s), two replays by `t_s`, or two videos, with label bars;
+  ffmpeg / H.264 if installed, else OpenCV. `replay.py`: `--lock-id` takes `TID@SECONDSs` and `only@...` (the only person
+  in view; several people = no lock, IDs printed) for pre-11-22 flights; `--label` for deliberate comparison runs (a
+  neutral caption in place of the red per-frame banner, only if it names every deviating value; the deviation stays in
+  the console banners, `replay_info.json` and commands.csv). 11 tests in `test_side_by_side.py` (wall-clock alignment of
+  the 11-22 layout across chunks, overlap / union / start / duration / offset, mtime refinement only when plausible, old
+  logs, replay alignment + labels, plain video, OpenCV and ffmpeg renders decoded pixel by pixel, encoder choice) + 5 in
+  `test_replay.py` (`only` never chooses between people, label must name the deviation, label replaces the frame banner
+  but keeps the deviation recorded, a hiding label stops, `only@1s` lock end to end): 214 in all.
 - **2026-11-27 (Michael): tracker speed timer.** New `time_trackers.py` (see Tracker speed) and the tuning summary it
   reads, `results/followme_tracker_tuning_all_summary.json` (byte-exact from Drive). 14 new tests in
   `test_time_trackers.py` (15 setups with the summary's settings and the grid's construction, a changed file changes the

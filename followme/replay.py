@@ -17,8 +17,14 @@ every frame. (Until 11-26 replay ran stock yolov8n at conf 0.10 with the old nea
 
 Lock (click-to-lock, Michael 11-20): nothing locks by itself. The lock comes from the flight log's recorded lock event
 (the operator's click, or first_lock in a --fake --auto-lock test flight), placed on the replay's own track with the
-highest IoU to the recorded target box (boxes.jsonl); or from --lock-id TID[@FRAME]; or from a click with --window.
-A recorded N (new lock) clears it. Re-locks after a loss are the replay's own re-ID decisions, never copied from the
+highest IoU to the recorded target box (boxes.jsonl); or from --lock-id TID[@FRAME | @SECONDSs]; or from a click with
+--window. For flights with no boxes.jsonl (before 11-22), --lock-id only@SECONDSs locks the ONLY person in view at that
+time (a stand-in for clicking them; if several people are in view it locks nobody and prints their IDs). A recorded
+N (new lock) clears it.
+
+Comparison runs (11-27): --label 'cutoff 0.79' stamps a neutral caption on every frame. With --off-decisions it replaces
+the red per-frame DEVIATION banner, but only if it names every deviating value (else STOP); the console banners,
+replay_info.json (preflight + label + frame_caption) and commands.csv's deviation column still carry the deviation. Re-locks after a loss are the replay's own re-ID decisions, never copied from the
 log. The recorded MANUAL / FOLLOW mode is replayed too (MANUAL: lock-on runs, no commands; M -> FOLLOW: resume).
 Sources with no flight log (video, image folder, record.py) replay as FOLLOW throughout.
 
@@ -269,12 +275,44 @@ def place_lock(box, tracks):
     return best if best is not None and lockon.iou(best[:4], box) >= LOCK_IOU else None
 
 
+ONLY = "only"       # --lock-id only@T: the one person in view (a stand-in for a click on them; never a choice among people)
+
+
 def parse_lock_id(s):
-    """'3' -> (3, 0); '3@120' -> (3, 120): lock onto replay track 3 the first time it is seen at or after frame 120."""
+    """-> (tid, frame, t_s): when to place the lock = the first frame at or after `frame` (or, with an 's' suffix, the
+    first frame whose recorded time is at or after t_s seconds).
+      '3' -> (3, 0, None); '3@120' -> (3, 120, None); '3@18s' -> (3, None, 18.0)
+      'only@18s' -> ('only', None, 18.0): lock onto the ONLY person track in view at that time. If several people are
+      in view nothing is locked (no guessing: their IDs are printed and saved, use TID@... instead); if nobody is,
+      it waits for the first frame with a person."""
     if not s:
-        return None, 0
-    tid, _, frame = str(s).partition("@")
-    return int(tid), int(frame or 0)
+        return None, 0, None
+    tid, _, at = str(s).partition("@")
+    tid = ONLY if tid.strip().lower() == ONLY else int(tid)
+    at = at.strip().lower()
+    if at.endswith("s"):
+        return tid, None, float(at[:-1])
+    return tid, int(at or 0), None
+
+
+def lock_target(lock_tid, tracks, person_ids):
+    """--lock-id on this frame's tracks -> (track to lock or None, the person tracks in view).
+    A TID locks that track if present. ONLY locks the person track only if it is the single one: with several people
+    it returns None (never a choice among people: no biggest / nearest / most confident)."""
+    people = [t for t in tracks if t[5] in person_ids]
+    if lock_tid == ONLY:
+        return (people[0] if len(people) == 1 else None), people
+    return next((t for t in tracks if t[4] == lock_tid), None), people
+
+
+def label_problem(label, deviations):
+    """--label replaces the red DEVIATION banner on the frames only if it names every deviation's running value
+    (e.g. 'cutoff 0.79' for match_sim 0.79), so the picture still says what differs. -> None if OK, else why not."""
+    missing = [d for d in deviations if str(d["actual"]) not in label]
+    if not missing:
+        return None
+    return ("--label must name every deviating value it stands in for, so the frames still say what differs; "
+            "missing: " + ", ".join(f"{d['name']} {d['actual']!r}" for d in missing))
 
 
 def build_parser():
@@ -283,7 +321,12 @@ def build_parser():
     ap.add_argument("--source", required=True)
     lf.add_flight_args(ap)             # the SAME flags and defaults as live_follow.py; no replay-only settings
     ap.add_argument("--lock-id", default="",
-                    help="TID or TID@FRAME: lock onto replay track TID (replaces the flight log's recorded locks)")
+                    help="TID, TID@FRAME or TID@SECONDSs: lock onto replay track TID (replaces the flight log's recorded "
+                         "locks); only@SECONDSs = the only person in view then (several people: no lock, IDs printed)")
+    ap.add_argument("--label", default="",
+                    help="caption stamped on every frame (e.g. 'cutoff 0.79') for a deliberate comparison run. With "
+                         "--off-decisions it replaces the red DEVIATION banner on the frames, and only if it names every "
+                         "deviating value; the console banners, replay_info.json and commands.csv keep the deviation")
     ap.add_argument("--fps", type=float, default=30.0, help="frame rate for sources without recorded timestamps (t_s)")
     ap.add_argument("--out", default=None, help="output folder (default: <source>/replay)")
     ap.add_argument("--max-frames", type=int, default=0)
@@ -308,6 +351,8 @@ def main(argv=None):
     actual = lf.running_settings(args, drone_profile_applied=False, cutoffs=(cut_p, cut_v), precision=prec["precision"])
     preflight = lf.enforce_decisions(lf.check_decisions(actual, lf.load_decisions(), modes), args.off_decisions,
                                      program="replay")
+    if args.label and label_problem(args.label, preflight["deviations"]):
+        sys.exit(f"STOP: {label_problem(args.label, preflight['deviations'])}")
     print("KNOWN OFFLINE DEVIATIONS (replay cannot do these the way the flight does):")
     for x in OFFLINE_DEVIATIONS:
         print("  -", x)
@@ -325,8 +370,8 @@ def main(argv=None):
 
     # ---- where the lock comes from: never automatic (click-to-lock, Michael 11-20) ----
     flight = load_flight_log(src)
-    lock_tid, lock_frame = parse_lock_id(args.lock_id)
-    events, notes = [], []
+    lock_tid, lock_frame, lock_t = parse_lock_id(args.lock_id)
+    events, notes, lock_placed = [], [], None
     if lock_tid is not None:
         lock_source = f"--lock-id {args.lock_id}"
     elif flight is None:
@@ -355,13 +400,16 @@ def main(argv=None):
 
     out = Path(args.out) if args.out else (src if src.is_dir() else src.parent) / "replay"
     out.mkdir(parents=True, exist_ok=True)
+    banner = ("DEVIATION (--off-decisions): " + ", ".join(f"{x['name']} {x['actual']!r} (flown {x['decided']!r})"
+                                                         for x in preflight["deviations"])) if preflight["deviations"] else ""
+    # what the frames show on top of the flight view: the label (a deliberate comparison run), else the red banner
+    frame_caption = ("label" if args.label else "deviation banner" if banner else "none")
     info_doc = dict(program="replay.py", source=str(src), running=actual, preflight=preflight,
                     offline_deviations=OFFLINE_DEVIATIONS, cutoffs=dict(person=cut_p, vehicle=cut_v, source=cut_src),
                     reid=reid_note, lock_source=lock_source, flight_differs=flight_differs, notes=notes,
-                    detector=prec, tracker=dict(file=trk["label"], settings=trk["settings"]))
+                    detector=prec, tracker=dict(file=trk["label"], settings=trk["settings"]),
+                    label=args.label or None, frame_caption=frame_caption)
     (out / "replay_info.json").write_text(json.dumps(info_doc, indent=1, default=str))
-    banner = ("DEVIATION (--off-decisions): " + ", ".join(f"{x['name']} {x['actual']!r} (flown {x['decided']!r})"
-                                                         for x in preflight["deviations"])) if preflight["deviations"] else ""
 
     writer, rows, t_start = None, [], time.time()
     total = count_frames(src)
@@ -390,10 +438,22 @@ def main(argv=None):
             hit = place_lock(rec_box, tracks) if rec_box is not None else None
             if hit is not None:
                 logic.pick(hit[4], tracks, now=now); pending = None; placed += 1
-        if lock_tid is not None and not lock_done and f >= lock_frame:
-            hit = next((t for t in tracks if t[4] == lock_tid), None)
+        if lock_tid is not None and not lock_done and (f >= lock_frame if lock_t is None else now >= lock_t):
+            hit, people = lock_target(lock_tid, tracks, person_ids)
+            if lock_tid == ONLY and len(people) > 1:                   # several people: never choose between them
+                lock_done = True
+                lock_placed = dict(frame=f, t_s=round(now, 3), track=None, people_in_view=len(people),
+                                   ids=[int(t[4]) for t in people])
+                notes.append(f"--lock-id {args.lock_id}: {len(people)} people in view at frame {f} "
+                             f"(t {now:.1f} s), so NOTHING was locked. Pick one: --lock-id TID@{f} with TID one of "
+                             + ", ".join(f"{int(t[4])} (box x {t[0]:.0f}-{t[2]:.0f}, conf {t[6]:.2f})" for t in people))
+                print("\nNOTE:", notes[-1])
             if hit is not None:
                 logic.pick(hit[4], tracks, now=now); lock_done = True; placed += 1
+                lock_placed = dict(frame=f, t_s=round(now, 3), track=int(hit[4]),
+                                   people_in_view=sum(t[5] in person_ids for t in tracks))
+                print(f"\nlock placed: replay track {int(hit[4])} at frame {f} (t {now:.1f} s)"
+                      + (" - the only person in view" if lock_tid == ONLY else ""))
         clicked = False
         while True:                                                     # window clicks (also while paused)
             if click["pt"] is not None:
@@ -417,7 +477,10 @@ def main(argv=None):
             ev = logic.observe(tracks, now, now, W, H, vecs)
             cmd, info = dict(roll=0, pitch=0, yaw=0, gaz=0), dict(state=mode, dist=None, method=mode.lower(), event=ev)
         vis = lf.draw_follow(img, tracks, names, logic, cmd, info, mode, 1000 / max(det_ms, 1), tel, n + 1, total)
-        if banner:
+        if args.label:                                                  # comparison run: a neutral caption
+            cv2.rectangle(vis, (0, 42), (W, 72), (40, 40, 40), -1)
+            cv2.putText(vis, args.label[:150], (8, 64), 0, 0.7, (255, 255, 255), 2)
+        elif banner:
             cv2.rectangle(vis, (0, 42), (W, 72), (0, 0, 160), -1)
             cv2.putText(vis, banner[:150], (8, 64), 0, 0.6, (255, 255, 255), 2)
         if writer is None:
@@ -465,7 +528,10 @@ def main(argv=None):
                    no_target=sum(r_["method"] == "no_target" for r_ in rows))
     if pending is not None:
         notes.append(f"a recorded lock (flight target {pending}) never matched a replay track (IoU >= {LOCK_IOU})")
-    (out / "replay_info.json").write_text(json.dumps(dict(info_doc, notes=notes, summary=summary), indent=1, default=str))
+    if lock_tid is not None and lock_placed is None:
+        notes.append(f"--lock-id {args.lock_id}: never placed (no matching track at or after that point)")
+    (out / "replay_info.json").write_text(json.dumps(dict(info_doc, notes=notes, summary=summary, lock=lock_placed),
+                                                     indent=1, default=str))
     print(" | ".join(f"{k} {v}" for k, v in summary.items()) + f" | saved {out / 'replay.mp4'} + commands.csv + replay_info.json")
     for n_ in notes:
         print("NOTE:", n_)
