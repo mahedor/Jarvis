@@ -30,6 +30,11 @@ Sources with no flight log (video, image folder, record.py) replay as FOLLOW thr
 
 Known offline deviations (unavoidable; printed every run and saved in replay_info.json): see OFFLINE_DEVIATIONS.
 
+What it measured (11-28, talk videos: no number without a file): replay_info.json's summary adds target_lost_pct,
+target_ids_used, person_track_ids and det_ms (definitions in STATS_DEFINITIONS, saved beside them), plus lock_events
+(every lock / re-ID re-lock with its similarity / N, with frame, t_s and the target box) and target_segments (how long
+each target ID was followed); lock_events.txt is the same list as text; commands.csv adds the target box per frame.
+
 The shared pieces live_follow imports from here: Controller (P-control with deadbands, clamps and smoothing; gains
 are first guesses), estimate_distance, draw, box_at, PERSON_NAMES / VEHICLE_NAMES.
 Distance:
@@ -315,6 +320,115 @@ def label_problem(label, deviations):
             "missing: " + ", ".join(f"{d['name']} {d['actual']!r}" for d in missing))
 
 
+# ---- what a replay measured, saved in replay_info.json (11-28, talk videos: no number without a file) ----
+STATS_WARMUP_FRAMES = 20    # detector timings are also given without the first 20 frames (model load / first calls),
+                            # the same warm-up time_trackers.py and flight_vs_bench.py skip
+STATS_DEFINITIONS = {
+    "target_lost_pct": "of the FOLLOW-mode frames from the first lock on, % whose state is not FOLLOWING (searching, "
+                       "spinning, lost -> hover). Frames before the first lock are not counted.",
+    "target_ids_used": "distinct track IDs the lock was on (the lock / click, then every re-ID re-lock). The pre-11-26 "
+                       "replay auto re-locked onto the nearest person, so its 'target IDs used' counted something else.",
+    "person_track_ids": "distinct tracker IDs given to person boxes over the whole replay (after the per-class cutoffs): "
+                        "fewer = the tracker kept people under one ID for longer",
+    "det_ms": "Detector.process's model.track wall time per frame (pre-process + inference + NMS + tracker), on this "
+              "computer; 'after_warmup' leaves out the first STATS_WARMUP_FRAMES frames. Not the re-ID embedding (embed_ms).",
+    "lock_events": "every change of the replay's target (lock = --lock-id / recorded click / window click; re-ID re-lock "
+                   "with its similarity; cleared = N) with frame, flight time t_s and the target box",
+    "target_segments": "consecutive frames on one target ID: start / end, how it started, seconds and frames FOLLOWING",
+}
+
+
+def _no_target(tid):
+    return tid is None or tid == ""
+
+
+def _ms_stats(xs):
+    xs = sorted(float(x) for x in xs if x is not None)
+    if not xs:
+        return None
+    return dict(n=len(xs), mean=round(sum(xs) / len(xs), 1), median=round(xs[len(xs) // 2], 1),
+                p95=round(xs[min(int(0.95 * len(xs)), len(xs) - 1)], 1))
+
+
+def lock_events(rows):
+    """commands.csv rows -> every change of target: [dict(frame, t_s, kind, from_id, to_id, sim, box)].
+    kind: 'lock' (a pick: --lock-id, recorded click or window click), 're-ID re-lock', 'cleared' (N)."""
+    out, prev = [], None
+    for r in rows:
+        tid = None if _no_target(r["target_id"]) else r["target_id"]
+        relock = r.get("lock_event") == "reacquired_reid"
+        if tid != prev or relock:
+            kind = "re-ID re-lock" if relock else "cleared" if tid is None else "lock"
+            box = [r.get(k) for k in ("target_x1", "target_y1", "target_x2", "target_y2")]
+            out.append(dict(frame=r["frame"], t_s=r["t_s"], kind=kind, from_id=prev, to_id=tid,
+                            sim=r.get("best_sim") if relock else None, box=box if box[0] not in (None, "") else None))
+        prev = tid
+    return out
+
+
+def target_segments(rows):
+    """commands.csv rows -> [dict(target_id, start_frame, start_t_s, end_frame, end_t_s, started_by, sim, frames,
+    following_frames, following_s)]: one per run of consecutive frames on the same target ID. following_s sums each
+    FOLLOWING frame's time to the next frame (the last frame of the replay counts 0)."""
+    segs, cur = [], None
+    for i, r in enumerate(rows):
+        tid = None if _no_target(r["target_id"]) else r["target_id"]
+        relock = r.get("lock_event") == "reacquired_reid"
+        if cur is not None and (tid != cur["target_id"] or relock):
+            segs.append(cur); cur = None
+        if tid is not None and cur is None:
+            cur = dict(target_id=tid, start_frame=r["frame"], start_t_s=r["t_s"], end_frame=r["frame"],
+                       end_t_s=r["t_s"], started_by="re-ID re-lock" if relock else "lock",
+                       sim=r.get("best_sim") if relock else None, frames=0, following_frames=0, following_s=0.0)
+        if cur is not None:
+            cur["end_frame"], cur["end_t_s"], cur["frames"] = r["frame"], r["t_s"], cur["frames"] + 1
+            if r["state"] == "FOLLOWING":
+                cur["following_frames"] += 1
+                if i + 1 < len(rows):
+                    cur["following_s"] += max(float(rows[i + 1]["t_s"]) - float(r["t_s"]), 0.0)
+    if cur is not None:
+        segs.append(cur)
+    for s in segs:
+        s["following_s"] = round(s["following_s"], 2)
+    return segs
+
+
+def replay_stats(rows, person_ids_seen=(), track_ids_seen=()):
+    """The numbers a comparison replay is judged on (STATS_DEFINITIONS), from commands.csv rows + the track IDs seen."""
+    first = next((i for i, r in enumerate(rows) if not _no_target(r["target_id"])), None)
+    after = [r for r in rows[first:] if r["mode"] == "FOLLOW"] if first is not None else []
+    lost = sum(r["state"] != "FOLLOWING" for r in after)
+    used = []
+    for r in rows:
+        if not _no_target(r["target_id"]) and r["target_id"] not in used:
+            used.append(r["target_id"])
+    det = [r.get("det_ms") for r in rows]
+    return dict(first_lock_frame=rows[first]["frame"] if first is not None else None,
+                first_lock_t_s=rows[first]["t_s"] if first is not None else None,
+                follow_frames_after_first_lock=len(after), not_following_after_first_lock=lost,
+                target_lost_pct=round(100.0 * lost / len(after), 1) if after else None,
+                target_ids_used=len(used), target_ids=used,
+                person_track_ids=len(set(person_ids_seen)), all_track_ids=len(set(track_ids_seen)),
+                det_ms=_ms_stats(det), det_ms_after_warmup=_ms_stats(det[STATS_WARMUP_FRAMES:]),
+                embed_ms=_ms_stats([r.get("embed_ms") for r in rows]))
+
+
+def events_text(events):
+    """lock_events -> lines like the 11-22 replays' *_events.txt ('1:01.6  RE-LOCK by re-ID: track 78, score 0.70')."""
+    def mmss(t):
+        return f"{int(float(t) // 60)}:{float(t) % 60:04.1f}"
+    out = []
+    for e in events:
+        if e["kind"] == "lock":
+            out.append(f"{mmss(e['t_s'])}  LOCK on track {e['to_id']}  (frame {e['frame']})")
+        elif e["kind"] == "re-ID re-lock":
+            sim = f", score {float(e['sim']):.3f}" if e["sim"] not in (None, "") else ""
+            out.append(f"{mmss(e['t_s'])}  RE-LOCK by re-ID: track {e['from_id']} -> {e['to_id']}{sim}  (frame {e['frame']})")
+        else:
+            out.append(f"{mmss(e['t_s'])}  CLEARED (N), was track {e['from_id']}  (frame {e['frame']})")
+    return "\n".join(out) + ("\n" if out else "")
+
+
 def build_parser():
     lf = _flight()
     ap = argparse.ArgumentParser(description="Replay footage through the flight program without flying.")
@@ -419,6 +533,7 @@ def main(argv=None):
         cv2.namedWindow("replay", cv2.WINDOW_NORMAL)
         cv2.setMouseCallback("replay", lambda ev, x, y, fl, p: click.__setitem__("pt", (x, y)) if ev == cv2.EVENT_LBUTTONDOWN else None)
     ei, pending, lock_done, prev_mode, placed, n = 0, None, False, None, 0, 0
+    person_ids_seen, track_ids_seen = set(), set()
     for i, (img, row) in enumerate(frames_from(src)):
         H, W = img.shape[:2]
         f = int(row["frame"]) if row and row.get("frame") not in (None, "") else i
@@ -426,6 +541,8 @@ def main(argv=None):
         now = i / args.fps if now is None else now
         tel = {k: _f(row, k) for k in row} if row else {}
         tracks, det_ms, vecs, embed_ms = det.process(img, now)      # live_follow's own detector pass
+        track_ids_seen.update(int(t[4]) for t in tracks)
+        person_ids_seen.update(int(t[4]) for t in tracks if t[5] in person_ids)
         # ---- operator input, as live_follow handles it before the logic runs: N, clicks, M ----
         while ei < len(events) and events[ei][0] <= f:
             _, kind, rec_tid = events[ei]; ei += 1
@@ -494,6 +611,7 @@ def main(argv=None):
             elif k == ord("q"):
                 break
         g = lambda key: (row.get(key, "") if row else "")
+        tb = next((t[:4] for t in tracks if logic.target_id is not None and t[4] == logic.target_id), None)
         rows.append(dict(frame=f, t_s=round(now, 3), mode=mode, state=info["state"], target_id=logic.target_id,
                          picked_by=logic.picked_by, clicked=int(clicked), lock_event=info.get("event", ""),
                          dist_m=info.get("dist"), method=info.get("method"), roll=cmd["roll"],
@@ -502,6 +620,8 @@ def main(argv=None):
                          gallery_n=len(logic.lock.gallery), n_embedded=len(vecs),
                          best_sim=logic.lock.last_sim if info.get("event") == "reacquired_reid" else None,
                          det_ms=round(det_ms, 1), embed_ms=round(embed_ms, 1),
+                         **{k: (round(float(v), 1) if tb is not None else None)
+                            for k, v in zip(("target_x1", "target_y1", "target_x2", "target_y2"), tb or (0, 0, 0, 0))},
                          flight_mode=g("mode"), flight_state=g("state"), flight_target_id=g("target_id"),
                          flight_lock_event=g("lock_event"), flight_yaw=g("yaw"), flight_pitch=g("pitch"),
                          deviation=banner))
@@ -526,13 +646,22 @@ def main(argv=None):
                    reid_relocks=sum(r_["lock_event"] == "reacquired_reid" for r_ in rows),
                    lost_or_searching=sum(r_["method"] in ("lost", "searching") for r_ in rows),
                    no_target=sum(r_["method"] == "no_target" for r_ in rows))
+    summary.update(replay_stats(rows, person_ids_seen, track_ids_seen))      # 11-28: the comparison numbers, saved
+    events, segments = lock_events(rows), target_segments(rows)
+    (out / "lock_events.txt").write_text(events_text(events))
     if pending is not None:
         notes.append(f"a recorded lock (flight target {pending}) never matched a replay track (IoU >= {LOCK_IOU})")
     if lock_tid is not None and lock_placed is None:
         notes.append(f"--lock-id {args.lock_id}: never placed (no matching track at or after that point)")
-    (out / "replay_info.json").write_text(json.dumps(dict(info_doc, notes=notes, summary=summary, lock=lock_placed),
-                                                     indent=1, default=str))
-    print(" | ".join(f"{k} {v}" for k, v in summary.items()) + f" | saved {out / 'replay.mp4'} + commands.csv + replay_info.json")
+    (out / "replay_info.json").write_text(json.dumps(dict(info_doc, notes=notes, summary=summary, lock=lock_placed,
+                                                          summary_definitions=STATS_DEFINITIONS, lock_events=events,
+                                                          target_segments=segments), indent=1, default=str))
+    short = {k: v for k, v in summary.items() if k not in ("target_ids", "det_ms", "det_ms_after_warmup", "embed_ms")}
+    dm = summary["det_ms_after_warmup"] or summary["det_ms"]
+    print(" | ".join(f"{k} {v}" for k, v in short.items())
+          + (f" | det_ms mean {dm['mean']} median {dm['median']}" if dm else "")
+          + f"\nsaved {out / 'replay.mp4'} + commands.csv + replay_info.json + lock_events.txt")
+    print(events_text(events), end="")
     for n_ in notes:
         print("NOTE:", n_)
     if banner:

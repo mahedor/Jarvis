@@ -272,3 +272,55 @@ def test_lock_only_person_at_a_time(flight, tmp_path):
     assert info["lock_source"] == "--lock-id only@1s" and info["preflight"]["passed"]
     assert info["lock"] == dict(frame=30, t_s=1.0, track=1, people_in_view=1)
     assert info["label"] == "cutoff 0.7" and info["frame_caption"] == "label" and not info["notes"]
+
+
+# ---- what a comparison replay measured (11-28, talk videos: every number saved to a file) ----
+
+def _r(frame, t, tid, state="FOLLOWING", ev="following", mode="FOLLOW", sim=None, det=30.0, box=(1, 2, 3, 4)):
+    b = dict(zip(("target_x1", "target_y1", "target_x2", "target_y2"), box)) if box else \
+        dict(target_x1=None, target_y1=None, target_x2=None, target_y2=None)
+    return dict(frame=frame, t_s=t, mode=mode, state=state, target_id=tid, lock_event=ev, best_sim=sim, det_ms=det,
+                embed_ms=0.0, **b)
+
+
+def test_lock_events_segments_and_stats():
+    rows = [_r(0, 0.0, None, "NO TARGET (click someone)", "no_target", box=None, det=900.0),
+            _r(1, 0.5, 4, ev="following"),                                                   # the lock (a pick)
+            _r(2, 1.0, 4, "SEARCHING (hover)", "lost", box=None),
+            _r(3, 1.5, 9, ev="reacquired_reid", sim=0.81),                                   # re-ID onto track 9
+            _r(4, 2.0, 9), _r(5, 2.5, 9, "LOST -> HOVER", "lost", box=None),
+            _r(6, 3.0, 9, "MANUAL", "lost", mode="MANUAL", box=None),                        # MANUAL: not counted
+            _r(7, 3.5, None, "NO TARGET (click someone)", "no_target", box=None)]           # N
+    ev = replay.lock_events(rows)
+    assert [(e["frame"], e["kind"], e["from_id"], e["to_id"], e["sim"]) for e in ev] == [
+        (1, "lock", None, 4, None), (3, "re-ID re-lock", 4, 9, 0.81), (7, "cleared", 9, None, None)]
+    assert ev[0]["box"] == [1, 2, 3, 4] and ev[2]["box"] is None
+    seg = replay.target_segments(rows)
+    assert [(s["target_id"], s["start_frame"], s["end_frame"], s["started_by"], s["frames"], s["following_frames"],
+             s["following_s"]) for s in seg] == [(4, 1, 2, "lock", 2, 1, 0.5), (9, 3, 6, "re-ID re-lock", 4, 2, 1.0)]
+    st = replay.replay_stats(rows, person_ids_seen={4, 9, 11}, track_ids_seen={4, 9, 11, 2})
+    assert st["first_lock_frame"] == 1 and st["follow_frames_after_first_lock"] == 6      # frames 1-5 + 7 (FOLLOW)
+    assert st["not_following_after_first_lock"] == 3 and st["target_lost_pct"] == 50.0
+    assert st["target_ids_used"] == 2 and st["target_ids"] == [4, 9]
+    assert st["person_track_ids"] == 3 and st["all_track_ids"] == 4
+    assert st["det_ms"]["n"] == 8 and st["det_ms"]["p95"] == 900.0
+    assert replay.replay_stats([_r(0, 0.0, None, box=None)])["target_lost_pct"] is None    # never locked: no number
+    txt = replay.events_text(ev)
+    assert txt.splitlines() == ["0:00.5  LOCK on track 4  (frame 1)",
+                                "0:01.5  RE-LOCK by re-ID: track 4 -> 9, score 0.810  (frame 3)",
+                                "0:03.5  CLEARED (N), was track 9  (frame 7)"]
+    assert set(replay.STATS_DEFINITIONS) >= {"target_lost_pct", "target_ids_used", "person_track_ids", "det_ms"}
+
+
+def test_replay_saves_its_lock_events_and_numbers(flight, tmp_path):
+    p = run_replay(flight, tmp_path)
+    assert p.returncode == 0, p.stderr[-2000:]
+    info = json.loads((tmp_path / "replay_info.json").read_text())
+    s = info["summary"]
+    assert s["first_lock_frame"] is not None and s["target_ids_used"] == 1 and s["person_track_ids"] == 1
+    assert s["target_lost_pct"] is not None and s["det_ms"]["n"] == s["frames"]
+    assert [e["kind"] for e in info["lock_events"]][:1] == ["lock"] and info["lock_events"][0]["box"] is not None
+    assert info["target_segments"][0]["started_by"] == "lock" and info["summary_definitions"] == replay.STATS_DEFINITIONS
+    assert (tmp_path / "lock_events.txt").read_text().startswith(replay.events_text(info["lock_events"])[:10])
+    rows = _rows(tmp_path)
+    assert all(r["target_x1"] for r in rows if r["state"] == "FOLLOWING")              # the target box, per frame

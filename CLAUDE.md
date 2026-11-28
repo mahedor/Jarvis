@@ -215,8 +215,8 @@ Michael 11-27) is merged on every regenerate: drone corrections ("droneB (correc
 and chat-history notes for what a run did not record (model, cutoffs, tracker, re-ID, fake test vs real flight, who was
 followed), always marked "from chat history:" and citing the chat time + seq or a commit; never overwrites a logged
 value; a key matching no run folder is ignored with a warning. Michael's WSL clone is
-`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 255 tests are run from inside it
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_reid_margin_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py`) and are **not** part of the
+`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 267 tests are run from inside it
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_reid_margin_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py test_blind_spot_check.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
 `time_trackers.py` times the 15 tuned tracker setups on the laptop CPU (Michael 11-27: talk speed numbers come only
@@ -292,7 +292,24 @@ if it names every deviating value (else STOP); console banners, `replay_info.jso
 commands.csv keep the deviation. `--lock-id only@18s` locks the only person in view at that time (several people: no
 lock, their IDs printed) for pre-11-22 flights with no `boxes.jsonl`. `side_by_side.py` stacks two run folders (aligned
 by wall clock: folder-name start, refined by follow.csv mtime minus last t_s when within 2 s), two replay folders (by
-commands.csv t_s) or two videos, with label bars; ffmpeg (H.264) if on PATH, else OpenCV mp4v.
+commands.csv t_s) or two videos, with label bars; ffmpeg (H.264) if on PATH, else OpenCV mp4v. Since 11-28 every
+replay saves what it measured in `replay_info.json`: `summary` (+ `target_lost_pct`, `target_ids_used`,
+`person_track_ids`, `det_ms` with and without a 20-frame warm-up; `summary_definitions` beside it), `lock_events` (lock /
+re-ID re-lock with similarity / N, with t_s and target box; also `lock_events.txt`) and `target_segments`; commands.csv
+adds the target box. No new flag.
+
+`blind_spot_check.py` (11-28, talk chapter 12 / D4) re-checks the dusk blind spot on flight `20261029_182029`: the 63
+frames 3507-3879 every 6th and the hit rule (a person box whose centre is in [241.5, 135.2, 452.0, 474.5]) are
+gap_fps.py's, whose script and two JSON outputs (11-22, Michael's laptop: fine-tuned .pt at conf 0.25 0/63, YOLO11l
+54/63, RF-DETR 59/63) are committed byte-exact as `results/followme_blind_spot_gap_fps.py.txt` / `_yolo.json` /
+`_rfdetr.json` (sha256 pinned in `test_blind_spot_check.py`). It runs the flight detector as live_follow resolves it
+(Detector.process with the tuned tracker on every frame from a 2 s pre-roll, plus a no-tracker predict at 0.23),
+optional `--also NAME=PATH` references (rfdetr imported only then; `--no-flight` / `--merge` for its own env), finds
+frames through follow.csv's video_file / frame_in_file (3600 is the video_001 -> video_002 boundary), stops on any
+missing frame / file / weights, and writes `blind_spot.json` + a real-time clip of the 63 frames. The module imports
+only cv2 / numpy / side_by_side until a model is asked for. Commands for the three Nov 28 talk videos (R7 stock vs
+trained on the Oct 25 clip, R8 histogram vs OSNet, R9 blind spot): README "Talk videos (Nov 28)". No numbers from
+them are committed.
 
 ## Engineering log
 

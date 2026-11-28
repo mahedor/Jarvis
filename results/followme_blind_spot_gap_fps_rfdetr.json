@@ -1,0 +1,14 @@
+{
+ "RF-DETR nano fine-tuned (epoch 16)": {
+  "hits": 57,
+  "of": 63,
+  "ms": 365.7,
+  "fps": 2.7
+ },
+ "RF-DETR nano fine-tuned (final, 50 ep)": {
+  "hits": 59,
+  "of": 63,
+  "ms": 382.8,
+  "fps": 2.6
+ }
+}

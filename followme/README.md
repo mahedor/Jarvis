@@ -30,7 +30,8 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `bytetrack_tuned.yaml`, `botsort_reid_cmc_tuned.yaml` | Comparison trackers (11-27, not decided): the fastest and slowest laptop-bench setups at their tuned settings, built as `time_trackers.py` builds them; fly only with `--off-decisions --label` (see Flight vs bench) |
 | `flight_vs_bench.py` | Flight timings (`detector.csv`, follow.csv) vs the laptop bench JSON per tracker config, with a linear fit and predictions for every bench row. See Flight vs bench |
 | `flight_plan_1128.txt` | Print copy of the 11-28 comparison flight plan |
-| `test_*.py` | 255 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), the re-lock margin checked against the lock-on settings sweep (`test_reid_margin_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), the tracker speed timer (`test_time_trackers.py`), the side-by-side videos on tiny synthetic clips (`test_side_by_side.py`), and the flight-vs-bench work: per-cycle timing, the comparison trackers and their construction, `flight_vs_bench.py` on synthetic flights, the flight plan's commands (`test_flight_vs_bench.py`) |
+| `blind_spot_check.py` | The dusk blind spot on flight `20261029_182029` (frames 3507-3879, every 6th) re-checked with today's flight detector: hits per model in gap_fps.py's region, per-frame JSON + a short clip. See Talk videos (Nov 28) |
+| `test_*.py` | 267 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), the re-lock margin checked against the lock-on settings sweep (`test_reid_margin_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), the tracker speed timer (`test_time_trackers.py`), the side-by-side videos on tiny synthetic clips (`test_side_by_side.py`), and the flight-vs-bench work: per-cycle timing, the comparison trackers and their construction, `flight_vs_bench.py` on synthetic flights, the flight plan's commands (`test_flight_vs_bench.py`), the blind-spot re-check: gap_fps.py's frames and region, the file-boundary mapping, the hit rule, stops (`test_blind_spot_check.py`) |
 
 ## Folders
 
@@ -67,7 +68,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 ```bash
 cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
 source ~/jarvis-follow/bin/activate
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_reid_margin_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py   # expect 255 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_reid_margin_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py test_blind_spot_check.py   # expect 267 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads   # backfill the flight log, copy it where Windows sees it
@@ -250,6 +251,69 @@ folder's frames are its commands.csv rows at the flight's `t_s` (labels from `re
 other video runs on frame / fps. Each output frame (every 1/`--fps` s) shows each side's latest frame at or before that
 time. Labels: `drone A` / `drone B` from the folder name, the replay's label, else the name; `--labels L R` overrides.
 
+## Talk videos (Nov 28): R7, R8, R9 with today's flight settings
+
+Three talk videos re-made with what flies today (INT8 export, cutoffs 0.23 / 0.29, imgsz 640, `botsort_tuned.yaml`,
+OSNet at 0.70, margin 0.05). Every replay that is not what flies is labelled and saved as a deviation. **The old
+numbers have no evidence file (R7, R8) or used the old `.pt` at 0.25 (R9): present only what these runs save.**
+Everything lands in `/mnt/c/Users/mahed/Downloads/talk_videos/` (Windows: `Downloads\talk_videos`). The flight
+`20261029_182029` is read from its copy in `Downloads\jarvis_videos` (follow.csv + video_000..004.mp4).
+`side_by_side.py` and `blind_spot_check.py` write H.264 when `ffmpeg` is installed in WSL, else mp4v (plays in VLC);
+`replay.py`'s own `replay.mp4` is always mp4v.
+
+1. `cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme`
+2. `source ~/jarvis-follow/bin/activate`
+3. `git pull`
+4. `which ffmpeg` (prints nothing = not installed; then step 5, else skip it)
+5. `sudo apt install ffmpeg`
+6. `python replay.py --source /mnt/c/Users/mahed/Downloads/jarvis_videos/20261029_182029 --lock-id only@18s --label "OSNet re-ID, cutoff 0.70" --out /mnt/c/Users/mahed/Downloads/talk_videos/r8_osnet_070`
+7. `python replay.py --source /mnt/c/Users/mahed/Downloads/jarvis_videos/20261029_182029 --lock-id only@18s --reid hist --off-decisions --label "colour histogram re-ID (hist)" --out /mnt/c/Users/mahed/Downloads/talk_videos/r8_hist`
+8. `python side_by_side.py /mnt/c/Users/mahed/Downloads/talk_videos/r8_hist /mnt/c/Users/mahed/Downloads/talk_videos/r8_osnet_070 --out /mnt/c/Users/mahed/Downloads/talk_videos/R8_histogram_vs_osnet.mp4`
+9. `python blind_spot_check.py --run /mnt/c/Users/mahed/Downloads/jarvis_videos/20261029_182029 --also yolo11l=yolo11l.pt --out /mnt/c/Users/mahed/Downloads/talk_videos/r9_blind_spot`
+10. `ls -d ~/recordings/2026102*` (find the Oct 25 record.py folder; below it is assumed to be `20261025_173214`, unverified: use the one this lists)
+11. `python replay.py --source ~/recordings/20261025_173214 --lock-id only@0s --model yolov8n.pt --off-decisions --label "stock yolov8n.pt (FP32, INT8 False, cutoffs results/followme_cutoffs_balanced.json)" --out /mnt/c/Users/mahed/Downloads/talk_videos/r7_stock_yolov8n`
+12. `python replay.py --source ~/recordings/20261025_173214 --lock-id only@0s --label "trained INT8 (flies today)" --out /mnt/c/Users/mahed/Downloads/talk_videos/r7_trained_int8`
+13. `python side_by_side.py /mnt/c/Users/mahed/Downloads/talk_videos/r7_stock_yolov8n /mnt/c/Users/mahed/Downloads/talk_videos/r7_trained_int8 --labels "stock yolov8n" "trained INT8 (flies today)" --out /mnt/c/Users/mahed/Downloads/talk_videos/R7_stock_vs_trained.mp4`
+
+Where each number is (nothing else is evidence):
+
+- **R8, histogram vs OSNet (steps 6-8).** Each replay folder's `replay_info.json`: `lock_events` (every lock and re-ID
+  re-lock with frame, flight time `t_s`, track IDs, similarity and the target box), `target_segments` (how long each
+  track was followed, and how it started) and `summary`; the same list as text in `lock_events.txt`, and per frame in
+  `commands.csv` (`target_id`, `lock_event`, `best_sim`, `target_x1..y2`). A replay cannot tell who is who: whether a
+  re-lock landed on Michael or a stranger is checked by eye at that `t_s` in `R8_histogram_vs_osnet.mp4` (the old "191 s,
+  dark-shirt stranger, ~100 s" story is not evidence). The histogram runs at the decided 0.70 cutoff (only the
+  appearance model changes). Step 6 runs the same settings as Video 1's 0.70 side above (only the label and folder differ), so it can stand in for it.
+- **R9, blind spot (step 9).** `r9_blind_spot/blind_spot.json`: per model `summary.hits` / `of` (in how many of the 63
+  frames a person box's centre is in Michael's region), `ms_median` / `fps` (this laptop), every frame's boxes, the
+  flight's own recorded state on those frames, and gap_fps.py's 11-22 numbers under `previous` for reference
+  (byte-exact copies in `results/followme_blind_spot_gap_fps*.json`, the script in `results/followme_blind_spot_gap_fps.py.txt`).
+  Models: `flight detector (INT8, 0.23, tracked)` = live_follow's `Detector.process` on every frame from 3447 (2 s
+  pre-roll) to 3879, counted on the 63 frames (what flies); `flight detector, no tracker` = model.predict at 0.23 (gap_fps's
+  method with today's model and cutoff) plus `max_conf_in_region` per frame (how close a miss was, at conf 0.01); and
+  `yolo11l (conf 0.25)` as gap_fps ran it (`yolo11l.pt` is in this folder; drop `--also ...` to skip it). The clip
+  `blind_spot.mp4` shows the 63 frames at real speed (each held 6 frame times), one panel per model, region drawn,
+  boxes whose centre is inside it green, a running "seen in N of M". Frame numbers are follow.csv's (= gap_fps's running
+  index: 1800 frames per chunk); 3507 is `video_001.mp4` frame 1707 (t_s 121.7), 3879 is `video_002.mp4` frame 279
+  (t_s 134.1). The old "1:59.8-2:12.7" matches neither t_s nor frame / 30, so quote t_s.
+  Optional RF-DETR panel (needs the separate env gap_fps.py used; its activation command is not recorded here): in that
+  env, from this folder, `python blind_spot_check.py --run /mnt/c/Users/mahed/Downloads/jarvis_videos/20261029_182029 --no-flight --also rfdetr=/mnt/c/Users/mahed/Downloads/rfdetr_final_best_total.pth --name rfdetr --out /mnt/c/Users/mahed/Downloads/talk_videos/r9_blind_spot`,
+  then rerun step 9 with `--merge /mnt/c/Users/mahed/Downloads/talk_videos/r9_blind_spot/rfdetr.json` added.
+- **R7, stock vs trained (steps 10-13).** Each replay's `replay_info.json` `summary`: `target_lost_pct` (FOLLOW frames
+  from the first lock on that are not FOLLOWING), `person_track_ids` (distinct tracker IDs on people), `target_ids_used`,
+  `det_ms_after_warmup` (model.track ms per frame on this laptop, mean / median / p95); definitions in
+  `summary_definitions`. These are not the old numbers' definitions (the pre-11-26 replay re-locked onto the nearest
+  person by itself and counted its target IDs), so compare only the two new runs. Stock yolov8n runs at its own F1-max
+  cutoffs from the same sweep (entry `yolov8n`: 0.14 / 0.14), with the same tracker and lock rule; the label must name all
+  four deviations (replay stops otherwise). `yolov8n.pt` is in this folder. A record.py folder has no recorded click,
+  so `--lock-id only@0s` locks the first person who is alone in view (each run prints and saves where:
+  `replay_info.json` `lock`). If a run prints `NOTE: ... people in view ... NOTHING was locked`, rerun that run with the
+  `--lock-id TID@FRAME` it suggests; track IDs differ between the two models, so pick the same person by box position.
+
+Time on a CPU laptop (estimates, not measured on Michael's laptop): steps 6 and 7 each ~5-15 min (8,670 frames; the
+replay prints its fps and ETA), step 8 ~3-6 min, step 9 ~1-3 min (most of it YOLO11l on 66 frames), steps 11-12 depend
+on the clip's length (stock yolov8n .pt is slower per frame than the INT8 export), step 13 a few minutes.
+
 ## Tracker speed (laptop CPU, Michael 11-27)
 
 FPS of the 15 tracker setups of the 11-27 Colab tuning, each at its tuned settings, measured on Michael's laptop
@@ -370,6 +434,19 @@ it; three: a rough fit), and applies the lines to every bench row, starring extr
 the reason (no detector.csv, fake, no bench row, settings differ).
 
 ## Change log
+
+- **2026-11-28 (Michael): talk videos R7 / R8 / R9 with today's settings; every number to a file.** New
+  `blind_spot_check.py` (see Talk videos (Nov 28)): the 63 dusk frames of `20261029_182029` with gap_fps.py's region
+  and hit rule, measured with the flight detector exactly as live_follow resolves it (tracked on every frame + a
+  no-tracker pass), optional `--also` reference models (YOLO11l; RF-DETR only when asked, `--no-flight` / `--merge` for
+  its separate env), JSON with every frame + a real-time clip; frames found through follow.csv across the
+  video_001 / video_002 boundary; a missing frame, file or weights file stops. gap_fps.py and its two JSON outputs
+  (11-22, Michael's laptop) committed byte-exact in `results/followme_blind_spot_gap_fps*` (sha256 pinned in the
+  test). `replay.py` now saves what it measured: `summary` adds `target_lost_pct`, `target_ids_used`,
+  `person_track_ids`, `det_ms` (+ after a 20-frame warm-up), `embed_ms`, with `summary_definitions`; `lock_events` and
+  `target_segments` in `replay_info.json`, `lock_events.txt`, and the target box per frame in `commands.csv`; no new
+  flag (test_replay's parity rules unchanged). `side_by_side.py`'s mp4v note now gives `sudo apt install ffmpeg`.
+  Tests: 10 in `test_blind_spot_check.py`, 2 in `test_replay.py`: 267 in all.
 
 - **2026-11-27 (Michael, 23:21 PST): re-lock margin recorded as a measured decision, kept at 0.05.** `lockon.MARGIN`
   (the best re-ID match must beat the runner-up by this much) is now read from the hand-written decision record

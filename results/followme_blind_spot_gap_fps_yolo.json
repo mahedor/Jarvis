@@ -1,0 +1,44 @@
+{
+ "YOLOv8n stock COCO": {
+  "hits": 5,
+  "of": 63,
+  "ms": 29.7,
+  "fps": 33.7
+ },
+ "YOLOv8n fine-tuned (flies today)": {
+  "hits": 0,
+  "of": 63,
+  "ms": 30.4,
+  "fps": 32.9
+ },
+ "YOLOv8n fine-tuned @1280": {
+  "hits": 10,
+  "of": 63,
+  "ms": 92.2,
+  "fps": 10.9
+ },
+ "YOLO11l stock COCO": {
+  "hits": 54,
+  "of": 63,
+  "ms": 220.7,
+  "fps": 4.5
+ },
+ "YOLO11x stock COCO": {
+  "hits": 44,
+  "of": 63,
+  "ms": 420.7,
+  "fps": 2.4
+ },
+ "YOLOv8x stock COCO": {
+  "hits": 49,
+  "of": 63,
+  "ms": 504.0,
+  "fps": 2.0
+ },
+ "YOLO11x stock COCO @1280": {
+  "hits": 33,
+  "of": 63,
+  "ms": 1643.0,
+  "fps": 0.6
+ }
+}

@@ -1,0 +1,80 @@
+"""Detector reference run on the 10-29 'standing between the cars' gap (1:59.8-2:12.7), on THIS laptop's CPU.
+For each detector: in how many of 63 sampled frames is Michael boxed, and how fast (ms per frame and FPS).
+Same frames and same 'Michael's spot' region as the cloud run on 11-22, so the hit counts should match.
+
+  python /mnt/c/Users/mahed/Downloads/gap_fps.py                 # YOLO models (jarvis-follow venv)
+  python /mnt/c/Users/mahed/Downloads/gap_fps.py --rfdetr        # RF-DETR models (run inside rfdetr-env)
+Stock COCO weights (yolov8n/yolo11l/yolo11x/yolov8x) download automatically the first time (~250 MB total)."""
+import argparse, glob, json, statistics, time
+from pathlib import Path
+import cv2, numpy as np
+
+DL = Path("/mnt/c/Users/mahed/Downloads")
+VID = DL / "jarvis_videos/20261029_182029"
+FIRST, LAST, STEP = 3507, 3879, 6                     # 63 frames, ~5 per second across the gap
+REG = np.array([241.5, 135.2, 452.0, 474.5])          # where Michael stands (from the boxes before/after the gap)
+ap = argparse.ArgumentParser(); ap.add_argument("--rfdetr", action="store_true"); args = ap.parse_args()
+
+files = sorted(glob.glob(str(VID / "video_*.mp4")))
+counts = [int(cv2.VideoCapture(f).get(cv2.CAP_PROP_FRAME_COUNT)) for f in files]
+def get(i):
+    for f, n in zip(files, counts):
+        if i < n:
+            c = cv2.VideoCapture(f); c.set(cv2.CAP_PROP_POS_FRAMES, i); return c.read()[1]
+        i -= n
+frames = [get(i) for i in range(FIRST, LAST + 1, STEP)]
+def near(b):
+    cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+    return REG[0] <= cx <= REG[2] and REG[1] <= cy <= REG[3]
+
+def yolo(path, imgsz):
+    from ultralytics import YOLO
+    m = YOLO(str(path)); pid = [k for k, v in m.names.items() if v in ("person", "pedestrian", "people")]
+    def f(img):
+        r = m.predict(img, conf=0.25, imgsz=imgsz, classes=pid, verbose=False)[0]
+        return [(b, float(c)) for b, c in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.conf.cpu().numpy())]
+    return f
+def rfdetr(path):
+    from PIL import Image
+    from rfdetr import RFDETRNano
+    m = RFDETRNano(pretrain_weights=str(path), num_classes=7, resolution=640)
+    try:
+        m.optimize_for_inference()
+    except Exception:
+        pass
+    def f(img):
+        o = m.predict(Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), threshold=0.25)
+        return [(b, float(s)) for b, c, s in zip(o.xyxy, o.class_id, o.confidence) if c == 0]
+    return f
+
+if args.rfdetr:
+    MODELS = [("RF-DETR nano fine-tuned (epoch 16)", lambda: rfdetr(DL / "rfdetr_nano_ep16_of50.pth"))]
+    final = DL / "rfdetr_final_best_total.pth"
+    if final.exists():
+        MODELS.append(("RF-DETR nano fine-tuned (final, 50 ep)", lambda: rfdetr(final)))
+else:
+    MODELS = [("YOLOv8n stock COCO", lambda: yolo("yolov8n.pt", 640)),
+              ("YOLOv8n fine-tuned (flies today)", lambda: yolo(DL / "vd_mav_cl_s42.pt", 640)),
+              ("YOLOv8n fine-tuned @1280", lambda: yolo(DL / "vd_mav_cl_s42.pt", 1280)),
+              ("YOLO11l stock COCO", lambda: yolo("yolo11l.pt", 640)),
+              ("YOLO11x stock COCO", lambda: yolo("yolo11x.pt", 640)),
+              ("YOLOv8x stock COCO", lambda: yolo("yolov8x.pt", 640)),
+              ("YOLO11x stock COCO @1280", lambda: yolo("yolo11x.pt", 1280))]
+
+rows = {}
+for name, make in MODELS:
+    try:
+        f = make()
+    except Exception as e:
+        print(f"{name:40s} could not load: {e}"); continue
+    for img in frames[:3]:
+        f(img)                                        # warm-up
+    hits, ts = 0, []
+    for img in frames:
+        t0 = time.perf_counter(); dets = f(img); ts.append((time.perf_counter() - t0) * 1000)
+        hits += any(near(b) for b, s in dets)
+    ms = statistics.median(ts)
+    rows[name] = dict(hits=hits, of=len(frames), ms=round(ms, 1), fps=round(1000 / ms, 1))
+    print(f"{name:40s} boxed you in {hits:2d}/{len(frames)} frames   {ms:7.1f} ms/frame   {1000/ms:5.1f} FPS", flush=True)
+out = DL / ("gap_fps_rfdetr.json" if args.rfdetr else "gap_fps_yolo.json")
+out.write_text(json.dumps(rows, indent=1)); print("saved", out)

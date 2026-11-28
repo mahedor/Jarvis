@@ -313,7 +313,7 @@ def main(argv=None):
         print(f"right input shifted {args.offset:+g} s")
     r = render(a, b, args.out, args.fps, args.span, args.start, args.duration, args.offset, args.height, args.encoder)
     print(f"saved {r['out']}: {r['frames']} frames, {r['seconds']:.1f} s at {args.fps:g} fps, {r['size'][0]}x{r['size'][1]}, "
-          f"encoder {r['encoder']}" + ("" if r["encoder"] == "ffmpeg" else " (mp4v: plays in VLC; install ffmpeg for H.264)"))
+          f"encoder {r['encoder']}" + ("" if r["encoder"] == "ffmpeg" else " (mp4v: plays in VLC; for H.264 install ffmpeg in WSL: sudo apt install ffmpeg)"))
     return r
 
 
