@@ -76,6 +76,7 @@ FIELD_HISTORY = [
                                  "botsort_tuned.yaml from here on"),
     ("2026-11-27", "fb5899e", "`tracker.bench_setup`, `tracker.reid_encoder`, `tracker_runtime`, `label`, `comparison`; "
                               "detector.csv (one row per detector cycle) and follow.csv `det_n` / `track_ms`"),
+    ("2026-11-27", "00a2133", "`running.reid_margin` (re-lock margin, decision `reid_margin`; shown in other settings)"),
 ]
 
 COLUMNS = ["date/time", "run folder", "drone", "serial", "firmware", "duration", "frames", "FPS", "airborne", "battery",
