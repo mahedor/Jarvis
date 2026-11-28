@@ -34,12 +34,19 @@ Safety rules in FOLLOW (all of them make the drone HOVER, i.e. send zero sticks)
   - no video for more than 1 s (also drops to MANUAL)  - battery below --min-battery (also drops to MANUAL)
   - forward/back and yaw are capped at --max-speed %;  height is never changed (gaz = 0)
 Every frame + command is logged to ~/follow_logs/<timestamp>_<drone>/ (kept out of the repo and OneDrive): clean video
-chunks, overlay_*.mp4 (the on-screen view with boxes, exactly as shown live), follow.csv, boxes.jsonl, drone.json.
+chunks, overlay_*.mp4 (the on-screen view with boxes, exactly as shown live), follow.csv, boxes.jsonl, drone.json,
+detector.csv (11-27: one row per detector cycle: box age, detector period, model.track and tracker.update times; see
+CYCLE_COLS; follow.csv's det_n / track_ms say which cycle each frame row used).
 Detection runs in a background thread on the newest frame, so keys and stick commands never wait for the model.
+
+Comparison flights (11-27, for flight_vs_bench.py): --tracker bytetrack_tuned.yaml / botsort_reid_cmc_tuned.yaml fly a
+tuned bench setup instead of the decided botsort_tuned.yaml. Only with --off-decisions AND --label naming the file
+(e.g. --label "comparison bytetrack_tuned.yaml"); the label and the bench row go into drone.json and the flight log.
 """
 import argparse
 import csv
 import json
+import os
 import sys
 import threading
 import time
@@ -69,8 +76,33 @@ GIMBAL_PERIOD_S = 0.3
 GIMBAL_MIN, GIMBAL_MAX = -90.0, 0.0
 
 
+# One row per detector cycle in <run>/detector.csv (11-27, for flight_vs_bench.py: how laptop bench timings translate to
+# flight). Timing only: nothing here changes what the detector, tracker or follow logic do. All in ms except t_s.
+#   det_n       cycle number (1 = first result); follow.csv's det_n says which cycle's boxes each frame row used
+#   t_s         when the result was published, seconds on follow.csv's t_s clock
+#   box_age_ms  frame arrival -> result published (how old the boxes are when the loop first sees them)
+#   cycle_ms    previous result -> this result (the detector's period; 1000 / cycle_ms = detector FPS)
+#   busy_ms     this cycle's work: model.track + re-ID embedding (= det_ms + embed_ms + bookkeeping)
+#   idle_ms     previous result -> this cycle started (waiting for a new frame)
+#   queue_ms    frame arrival -> this cycle started
+#   det_ms      model.track wall time (pre-process + inference + NMS + tracker), as follow.csv's det_ms
+#   pre_ms / infer_ms / post_ms   Ultralytics' own split of that (results.speed; the tracker is NOT in post_ms)
+#   track_ms    tracker.update alone (camera-motion compensation and any tracker re-ID inside), the same call
+#               time_trackers.py times on the laptop bench. Empty on cycle 1 (the tracker is created inside it).
+#   embed_ms    lock-on's OSNet embedding of the crops it asked for (0 when it asked for none)
+#   n_boxes     boxes kept after the per-class cutoffs
+DETECTOR_CSV = "detector.csv"
+CYCLE_COLS = ("det_n", "t_s", "box_age_ms", "cycle_ms", "busy_ms", "idle_ms", "queue_ms", "det_ms", "pre_ms",
+              "infer_ms", "post_ms", "track_ms", "embed_ms", "n_boxes")
+
+
+def _r(v, nd=2):
+    return None if v is None else round(float(v), nd)
+
+
 class Detector(threading.Thread):
-    """Runs model.track on the newest frame it is given; publishes (tracks, names, frame_time, ms)."""
+    """Runs model.track on the newest frame it is given; publishes (tracks, names, frame_time, ms) and, per cycle, a
+    timing record (CYCLE_COLS; pop_cycles() hands them to the main loop, which writes detector.csv)."""
     def __init__(self, model_path, tracker, imgsz, cutoffs, fake=False, embedder=None, want_fn=None):
         super().__init__(daemon=True)
         self.fake = fake
@@ -80,6 +112,10 @@ class Detector(threading.Thread):
         self.frame = self.frame_t = None
         self.result = ([], {0: "person"}, 0.0, 0.0)
         self.stop_flag = False
+        self.n_cycles, self.cycle, self.cycles = 0, None, []   # timing records (11-27): current one + not yet written
+        self.timing = {}                                      # the last process() call's split (pre/infer/post/track)
+        self._track_ms = None                                 # set by the timed tracker.update wrapper
+        self.tracker_info = None                              # what Ultralytics actually built (type, re-ID encoder)
         self.person_cut, self.vehicle_cut = cutoffs
         if not fake:
             from ultralytics import YOLO
@@ -113,10 +149,13 @@ class Detector(threading.Thread):
         -> (tracks, det_ms, vecs, embed_ms). The live thread calls this on the newest frame; replay.py calls it on
         every recorded frame, so both run exactly this code."""
         t0 = time.time()
+        self._track_ms = None
+        speed = {}
         if self.fake:
             tracks = self._fake_tracks(img)
         else:
             r = self.model.track(img, **self.args)[0]
+            speed = getattr(r, "speed", None) or {}
             tracks = []
             if r.boxes is not None and r.boxes.id is not None:
                 for b, tid, cls, cf in zip(r.boxes.xyxy.cpu().numpy(), r.boxes.id.cpu().numpy().astype(int),
@@ -124,6 +163,10 @@ class Detector(threading.Thread):
                     if keep_box(self.names.get(int(cls), ""), float(cf), self.person_cut, self.vehicle_cut):
                         tracks.append((*b.tolist(), int(tid), int(cls), float(cf)))
         det_ms = (time.time() - t0) * 1000
+        self.timing = dict(pre_ms=speed.get("preprocess"), infer_ms=speed.get("inference"),
+                           post_ms=speed.get("postprocess"), track_ms=self._track_ms)
+        if not self.fake:
+            self._time_tracker()                         # after det_ms: its own (tiny) cost is never in the timing
         vecs, t1 = {}, time.time()
         if self.embedder is not None and self.want_fn is not None and tracks:
             ids = set(self.want_fn(tracks, t, img.shape[1], img.shape[0]))
@@ -136,17 +179,62 @@ class Detector(threading.Thread):
                     print("re-ID embed failed:", ex)
         return tracks, det_ms, vecs, (time.time() - t1) * 1000
 
+    def _time_tracker(self):
+        """Wrap the tracker Ultralytics built inside model.track so each update() call is timed (self._track_ms).
+        The wrapper only measures and passes every argument and the result through: the tracker behaves the same.
+        Installed once, after the call that created the tracker (persist=True keeps that tracker for the run)."""
+        trks = getattr(getattr(self.model, "predictor", None), "trackers", None)
+        if not trks or getattr(trks[0], "_followme_timed", False):
+            return
+        trk, orig = trks[0], trks[0].update
+
+        def timed_update(*a, **k):
+            t0 = time.perf_counter()
+            try:
+                return orig(*a, **k)
+            finally:
+                self._track_ms = (time.perf_counter() - t0) * 1000
+        trk.update, trk._followme_timed = timed_update, True
+        enc, targs = getattr(trk, "encoder", None), getattr(trk, "args", None)
+        self.tracker_info = dict(tracker_class=type(trk).__name__,
+                                 with_reid=bool(getattr(targs, "with_reid", False)),
+                                 reid_model=str(getattr(targs, "model", None)) if getattr(targs, "with_reid", False) else None,
+                                 reid_encoder=type(enc).__name__ if enc is not None else None,
+                                 reid_device=str(getattr(enc, "device", getattr(targs, "device", None))) if enc is not None else None,
+                                 gmc_method=getattr(targs, "gmc_method", None))
+
     def run(self):
+        prev_end = None
         while not self.stop_flag:
             if not self.new.wait(0.2):
                 continue
             self.new.clear()
             with self.lock:
                 img, t = self.frame, self.frame_t
+            t_start = time.time()
             tracks, det_ms, vecs, embed_ms = self.process(img, t)
+            t_end = time.time()
+            cyc = dict(det_n=self.n_cycles + 1, t_end=t_end, box_age_ms=(t_end - t) * 1000,
+                       cycle_ms=None if prev_end is None else (t_end - prev_end) * 1000, busy_ms=(t_end - t_start) * 1000,
+                       idle_ms=None if prev_end is None else (t_start - prev_end) * 1000, queue_ms=(t_start - t) * 1000,
+                       det_ms=det_ms, **self.timing, embed_ms=embed_ms, n_boxes=len(tracks))
+            prev_end = t_end
             with self.lock:
                 self.result = (tracks, self.names, t, det_ms)
                 self.vecs, self.embed_ms = vecs, embed_ms
+                self.n_cycles, self.cycle = cyc["det_n"], cyc
+                self.cycles.append(cyc)
+
+    def latest_full(self):
+        """latest() plus the timing record of that same result (one lock, so the two always belong together)."""
+        with self.lock:
+            return (*self.result, self.cycle)
+
+    def pop_cycles(self):
+        """Timing records published since the last call (the main loop writes them to detector.csv)."""
+        with self.lock:
+            out, self.cycles = self.cycles, []
+        return out
 
     def latest_vecs(self):
         with self.lock:
@@ -284,6 +372,14 @@ CUTOFFS_FILE_INT8 = REPO / "results" / "followme_cutoffs_balanced_int8.json"
 # (results/followme_tracker_settings_choice.json) or the program stops; plain "botsort.yaml" is Ultralytics' stock file.
 TRACKER = "botsort_tuned.yaml"
 TRACKER_CHOICE_FILE = REPO / "results" / "followme_tracker_settings_choice.json"
+# Comparison trackers (Michael 11-28: fly the fastest and slowest bench setups next to the one that flies, to learn how
+# laptop bench timings translate to flight). NOT decided: flying one is a deviation (--off-decisions) and needs a --label
+# naming the file. Each yaml = the installed Ultralytics stock file of its tracker + the grid's switches + that row's
+# chosen.settings_changed in the tuning summary, exactly time_trackers.py's construction; resolve_tracker STOPS if a
+# file differs. file in followme/ -> its row label in the summary (and in the bench JSON time_trackers.py writes).
+TUNING_SUMMARY_FILE = REPO / "results" / "followme_tracker_tuning_all_summary.json"
+COMPARISON_TRACKERS = {"bytetrack_tuned.yaml": "bytetrack", "botsort_reid_cmc_tuned.yaml": "botsort|reid+|gmc+"}
+FLIES_BENCH_ROW = "BoT-SORT + CMC (flies)"     # time_trackers.FLIES_LABEL: the bench row of botsort_tuned.yaml
 IMGSZ = 640                 # detector input size: trained, F1-swept and benchmarked at 640; Michael 11-26: keep it.
 DECISIONS_FILE = HERE / "flight_decisions.json"
 NR = "not recorded"         # what the model files say nothing about (never guessed)
@@ -350,16 +446,78 @@ def load_tracker_choice(path=TRACKER_CHOICE_FILE):
     return json.loads(p.read_text())
 
 
-def resolve_tracker(name, choice_path=TRACKER_CHOICE_FILE):
-    """--tracker -> {path: what Ultralytics gets, label: what the decisions check and drone.json see, settings}.
+def stock_tracker_yaml(tracker_type):
+    """The installed Ultralytics' own cfg/trackers/<type>.yaml, as a dict (what make_tracker / model.track start from)."""
+    import ultralytics
+    import yaml
+    return yaml.safe_load((Path(ultralytics.__file__).parent / "cfg" / "trackers" / f"{tracker_type}.yaml")
+                          .read_text(encoding="utf-8"))
+
+
+def comparison_expected(name, summary_path=TUNING_SUMMARY_FILE):
+    """What comparison yaml `name` must hold -> (bench row label, full config): the stock yaml of its tracker + the
+    grid's switches (time_trackers.parse_label) + the row's chosen.settings_changed (time_trackers.load_summary), i.e.
+    exactly what time_trackers.time_setup builds for that row (minus its device pin and the encoder's local path)."""
+    import time_trackers as tt
+    label = COMPARISON_TRACKERS[name]
+    summary, _ = tt.load_summary(summary_path)
+    tracker, _, _, ov = tt.parse_label(label)
+    cfg = stock_tracker_yaml(tracker)
+    cfg.update(ov)
+    cfg.update(summary["per_setup"][label]["chosen"]["settings_changed"])
+    return label, cfg
+
+
+def find_reid_encoder(model, dirs=None):
+    """The tracker re-ID encoder file on disk, or None. An absolute path must exist; a bare name (yolo26n-cls.pt) is
+    looked up where time_trackers.reid_weights looks: followme/weights/, the current folder, Ultralytics' weights_dir.
+    Never downloaded here: in the field the laptop is on the drone's Wi-Fi."""
+    p = Path(str(model)).expanduser()
+    if p.is_absolute():
+        return p if p.is_file() else None
+    if dirs is None:
+        dirs = [HERE / "weights", HERE, Path.cwd()]
+        try:
+            from ultralytics.utils import SETTINGS
+            dirs.append(Path(SETTINGS["weights_dir"]))
+        except Exception:                                    # noqa: BLE001
+            pass
+    return next((Path(d) / p for d in dirs if (Path(d) / p).is_file()), None)
+
+
+def _with_local_reid(trk, f):
+    """A yaml with tracker re-ID on a crop encoder: STOP unless the encoder is on disk; then hand Ultralytics a copy of
+    the yaml with its absolute path (written to the temp folder; the committed file is unchanged)."""
+    import tempfile
+    import yaml
+    cfg = trk["settings"]
+    enc = find_reid_encoder(cfg["model"])
+    if enc is None:
+        sys.exit(f"STOP: {f.name} needs the tracker re-ID encoder {cfg['model']}, not found in {HERE / 'weights'}, "
+                 f"{Path.cwd()} or Ultralytics' weights folder. Get it at home (internet): cd {HERE} && python -c "
+                 f"\"from ultralytics import YOLO; YOLO('weights/{Path(str(cfg['model'])).name}')\"")
+    eff = dict(cfg, model=str(enc.resolve()))
+    fd, tmp = tempfile.mkstemp(prefix=f"followme_{f.stem}_", suffix=".yaml")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(f"# effective copy of {f} written by live_follow.resolve_tracker: re-ID model -> its local path\n")
+        yaml.safe_dump(eff, fh, sort_keys=False)
+    return dict(trk, path=tmp, settings=eff, reid_encoder=str(enc.resolve()))
+
+
+def resolve_tracker(name, choice_path=TRACKER_CHOICE_FILE, summary_path=TUNING_SUMMARY_FILE):
+    """--tracker -> {path: what Ultralytics gets, label: what the decisions check and drone.json see, settings,
+    bench_setup: its row in time_trackers.py's bench JSON (files in followme/ only)}.
     A file in followme/ (or an existing path) is used as a file; the decided botsort_tuned.yaml must hold exactly the
-    values of its decision record, else STOP. Any other name is an Ultralytics built-in tracker file (botsort.yaml =
-    stock settings), which the decisions check reports as a deviation. Missing botsort_tuned.yaml -> STOP."""
+    values of its decision record, else STOP; a comparison yaml (COMPARISON_TRACKERS) must equal its construction from
+    the tuning summary, else STOP. A yaml with tracker re-ID on a crop encoder STOPS if the encoder is not on disk. Any
+    other name is an Ultralytics built-in tracker file (botsort.yaml = stock settings), which the decisions check
+    reports as a deviation. Missing botsort_tuned.yaml -> STOP."""
     p = Path(str(name))
     for f in ([p] if p.is_absolute() else [HERE / p] if str(name) == TRACKER else [HERE / p, p]):
         if f.is_file():
             import yaml
             cfg = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            bench = None
             if f.resolve() == (HERE / TRACKER).resolve():
                 chosen = load_tracker_choice(choice_path)["chosen"]
                 diff = [f"{k}: file {cfg.get(k)!r}, record {v!r}" for k, v in chosen.items() if cfg.get(k) != v]
@@ -367,10 +525,30 @@ def resolve_tracker(name, choice_path=TRACKER_CHOICE_FILE):
                     sys.exit(f"STOP: {TRACKER} differs from its decision record {_rel(choice_path)}:\n  "
                              + "\n  ".join(diff) + "\n  Restore the file, or fly other values from another file "
                              "with --tracker <file> --off-decisions.")
-            return dict(path=str(f.resolve()), label=_rel(f, HERE), settings=cfg)
+                bench = FLIES_BENCH_ROW
+            elif f.name in COMPARISON_TRACKERS and f.resolve().parent == HERE.resolve():
+                bench, want = comparison_expected(f.name, summary_path)
+                diff = [f"{k}: file {cfg.get(k, '<missing>')!r}, built {want.get(k, '<missing>')!r}"
+                        for k in sorted(set(cfg) | set(want)) if cfg.get(k, "<missing>") != want.get(k, "<missing>")]
+                if diff:
+                    sys.exit(f"STOP: {f.name} differs from its construction (stock {want.get('tracker_type')}.yaml + "
+                             f"the {bench!r} row of {_rel(summary_path)}, as time_trackers.py builds it):\n  "
+                             + "\n  ".join(diff) + "\n  Restore the file.")
+            trk = dict(path=str(f.resolve()), label=_rel(f, HERE), settings=cfg, bench_setup=bench)
+            if cfg.get("with_reid") and str(cfg.get("model", "auto")) != "auto":
+                trk = _with_local_reid(trk, f)
+            return trk
     if str(name) == TRACKER:
         sys.exit(f"STOP: tracker settings file not found: {HERE / TRACKER}. It is committed in followme/; restore it.")
     return dict(path=str(name), label=str(name), settings=None)
+
+
+def comparison_problem(trk, label):
+    """A comparison tracker flies only as a labelled comparison flight. -> None if OK, else why not."""
+    if Path(trk["label"]).name in COMPARISON_TRACKERS and not label:
+        return (f"{trk['label']} is a comparison tracker (not decided): it flies only as a labelled comparison flight. "
+                f"Add --off-decisions --label \"comparison {trk['label']}\".")
+    return None
 
 
 def _ov_xml_facts(xml_path):
@@ -485,8 +663,14 @@ def tracker_line(trk):
     s = trk["settings"]
     if not s:
         return f"tracker: {trk['label']} (Ultralytics built-in file, its stock settings)"
-    return (f"tracker: {trk['label']} ({s.get('tracker_type')}: " + ", ".join(f"{k} {s.get(k)}" for k in TRACKER_KEYS)
-            + f"; gmc {s.get('gmc_method')}, re-ID {'on' if s.get('with_reid') else 'off'})")
+    line = (f"tracker: {trk['label']} ({s.get('tracker_type')}: " + ", ".join(f"{k} {s.get(k)}" for k in TRACKER_KEYS)
+            + (f"; gmc {s.get('gmc_method')}" if "gmc_method" in s else "; no camera-motion compensation")
+            + f", re-ID {'on' if s.get('with_reid') else 'off'})")
+    if trk.get("reid_encoder"):
+        line += f"  re-ID encoder {trk['reid_encoder']}"
+    if Path(trk["label"]).name in COMPARISON_TRACKERS:
+        line += f"   <-- COMPARISON tracker (bench row {trk.get('bench_setup')!r}), not the decided {TRACKER}"
+    return line
 
 
 def load_decisions(path=DECISIONS_FILE):
@@ -611,6 +795,10 @@ def build_parser():
     ap.add_argument("--no-overlay-video", action="store_true",
                     help="don't also record the on-screen view (boxes + labels exactly as shown live) to overlay_*.mp4")
     ap.add_argument("--no-profile", action="store_true", help="don't push drone_profile.json to the drone on connect")
+    ap.add_argument("--label", default="",
+                    help="marks a deliberate comparison flight (11-27), e.g. 'comparison bytetrack_tuned.yaml'; saved in "
+                         "drone.json and the flight log. Needed to fly a comparison tracker; with --off-decisions it must "
+                         "name every deviating value (as replay.py's --label)")
     return ap
 
 
@@ -667,6 +855,8 @@ def main():
     cut_p, cut_v, cut_src = resolve_detection(args)
     prec = detector_precision(args.model, args.imgsz, fake=args.fake_detector)   # read from the model files (11-27)
     trk = resolve_tracker(args.tracker)
+    if comparison_problem(trk, args.label):              # before connecting: nothing to close yet
+        sys.exit(f"STOP: {comparison_problem(trk, args.label)}")
     lookgo, point_mode, shared_px = lookhere.LookGo(), False, None
     share_target, last_share_t, last_rx_print = False, 0.0, 0.0
 
@@ -698,6 +888,8 @@ def main():
                               (cut_p, cut_v), precision=prec["precision"])
     try:
         preflight = enforce_decisions(check_decisions(actual, load_decisions(), modes), args.off_decisions)
+        if args.label and replay.label_problem(args.label, preflight["deviations"]):
+            sys.exit(f"STOP: {replay.label_problem(args.label, preflight['deviations'])}")
     except SystemExit:
         d["close"]()                                           # still on the ground: disconnect cleanly, then stop
         raise
@@ -714,12 +906,29 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     log_f = open(out / "follow.csv", "w", newline=""); log_w = None
     box_f = open(out / "boxes.jsonl", "w")    # every box the program saw, per frame: replays show exactly what it saw (11-22)
-    (out / "drone.json").write_text(json.dumps(dict(ident, name=args.name, ip=args.ip, model=str(args.model),
-                                                    conf_person=cut_p, conf_vehicle=cut_v, conf_source=cut_src,
-                                                    reid=reid_note, profile=profile_note, running=actual,
-                                                    preflight=preflight, detector=prec,
-                                                    tracker=dict(file=trk["label"], settings=trk["settings"])),
-                                               indent=1, default=str))
+    comparison = (dict(label=args.label, tracker=trk["label"], bench_setup=trk.get("bench_setup"),
+                       note="comparison flight (--label): flown to compare with the laptop bench, see flight_vs_bench.py")
+                  if args.label else None)
+    if comparison:
+        print(f"COMPARISON FLIGHT: {args.label!r} (tracker {trk['label']}, bench row {trk.get('bench_setup')!r})")
+    drone_info = dict(ident, name=args.name, ip=args.ip, model=str(args.model),
+                      conf_person=cut_p, conf_vehicle=cut_v, conf_source=cut_src,
+                      reid=reid_note, profile=profile_note, running=actual,
+                      preflight=preflight, detector=prec,
+                      tracker=dict(file=trk["label"], settings=trk["settings"], bench_setup=trk.get("bench_setup"),
+                                   reid_encoder=trk.get("reid_encoder")),
+                      label=args.label or None, comparison=comparison)
+    (out / "drone.json").write_text(json.dumps(drone_info, indent=1, default=str))
+    det_f = open(out / DETECTOR_CSV, "w", newline="")        # one row per detector cycle (11-27)
+    det_w = csv.DictWriter(det_f, fieldnames=list(CYCLE_COLS), extrasaction="ignore"); det_w.writeheader()
+
+    def write_cycles():
+        cs = det.pop_cycles()
+        for c in cs:
+            det_w.writerow({k: (round(c["t_end"] - t0, 3) if k == "t_s" else c[k] if k in ("det_n", "n_boxes")
+                                else _r(c.get(k))) for k in CYCLE_COLS})
+        if cs:
+            det_f.flush()
     writer, chunk, chunk_frames = None, 0, 0
     script = sorted((float(s.split("@")[1]), s.split("@")[0]) for s in args.script.split(",") if "@" in s)
     mode, speed, gimbal_pitch, flying = "MANUAL", 20, 0.0, False
@@ -751,8 +960,12 @@ def main():
             H, W = img.shape[:2]
             video_ok = now - last_frame_t < 1.0
             tel = d["telemetry"]()
-            tracks, names, det_t, det_ms = det.latest()
+            tracks, names, det_t, det_ms, cyc = det.latest_full()
             vecs, embed_ms = det.latest_vecs()
+            write_cycles()
+            if det.tracker_info and "tracker_runtime" not in drone_info:   # what Ultralytics built, once known
+                drone_info["tracker_runtime"] = det.tracker_info
+                (out / "drone.json").write_text(json.dumps(drone_info, indent=1, default=str))
 
             # ---- keys (window or test script) ----
             ch, k = "", -1
@@ -880,6 +1093,8 @@ def main():
                            det_age_ms=None if det_t is None else round((now - det_t) * 1000), det_ms=round(det_ms, 1),
                            n_tracks=len(tracks), lock_event=info.get("event", ""),
                            gallery_n=len(logic.lock.gallery), n_embedded=len(vecs), embed_ms=round(embed_ms, 1),
+                           det_n=cyc["det_n"] if cyc else None,
+                           track_ms=_r(cyc.get("track_ms")) if cyc else None,
                            lg_state=info.get("lg", {}).get("state", ""), lg_bearing=info.get("lg", {}).get("bearing"),
                            lg_yaw_err=info.get("lg", {}).get("yaw_err"),
                            shared_lat=lookgo.target[0] if lookgo.target else None,
@@ -939,7 +1154,11 @@ def main():
             pass
         if writer: writer.release()
         if ov_writer: ov_writer.release()
-        log_f.close(); box_f.close()
+        try:
+            write_cycles()                   # the cycles published after the last loop iteration
+        except Exception:                    # noqa: BLE001 - never break the shutdown path
+            pass
+        log_f.close(); box_f.close(); det_f.close()
         if flying:
             print("Landing..."); d["land"]()
         d["close"]()

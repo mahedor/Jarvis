@@ -41,14 +41,18 @@ from datetime import datetime
 from pathlib import Path
 
 NL = "not logged"
-SCHEMA = 3                      # bump when a column's meaning changes: invalidates the cache
-                                # (2: precision; 3: boxes.jsonl, path, spin rule; both 11-27)
+SCHEMA = 4                      # bump when a column's meaning changes: invalidates the cache
+                                # (2: precision; 3: boxes.jsonl, path, spin rule; 4: comparison, timing; all 11-27)
 CACHE = ".flight_log_cache.json"
 CSV_NAME, MD_NAME = "flight_log.csv", "flight_log.md"
 SPIN_PREFIX = "SEARCH (spinning"                  # follow.csv state while the spin search runs
 AIRBORNE = {"takingoff", "hovering", "flying", "landing"}       # ANAFI flying_state values with the drone in the air
 TRACKER_NAMES = {"botsort.yaml": "BoT-SORT", "bytetrack.yaml": "ByteTrack",   # Ultralytics' built-in tracker files
-                 "botsort_tuned.yaml": "BoT-SORT tuned"}                      # followme/, Michael 11-27
+                 "botsort_tuned.yaml": "BoT-SORT tuned",                      # followme/, Michael 11-27
+                 "bytetrack_tuned.yaml": "ByteTrack tuned (comparison)",      # followme/ comparison trackers (11-27)
+                 "botsort_reid_cmc_tuned.yaml": "BoT-SORT + re-ID + CMC tuned (comparison)"}
+DETECTOR_CSV = "detector.csv"                   # live_follow.DETECTOR_CSV: one row per detector cycle (11-27)
+TIMING_WARMUP = 20                              # cycles left out of the timing column (time_trackers.WARMUP)
 TUNED_KEYS = (("track_high_thresh", "high"), ("new_track_thresh", "new"), ("track_low_thresh", "low"),
               ("match_thresh", "match"), ("track_buffer", "buffer"))
 INT8_SUFFIX = "_int8_openvino_model"            # live_follow.INT8_SUFFIX (this file stays stdlib-only)
@@ -73,15 +77,16 @@ FIELD_HISTORY = [
 ]
 
 COLUMNS = ["date/time", "run folder", "drone", "serial", "firmware", "duration", "frames", "FPS", "airborne", "battery",
-           "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID", "preflight", "drone profile", "FOLLOW time", "re-locks",
+           "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID", "preflight", "comparison", "timing",
+           "drone profile", "FOLLOW time", "re-locks",
            "locks (clicks / N)", "spin searches", "LOOK/GO time", "video", "boxes.jsonl", "other settings", "history",
            "notes.txt", "notes", "path"]
 MD_COLUMNS = ["date/time", "run folder", "drone", "duration", "model", "precision", "cutoffs", "tracker", "imgsz", "re-ID",
-              "preflight", "FOLLOW time", "re-locks", "video", "history", "notes"]
+              "preflight", "comparison", "timing", "FOLLOW time", "re-locks", "video", "history", "notes"]
 # drone.json keys shown in their own columns; anything else ends up in "other settings" (so new fields show up)
 _SHOWN_TOP = {"drone_product_name", "drone_nickname", "drone_serial", "drone_firmware", "name", "ip", "model",
               "conf_person", "conf_vehicle", "conf_source", "reid", "profile", "running", "preflight", "detector",
-              "tracker"}
+              "tracker", "label", "comparison", "tracker_runtime"}
 _SHOWN_RUNNING = {"detector_model", "detector_int8", "detector_precision", "detection_cutoffs", "tracker", "imgsz", "reid",
                   "match_sim"}
 _RUN_NAME = re.compile(r"^(\d{8})_(\d{6})")
@@ -211,6 +216,40 @@ def flight_stats(rows):
     return s
 
 
+def read_cycles(run):
+    """detector.csv (one row per detector cycle, since 11-27) -> list of {column: float or None}; [] if absent."""
+    p = run / DETECTOR_CSV
+    if not p.exists():
+        return []
+    try:
+        with open(p, newline="", encoding="utf-8", errors="replace") as fh:
+            return [{k: _num(v) for k, v in r.items() if k} for r in csv.DictReader(fh)]
+    except (OSError, csv.Error):
+        return []
+
+
+def median(xs):
+    xs = sorted(x for x in xs if x is not None)
+    if not xs:
+        return None
+    m = len(xs) // 2
+    return xs[m] if len(xs) % 2 else (xs[m - 1] + xs[m]) / 2
+
+
+def timing_summary(cycles, warmup=TIMING_WARMUP):
+    """The flight log's timing column from detector.csv: medians over the cycles after the first `warmup`."""
+    if not cycles:
+        return NL
+    use = cycles[warmup:] if len(cycles) > 2 * warmup else cycles
+    cyc, trk, age, det = (median([c.get(k) for c in use]) for k in ("cycle_ms", "track_ms", "box_age_ms", "det_ms"))
+
+    def ms(v):
+        return "-" if v is None else f"{v:.1f} ms"
+    hz = f" ({1000 / cyc:.1f}/s)" if cyc else ""
+    return (f"{len(cycles)} detector cycles, medians: cycle {ms(cyc)}{hz}, model.track {ms(det)}, tracker {ms(trk)}, "
+            f"box age {ms(age)}")
+
+
 def _fmt_val(v):
     return f"{v:g}" if isinstance(v, float) else str(v)
 
@@ -288,6 +327,15 @@ def settings(info):
     else:
         out["preflight"] = NL
     out["drone profile"] = str(info["profile"]) if info.get("profile") else NL
+    # comparison flight (--label, since 11-27): a deliberate deviation flown to compare with the laptop bench
+    cmp_ = info.get("comparison") if isinstance(info.get("comparison"), dict) else None
+    if cmp_:
+        out["comparison"] = (f"comparison flight: {cmp_.get('label')!r} (tracker {cmp_.get('tracker')}, bench row "
+                             f"{cmp_.get('bench_setup')!r})")
+    elif "label" in info or "comparison" in info:
+        out["comparison"] = "no (normal flight)"           # the version that flew could have recorded one
+    else:
+        out["comparison"] = NL
     other = [f"{k}={_fmt_val(v)}" for k, v in run.items() if k not in _SHOWN_RUNNING]
     other += [f"{k}={json.dumps(v) if isinstance(v, (dict, list)) else _fmt_val(v)}"
               for k, v in info.items() if k not in _SHOWN_TOP]
@@ -319,6 +367,7 @@ def summarize(run):
         except OSError:
             notes_txt = "notes.txt unreadable"
     problems = "; ".join(p for p in (p1, p2) if p)
+    s["timing"] = timing_summary(read_cycles(run))
     row = {"date/time": start_time(run.name), "run folder": run.name, **s,
            "duration": st["duration"], "frames": st["frames"], "FPS": st["fps"], "airborne": st["airborne"],
            "battery": st["battery"], "FOLLOW time": st["follow"], "re-locks": st["relocks"],
@@ -335,7 +384,7 @@ def summarize(run):
 
 def _signature(run):
     sig = [SCHEMA]
-    for n in ("drone.json", "follow.csv", "notes.txt"):
+    for n in ("drone.json", "follow.csv", "notes.txt", DETECTOR_CSV):
         p = run / n
         sig.append([p.stat().st_mtime_ns, p.stat().st_size] if p.exists() else None)
     sig.append(sorted(p.name for p in run.glob("*.mp4")))

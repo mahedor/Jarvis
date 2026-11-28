@@ -1,0 +1,20 @@
+# followme COMPARISON tracker (not the decided one): Ultralytics ByteTrack at its tuned settings (11-27 Colab tuning).
+#
+# Only for the speed comparison flights (Michael 11-28: how laptop bench timings translate to real flights). Flying it
+# is a deliberate deviation from flight_decisions.json (tracker botsort_tuned.yaml): live_follow.py needs
+# --off-decisions AND a --label that names this file, and records both in drone.json and the flight log.
+#
+# Built exactly the way time_trackers.py builds its "bytetrack" row: Ultralytics' own cfg/trackers/bytetrack.yaml
+# (AGPL-3.0, https://ultralytics.com/license, copied from the installed ultralytics 8.4.216) + that row's
+# chosen.settings_changed from results/followme_tracker_tuning_all_summary.json (val HOTA 0.2563). A plain label
+# ("bytetrack") has no re-ID / camera-motion switches. Only the four values marked TUNED differ from the stock file.
+# live_follow.resolve_tracker STOPS if this file differs from stock + the summary's values (test_flight_vs_bench.py
+# checks the same against the installed ultralytics).
+
+tracker_type: bytetrack # (str) Tracker backend: bytetrack
+track_high_thresh: 0.35 # TUNED 11-27 (stock 0.25). (float) First-stage match threshold; raise for cleaner tracks, lower to keep more
+track_low_thresh: 0.05 # TUNED 11-27 (stock 0.1). (float) Second-stage threshold for low-score matches; balances recovery vs drift
+new_track_thresh: 0.35 # TUNED 11-27 (stock 0.25). (float) Start a new track if no match ≥ this; higher reduces false tracks
+track_buffer: 30 # (int) Frames to keep lost tracks alive; higher handles occlusion, increases ID switches risk
+match_thresh: 0.95 # TUNED 11-27 (stock 0.8). (float) Association similarity threshold (IoU/cost); tune with detector quality
+fuse_score: True # (bool) Fuse detection score with motion/IoU for matching; stabilizes weak detections

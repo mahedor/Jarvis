@@ -27,7 +27,10 @@ the real drone; map position logged numbers but is not yet checked against reali
 | `flight_decisions.json` | The settings that were actually decided (value, source, date). `live_follow.py` and `replay.py` check against it at startup and stop on any difference |
 | `side_by_side.py` | Two videos side by side with label bars (name + time), for the talk: two run folders aligned by wall clock, two replays aligned by the flight's `t_s`, or any two videos. See Talk videos below |
 | `time_trackers.py` | Laptop-CPU speed of the 15 tuned tracker setups + the flying `botsort_tuned.yaml` (tracker update only, on the flight detector's boxes cached once per frame; settings read from `results/followme_tracker_tuning_all_summary.json`). See Tracker speed below |
-| `test_*.py` | 214 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), the tracker speed timer (`test_time_trackers.py`), and the side-by-side videos on tiny synthetic clips (`test_side_by_side.py`) |
+| `bytetrack_tuned.yaml`, `botsort_reid_cmc_tuned.yaml` | Comparison trackers (11-27, not decided): the fastest and slowest laptop-bench setups at their tuned settings, built as `time_trackers.py` builds them; fly only with `--off-decisions --label` (see Flight vs bench) |
+| `flight_vs_bench.py` | Flight timings (`detector.csv`, follow.csv) vs the laptop bench JSON per tracker config, with a linear fit and predictions for every bench row. See Flight vs bench |
+| `flight_plan_1128.txt` | Print copy of the 11-28 comparison flight plan |
+| `test_*.py` | 235 tests: logic on made-up inputs, full runs against the fake drone, the cutoffs recomputed from the sweeps' curves, `.pt` and INT8 (`test_cutoffs_evidence.py`), the re-lock cutoff checked against its evidence (`test_reid_evidence.py`), replay running the flight program's settings (`test_replay.py`), the tuned tracker settings checked against their record and the sweep, and the detector precision read from the export (`test_live_follow.py`), the flight log + its annotations (`test_flight_log.py`), the tracker speed timer (`test_time_trackers.py`), the side-by-side videos on tiny synthetic clips (`test_side_by_side.py`), and the flight-vs-bench work: per-cycle timing, the comparison trackers and their construction, `flight_vs_bench.py` on synthetic flights, the flight plan's commands (`test_flight_vs_bench.py`) |
 
 ## Folders
 
@@ -64,7 +67,7 @@ Check: `python -c "import lockon; e, n = lockon.make_embedder('osnet'); print(n)
 ```bash
 cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
 source ~/jarvis-follow/bin/activate
-python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py   # expect 214 passed
+python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py   # expect 235 passed
 python live_follow.py                                                     # laptop on the drone's Wi-Fi (INT8 + OSNet by default)
 python live_follow.py --fake --fake-detector                              # no drone: simulated drone + person (still needs OSNet)
 python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads   # backfill the flight log, copy it where Windows sees it
@@ -281,7 +284,102 @@ python time_trackers.py --video ~/follow_logs/<run>/video_000.mp4 --frames 600 -
   setup is built. A setup that cannot be built or fails mid-run prints its error in its row; the others still run.
   Expect roughly 5-10 minutes for 600 frames (most of it the six re-ID setups; more boxes per frame = slower).
 
+## Flight vs bench (Michael 11-27)
+
+Goal: learn how `time_trackers.py`'s laptop bench (tracker.update only, cached boxes) translates into flight speed, so a
+later bench run predicts flight FPS. Fly three trackers under the same conditions, then fit flight ms against bench ms.
+
+What every flight logs since 11-27 (`live_follow.py`): `detector.csv` in the run folder, one row per detector cycle:
+`box_age_ms` (frame arrival -> boxes published), `cycle_ms` (result to result; 1000 / it = detector FPS), `busy_ms`
+(model.track + lock-on re-ID), `idle_ms`, `queue_ms`, `det_ms` (model.track), Ultralytics' `pre_ms` / `infer_ms` /
+`post_ms`, `track_ms` (tracker.update alone: the call the bench times, via a pass-through timer on the tracker
+Ultralytics built; empty on cycle 1), `embed_ms`, `n_boxes`. follow.csv adds `det_n` / `track_ms` (which cycle each frame
+row used); loop FPS = follow.csv rows per second. drone.json adds `tracker.bench_setup` (its bench row),
+`tracker_runtime` (what Ultralytics built: tracker class, re-ID encoder and its device), `label` and `comparison`. The
+flight log gains `comparison` and `timing` columns. Before 11-27 there was only follow.csv's per-frame `det_ms` (the last
+model.track time, repeated until the next result) and `det_age_ms`: no cycle count, no tracker time.
+
+Comparison trackers (not decided; each = the installed Ultralytics stock yaml + the grid switches + that row's
+`chosen.settings_changed` from `results/followme_tracker_tuning_all_summary.json`, exactly `time_trackers.py`'s
+construction; `live_follow.resolve_tracker` stops if a file differs):
+
+| file | bench row | laptop bench (11-27, 7735HS) |
+|---|---|---|
+| `bytetrack_tuned.yaml` | `bytetrack` | 0.44 ms (fastest) |
+| `botsort_tuned.yaml` (what flies) | `BoT-SORT + CMC (flies)` | 6.22 ms |
+| `botsort_reid_cmc_tuned.yaml` | `botsort\|reid+\|gmc+` | 25.02 ms (slowest) |
+
+Not TrackTrack + re-ID + CMC (22.36 ms): inside `model.track` TrackTrack also runs a second, looser NMS on every frame
+(track-aware initialization), which the bench's `tracker.update` call does not include, so its flight time would not be
+comparable with its bench number; BoT-SORT + re-ID + CMC is the slower row anyway. Flying a comparison tracker needs
+`--off-decisions` and `--label` naming the file (else STOP); `--label` must name every deviating value, as in replay. The
+re-ID tracker needs `weights/yolo26n-cls.pt` on disk (STOP otherwise: no internet on the drone's Wi-Fi).
+
+### Flight plan 11-28 (print copy: `flight_plan_1128.txt`)
+
+- Same drone, same spot in the front yard, same take-off point, ~3 m up, gimbal level-ish, the same slow walking loop.
+  Each config: take off, click yourself, M (FOLLOW), walk 3-5 min, land. Only airborne cycles count.
+- Laptop: the same power state for all three flights AND the bench run afterwards (plugged in, same Windows power mode),
+  nothing else running. Laptop power changes CPU speed more than anything here.
+- Battery: one ANAFI battery may cover all three, but FOLLOW is refused under 25 %; swap if it reads under 40 % before
+  the next flight. The drone's battery does not change laptop timings.
+- Re-ID flight: more CPU load, so older boxes and later reactions. Default `--max-speed` 20; if the view stutters or
+  `STALE -> HOVER` shows, SPACE (hover) and L (land). Detections older than 0.6 s make it hover by itself.
+
+Tonight at home (internet; the fake runs use the real detector and trackers on the fake video, no drone):
+
+```bash
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+git pull
+python -c "from ultralytics import YOLO; YOLO('weights/yolo26n-cls.pt')"
+python live_follow.py --fake --tracker bytetrack_tuned.yaml --off-decisions --label "comparison bytetrack_tuned.yaml" --seconds 20
+python live_follow.py --fake --tracker botsort_reid_cmc_tuned.yaml --off-decisions --label "comparison botsort_reid_cmc_tuned.yaml" --seconds 20
+```
+
+In the yard (laptop on the drone's Wi-Fi), one run per config:
+
+```bash
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+python live_follow.py --label "comparison botsort_tuned.yaml"
+python live_follow.py --tracker bytetrack_tuned.yaml --off-decisions --label "comparison bytetrack_tuned.yaml"
+python live_follow.py --tracker botsort_reid_cmc_tuned.yaml --off-decisions --label "comparison botsort_reid_cmc_tuned.yaml"
+```
+
+Back home, same laptop power state: bench all 16 setups on the newest flight's footage (skipping the first 20 s), then
+compare:
+
+```bash
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+python time_trackers.py --start 600
+python flight_vs_bench.py --since 20261128 --labelled-only --save ~/follow_logs/flight_vs_bench_1128.json
+python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads
+```
+
+`flight_vs_bench.py` (stdlib only) reads each run's drone.json / detector.csv / follow.csv and the bench JSON (`--bench`,
+else the newest `~/follow_logs/tracker_speed_*.json`, else `results/followme_tracker_speed.json`), matches each flight to
+its bench row by `tracker.bench_setup` (and checks the flight's tracker settings contain the row's), skips the first 20
+cycles of each run (the bench's warm-up) and non-airborne cycles, and prints per config: bench ms, flight track ms (mean,
+p95), cycle ms and detector FPS, busy ms, inference ms, box age, loop FPS, boxes per cycle. With two or more configs it
+fits `y = a + b x bench_ms` for track ms, cycle ms and loop FPS, prints the residuals (two points: exact, nothing checks
+it; three: a rough fit), and applies the lines to every bench row, starring extrapolations. Skipped runs are listed with
+the reason (no detector.csv, fake, no bench row, settings differ).
+
 ## Change log
+
+- **2026-11-27 (Michael): flight vs bench.** Per-cycle timing in every flight (`detector.csv`; follow.csv `det_n`,
+  `track_ms`; drone.json `tracker.bench_setup`, `tracker_runtime`, `label`, `comparison`), timing-only: the tracker timer
+  passes every call through unchanged. Two comparison trackers, `bytetrack_tuned.yaml` and `botsort_reid_cmc_tuned.yaml`,
+  checked against their construction from the tuning summary; flying one needs `--off-decisions` + `--label` (now a
+  live_follow flag too, same rule as replay's). The re-ID one stops if `yolo26n-cls.pt` is not on disk. Flight log:
+  `comparison` and `timing` columns (cache schema 4). New `flight_vs_bench.py` and the flight plan above.
+  `test_flight_vs_bench.py`: 21 new tests (yamls = construction, built trackers = the bench's, edited yaml / missing
+  encoder stop, label rules end to end, the timer passes calls through and wraps once, one record per cycle, the three
+  trackers through real `model.track`, detector.csv / follow.csv / drone.json of a fake run, flight-log columns, the fit
+  recovering a known relation with warm-up / airborne / settings / fake / label filters, 2- and 1-config cases,
+  bench-file choice, the plan's commands parse); `test_replay.py` / `test_flight_log.py` adjusted: 235 in all.
 
 - **2026-11-27 (Michael): talk videos.** New `side_by_side.py` (see Talk videos): two run folders aligned by wall clock
   (folder-name start, refined by follow.csv mtime when within 2 s), two replays by `t_s`, or two videos, with label bars;

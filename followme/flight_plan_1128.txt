@@ -1,0 +1,50 @@
+FLIGHT PLAN 11-28: three trackers, laptop bench vs real flight
+================================================================
+
+Goal: fly the fastest and slowest bench trackers and the current one under the
+same conditions, then fit flight timing against the laptop bench.
+
+  1. botsort_tuned.yaml            what flies now      bench  6.22 ms
+  2. bytetrack_tuned.yaml          fastest             bench  0.44 ms
+  3. botsort_reid_cmc_tuned.yaml   slowest (re-ID)     bench 25.02 ms
+
+SAME CONDITIONS
+  [ ] Same drone, same spot in the front yard, same take-off point, ~3 m up
+  [ ] Same slow walking loop each time, 3-5 min in FOLLOW per config
+  [ ] Laptop plugged in (or not) the SAME way for all 3 flights AND the bench
+      run at home; same Windows power mode; nothing else running
+  [ ] Battery: FOLLOW is refused under 25 %. Swap if under 40 % before the next
+      flight. (The drone's battery does not change laptop timing.)
+
+EACH FLIGHT
+  T take off -> click yourself -> M (FOLLOW) -> walk the loop 3-5 min
+  -> L land -> Q quit
+
+RE-ID FLIGHT (no. 3): heavier CPU load, boxes older, follow reacts later.
+  Stutter or "STALE -> HOVER" on screen: SPACE (hover), then L (land).
+  Detections older than 0.6 s make the drone hover by itself.
+
+TONIGHT AT HOME (needs internet)
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+git pull
+python -c "from ultralytics import YOLO; YOLO('weights/yolo26n-cls.pt')"
+python live_follow.py --fake --tracker bytetrack_tuned.yaml --off-decisions --label "comparison bytetrack_tuned.yaml" --seconds 20
+python live_follow.py --fake --tracker botsort_reid_cmc_tuned.yaml --off-decisions --label "comparison botsort_reid_cmc_tuned.yaml" --seconds 20
+
+IN THE YARD (laptop on the drone's Wi-Fi)
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+python live_follow.py --label "comparison botsort_tuned.yaml"
+python live_follow.py --tracker bytetrack_tuned.yaml --off-decisions --label "comparison bytetrack_tuned.yaml"
+python live_follow.py --tracker botsort_reid_cmc_tuned.yaml --off-decisions --label "comparison botsort_reid_cmc_tuned.yaml"
+
+BACK HOME (same laptop power state as in the yard)
+cd /mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean/followme
+source ~/jarvis-follow/bin/activate
+python time_trackers.py --start 600
+python flight_vs_bench.py --since 20261128 --labelled-only --save ~/follow_logs/flight_vs_bench_1128.json
+python3 flight_log.py --root ~/follow_logs --copy-to /mnt/c/Users/mahed/Downloads
+
+Three points = a rough fit (one degree of freedom). The report prints the
+residuals; read them before trusting a prediction.

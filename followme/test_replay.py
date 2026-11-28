@@ -25,7 +25,8 @@ import replay  # noqa: E402
 from test_live_follow import make_ov_export  # noqa: E402  (an INT8-like OpenVINO export folder, 11-27)
 
 # flags only replay has: where to read/write and how to watch, none of which changes what the program decides
-REPLAY_ONLY = {"source", "lock_id", "max_frames", "window", "label"}
+# (--label is shared since 11-27: live_follow's comparison flights use it too, same default, same label_problem rule)
+REPLAY_ONLY = {"source", "lock_id", "max_frames", "window"}
 SAME_FLAG_OTHER_DEFAULT = {"out"}      # both write output somewhere: live ~/follow_logs, replay <source>/replay
 
 

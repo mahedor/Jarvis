@@ -215,8 +215,8 @@ Michael 11-27) is merged on every regenerate: drone corrections ("droneB (correc
 and chat-history notes for what a run did not record (model, cutoffs, tracker, re-ID, fake test vs real flight, who was
 followed), always marked "from chat history:" and citing the chat time + seq or a commit; never overwrites a logged
 value; a key matching no run folder is ignored with a warning. Michael's WSL clone is
-`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 214 tests are run from inside it
-(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py`) and are **not** part of the
+`/mnt/c/Users/mahed/OneDrive/Documents/Jarvis/jarvis-lean` (branch `followme-folder`). The folder's 235 tests are run from inside it
+(`python -m pytest -q test_live_follow.py test_lockon.py test_geo.py test_lookhere.py test_drone_settings.py test_cutoffs_evidence.py test_reid_evidence.py test_replay.py test_flight_log.py test_time_trackers.py test_side_by_side.py test_flight_vs_bench.py`) and are **not** part of the
 `tests/` suite counted above. `run_lint.sh` does not lint it.
 
 `time_trackers.py` times the 15 tuned tracker setups on the laptop CPU (Michael 11-27: talk speed numbers come only
@@ -257,6 +257,20 @@ against the record and the installed ultralytics' keys, and every number in the 
 calibration, cross-checked with the FakeQuantize layers and NNCF parameters in its `.xml`; "not recorded" or "conflict"
 otherwise, never guessed), printed at startup (`detector: INT8 OpenVINO, static 384x640`), checked as the
 `detector_precision` decision, saved in `drone.json` as `detector`, and shown in the flight log's `precision` column.
+
+Flight vs bench (11-27, for the 11-28 comparison flights): every flight writes `detector.csv` (one row per detector
+cycle: box age, cycle / busy / idle ms, model.track ms with Ultralytics' pre / inference / post split, `track_ms` =
+tracker.update alone via a pass-through timer on the tracker model.track built, embed ms, boxes); follow.csv gains
+`det_n` / `track_ms`, drone.json `tracker.bench_setup` (its row in time_trackers' bench JSON), `tracker_runtime`,
+`label`, `comparison`; the flight log gains `comparison` and `timing` columns (cache schema 4). Comparison trackers
+`bytetrack_tuned.yaml` and `botsort_reid_cmc_tuned.yaml` (`live_follow.COMPARISON_TRACKERS`) = installed stock yaml +
+grid switches + the tuning summary's chosen settings, exactly time_trackers' construction (`resolve_tracker` stops
+on a difference, and stops if the re-ID one's `yolo26n-cls.pt` is not on disk); flying one needs `--off-decisions`
+and `--label` naming it (`--label` is now a live_follow flag too, replay's `label_problem` rule). TrackTrack was
+left out on purpose: model.track adds a loose-NMS pass the bench does not time. `flight_vs_bench.py` (stdlib only)
+matches flights to bench rows, pools per config (after 20 warm-up cycles, airborne only when the run was airborne)
+and fits flight ms / loop FPS = a + b x bench ms with residuals (2 points exact, 3 rough). Plan + commands: README
+"Flight vs bench" and `followme/flight_plan_1128.txt`. Nothing flown with it yet.
 
 `replay.py` (replay a flight or video without flying) has no settings of its own (Michael 11-26: replay always
 matches what flies unless he says otherwise): its flags, detector pass, `FollowLogic` and decisions check all come

@@ -1,0 +1,33 @@
+# followme COMPARISON tracker (not the decided one): Ultralytics BoT-SORT + tracker re-ID + camera-motion compensation
+# at its tuned settings (11-27 Colab tuning). The slowest setup on the laptop bench.
+#
+# Only for the speed comparison flights (Michael 11-28: how laptop bench timings translate to real flights). Flying it
+# is a deliberate deviation from flight_decisions.json (tracker botsort_tuned.yaml): live_follow.py needs
+# --off-decisions AND a --label that names this file, and records both in drone.json and the flight log.
+#
+# Built exactly the way time_trackers.py builds its "botsort|reid+|gmc+" row: Ultralytics' own cfg/trackers/botsort.yaml
+# (AGPL-3.0, https://ultralytics.com/license, copied from the installed ultralytics 8.4.216) + the grid's switches
+# (with_reid True, gmc_method sparseOptFlow, re-ID model yolo26n-cls.pt on box crops) + that row's
+# chosen.settings_changed from results/followme_tracker_tuning_all_summary.json (val HOTA 0.2768).
+# live_follow.resolve_tracker STOPS if this file differs from stock + switches + the summary's values.
+#
+# The re-ID encoder: `model: yolo26n-cls.pt` is looked up in followme/weights/, the current folder and Ultralytics'
+# weights_dir (time_trackers.reid_weights). live_follow STOPS before flying if it is not on disk: the laptop is on the
+# drone's Wi-Fi in the field, so Ultralytics could not download it. It runs on the detector's device (CPU here).
+
+tracker_type: botsort # (str) Tracker backend: botsort
+track_high_thresh: 0.35 # TUNED 11-27 (stock 0.25). (float) First-stage match threshold; raise for cleaner tracks, lower to keep more
+track_low_thresh: 0.1 # (float) Second-stage threshold for low-score matches; balances recovery vs drift
+new_track_thresh: 0.35 # TUNED 11-27 (stock 0.25). (float) Start a new track if no match ≥ this; higher reduces false tracks
+track_buffer: 60 # TUNED 11-27 (stock 30). (int) Frames to keep lost tracks alive; higher handles occlusion, increases ID switches risk
+match_thresh: 0.8 # (float) Association similarity threshold (IoU/cost); tune with detector quality
+fuse_score: True # (bool) Fuse detection score with motion/IoU for matching; stabilizes weak detections
+
+# BoT-SORT specifics
+gmc_method: sparseOptFlow # GRID SWITCH gmc+ (stock sparseOptFlow too). (str) Global motion compensation: sparseOptFlow|orb|sift|ecc|none
+
+# ReID model related thresh
+proximity_thresh: 0.4 # TUNED 11-27 (stock 0.5). (float) Min IoU to consider tracks proximate for ReID; higher is stricter
+appearance_thresh: 0.8 # (float) Min appearance similarity for ReID; raise to avoid identity swaps
+with_reid: True # GRID SWITCH reid+ (stock False). (bool) Enable ReID model use; needs extra model and compute
+model: yolo26n-cls.pt # GRID SWITCH reid+ (stock auto). (str) ReID model name/path; crop encoder, as the grid and time_trackers.py

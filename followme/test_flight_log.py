@@ -415,7 +415,8 @@ def test_precision_column_from_drone_json(tmp_path):
     assert "detector=" not in a["other settings"] and "detector_precision" not in a["other settings"]
     md = (tmp_path / fl.MD_NAME).read_text()
     assert "precision" in fl.MD_COLUMNS and "| INT8 OpenVINO, static 384x640 |" in md
-    assert fl.FIELD_HISTORY[-1][0] == "2026-11-27" and "detector" in fl.FIELD_HISTORY[-1][2]
+    h = next(x for x in fl.FIELD_HISTORY if x[1] == "58c9c21")
+    assert h[0] == "2026-11-27" and "detector" in h[2]
 
 
 def test_precision_column_on_a_run_live_follow_wrote(tmp_path):
