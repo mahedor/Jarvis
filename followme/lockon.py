@@ -173,6 +173,15 @@ class TargetLock:
             return self._people(tracks)
         return [t for t in tracks if t[5] not in self.person_ids]
 
+    def target_track(self, tracks):
+        """The track holding target_id, but only if it is still the target's kind (person for a person target).
+        The tracker matches boxes by overlap and ignores class, so a lost person's ID can move onto a car he stood
+        next to (10-29 replay, ID 43, 2:02-2:19). update() already treats that as lost; anything else that looks
+        the target up by ID (drawing, sharing its spot with the other drone) must use this, not t[4] == target_id."""
+        if self.target_id is None:
+            return None
+        return next((t for t in self._same_kind(tracks) if t[4] == self.target_id), None)
+
     # -- which crops to embed this frame (cheap: usually 0 or 1) -----------
     def wants_embedding(self, tracks, now, W=None, H=None):
         if not self.target_is_person:

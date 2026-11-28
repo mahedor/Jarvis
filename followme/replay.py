@@ -152,13 +152,14 @@ DRAW_CONF = 0.35            # other people / vehicles are drawn only above this 
 METHOD_TEXT = {"angle": "camera angle", "box": "box size", "box, feet cut off": "box size, feet cut off"}
 
 
-def draw(img, tracks, names, target_id, c, fps, tel, frame_i, total, picked_by, paused=False):
+def draw(img, tracks, names, target_id, c, fps, tel, frame_i, total, picked_by, paused=False, target_track=False):
     """tracks: (x1,y1,x2,y2,id,cls,conf). Decided 2026-10-25: target + confident people + vehicles; status, distance
-    and method, commands, telemetry."""
+    and method, commands, telemetry. target_track: the lock's TargetLock.target_track(tracks) (None = no valid target
+    box this frame, e.g. its ID now sits on a car); left out = old rule, any box with target_id is the target."""
     H, W = img.shape[:2]
     for x1, y1, x2, y2, tid, cls, conf in tracks:
         nm = str(names.get(cls, cls)).lower()
-        is_t = tid == target_id
+        is_t = tid == target_id if target_track is False else (target_track is not None and tid == target_track[4])
         if not is_t and (conf < DRAW_CONF or nm not in PERSON_NAMES | VEHICLE_NAMES):
             continue
         col = (0, 255, 0) if is_t else (0, 165, 255) if nm in PERSON_NAMES else (255, 140, 0)

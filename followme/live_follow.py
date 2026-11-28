@@ -844,7 +844,8 @@ def draw_follow(img, tracks, names, logic, cmd, info, mode, fps, tel, n, total=0
     H = img.shape[0]
     c = dict(yaw=cmd["yaw"], pitch=cmd["pitch"], gimbal_delta=0.0, dist=info.get("dist") or 0.0,
              method=info.get("method") if mode == "FOLLOW" and info["state"] == "FOLLOWING" else "searching")
-    vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, fps, tel, n, total, logic.picked_by)
+    vis = replay.draw(img.copy(), tracks, names, logic.target_id, c, fps, tel, n, total, logic.picked_by,
+                      target_track=logic.lock.target_track(tracks))
     col = (0, 255, 0) if mode == "FOLLOW" and info["state"] == "FOLLOWING" else (0, 200, 255) if mode == "FOLLOW" else (200, 200, 200)
     cv2.putText(vis, f"{mode}: {info['state']}   (M follow on/off, N new lock, SPACE hover, L land)", (10, H - 45), 0, 0.8, col, 2)
     return vis
@@ -1034,9 +1035,9 @@ def main():
                         logic.pick(hit[4], tracks)
                 click["pt"] = None
             if share_target and logic.target_id is not None and now - last_share_t > 0.5:
-                seen = [t for t in tracks if t[4] == logic.target_id]
-                if seen and seen[0][3] < H - 3:                      # feet visible: the box bottom is on the ground
-                    g = lookhere.click_to_gps((seen[0][0] + seen[0][2]) / 2, seen[0][3], W, H, tel, calib)
+                seen = logic.lock.target_track(tracks)               # not a car that inherited the target's ID
+                if seen is not None and seen[3] < H - 3:             # feet visible: the box bottom is on the ground
+                    g = lookhere.click_to_gps((seen[0] + seen[2]) / 2, seen[3], W, H, tel, calib)
                     if g is not None:
                         link.publish(*g); last_share_t = now
             if link is not None:

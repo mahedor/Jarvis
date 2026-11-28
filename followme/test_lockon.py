@@ -184,3 +184,45 @@ def test_no_silent_reid_fallback():
         lockon.make_embedder("auto")
     e, note = lockon.make_embedder("hist")
     assert "NOT for flying" in note
+
+
+def test_target_id_moved_onto_a_car_is_lost_and_never_followed():
+    """10-29 replay 2:02-2:19: the tracker (class-blind IoU matching) gave lost person ID 43 to the car he stood by.
+    A person target whose ID sits on a car is LOST (no FOLLOWING, no gallery sample), target_track() says None,
+    and re-acquisition still only looks at people."""
+    lock = lockon.TargetLock(P)
+    lock.pick(1, tracks=[trk(1)])
+    t = build_gallery(lock, tid=1, vec=A)
+    car = trk(1, x=105, w=120, h=80, cls=2)                    # same ID 1, now a car box
+    for k in range(5):
+        want = lock.wants_embedding([car], t + k)
+        assert want == []                                     # never embeds the car
+        tgt, ev = lock.update([car], {}, t + k)
+        assert tgt is None and ev == "lost" and lock.target_id == 1
+        assert lock.target_track([car]) is None
+    him = trk(9, x=400)                                       # he comes back as a person under a new ID
+    want = lock.wants_embedding([car, him], t + 6)
+    assert want == [9]
+    tgt, ev = lock.update([car, him], {9: A}, t + 6)
+    assert ev == "reacquired_reid" and tgt[4] == 9 and lock.target_track([car, him])[4] == 9
+
+
+def test_target_track_respects_vehicle_target_kind():
+    lock = lockon.TargetLock(P)
+    lock.pick(5, tracks=[trk(5, cls=2)])                       # a clicked car
+    assert lock.target_track([trk(5, cls=2)])[4] == 5
+    assert lock.target_track([trk(5, cls=0)]) is None          # its ID moved onto a person: not the target
+
+
+def test_draw_does_not_mark_a_car_holding_the_target_id_as_target():
+    import replay
+    img = np.zeros((400, 600, 3), np.uint8)
+    car = (100.0, 100.0, 300.0, 200.0, 43, 2, 0.9)
+    c = dict(yaw=0, pitch=0, gimbal_delta=0.0, dist=0.0, method="searching")
+    names = {0: "person", 2: "car"}
+
+    def green(im):                                                # left edge of the box drawn in target green?
+        return bool((im[150, 99:102] == (0, 255, 0)).all(axis=-1).any())
+    assert green(replay.draw(img.copy(), [car], names, 43, c, 0, {}, 0, 0, "you"))   # old rule: drawn as TARGET
+    assert not green(replay.draw(img.copy(), [car], names, 43, c, 0, {}, 0, 0, "you", target_track=None))
+    assert green(replay.draw(img.copy(), [car], names, 43, c, 0, {}, 0, 0, "you", target_track=car))
